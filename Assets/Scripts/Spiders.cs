@@ -18,12 +18,14 @@ public class Spiders : MonoBehaviour
     // Squares per second when chasing and when wandering. The player's own walking speed is 3.
     const float ChaseSpeed = 2.4f, WanderSpeed = 0.9f;
     // It bites when it is this close, and one bite takes this long.
-    const float BiteDistance = 0.85f, BiteSeconds = 0.5f;
+    const float BiteDistance = 0.85f * Size, BiteSeconds = 0.5f;
     // Seen from above, it bites when its middle is this far from the edge of the player, which puts its fangs
     // just short of them. The players picture starts this far below the spot they stand on.
-    const float TopBiteGap = 0.4f, FeetBelow = 0.2f;
+    const float TopBiteGap = 0.4f * Size, FeetBelow = 0.2f;
     // How far a spider walks in one full cycle of its legs.
-    const float StrideDistance = 0.55f;
+    const float StrideDistance = 0.55f * Size;
+    // How big a spider is drawn, against the size its pictures are painted at (about a block across, legs and all).
+    const float Size = 1.3f;
 
     // The pictures are painted at the same fine scale as the snow picture.
     const int Pixels = 128;
@@ -236,6 +238,7 @@ public class Spiders : MonoBehaviour
             go.transform.SetParent(transform, false);
             spider.Renderer = go.AddComponent<SpriteRenderer>();
             spider.Renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+            go.transform.localScale = new Vector3(Size, Size, 1f);
         }
         SpriteRenderer renderer = spider.Renderer;
         Vector2Int cell = Vector2Int.FloorToInt(at);

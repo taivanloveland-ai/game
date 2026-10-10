@@ -74,7 +74,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - His picks:
   - **Behaviour:** his own answer: "chases you also add biting animations." It wanders until you come within 7 squares, then chases you (giving up past 11), and bites over and over when it reaches you. A bite does nothing yet because there is no health.
   - **Where:** on the ice. They stay on the ice and will not follow you onto snow.
-  - **Size:** about a block wide, legs and all.
+  - **Size:** about a block wide, legs and all. Later on 2026-10-10 he asked to "make the spider a bit bigger": it is now drawn 1.3 times that size, about 1.3 blocks across (1.3 was Claude's pick for "a bit").
 - As built: about 400 to 450 on the planet (0.12% of ice squares; Claude's number), none within 14 squares of the start. They move at 2.4 squares a second chasing and 0.9 wandering (the player's normal speed is 3). In td they are seen from above and turn to face where they are going; in sc they are seen from the side and only the ones in the row or column on screen show. You can walk through them for now (Claude's choice). 8 walking pictures and 5 biting pictures for each view.
 - **Spider hidden behind the player** (he sent a screenshot on 2026-10-10: "fix this problem"). In td a spider coming from the north walked up to the spot under the player's feet, so the player's picture, which stands up the screen from there, covered half of it. Now in td the spider goes for the edge of the player's picture and stops with its fangs just short of it, on whichever side it comes from, and it backs away if the player walks into it. (Claude read the screenshot this way; he did not say what the problem was.)
 
