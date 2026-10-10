@@ -70,7 +70,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Ice axe (asked 2026-10-10)
 
-- He asked: "ice axe can be made out of 15 ice shards and 10 ferns it looks kinda like thors axe". It is a second recipe at the ship's workbench, beside the pickaxe: 10 ferns and 15 ice shards. Its picture is shaped after Thor's axe: a long handle with a heavy ice head that is a broad curved blade on one side and a blunt hammer on the other.
+- He asked: "ice axe can be made out of 15 ice shards and 10 ferns it looks kinda like thors axe". It is a second recipe at the ship's workbench, beside the pickaxe. He then corrected the amounts ("for the axe fiddleheadx15 and shardx10"): it takes **15 ferns and 10 ice shards**. Its picture is shaped after Thor's axe: a long handle with a heavy ice head that is a broad curved blade on one side and a blunt hammer on the other.
 - His picks:
   - **Use:** his own answer: "damages spiders and you are now able to cut down the thornam bushes." With the axe equipped, left click a spider to hit it. Thornam bushes can now only be collected with the axe equipped; without it you are told you need one.
   - **Fighting:** 5 hits to kill. Spiders have 50 health and the axe does 10. It reaches 2.2 blocks, swings about twice a second if the button is held, flashes the spider red and knocks it back half a block (reach, pace and knock-back are Claude's numbers).
