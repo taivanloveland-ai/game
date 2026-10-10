@@ -142,7 +142,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Temporary settings to undo later
 
-- None at the moment. On 2026-10-10 he asked "undo temporary things": the player no longer starts with a pickaxe or with 999 of each block, and walking speed is back to 3. The switches are still there for testing (`startWithPickaxe` and `startWithBlocks` on the Planet One object, in `PlanetOne.cs`), both off.
+- None at the moment. On 2026-10-10 he asked "undo temporary things": the player no longer starts with a pickaxe or with 999 of each block, and walking speed is back to 3. The switches are still there for testing (`startWithPickaxe` and `startWithBlocks` in `PlanetOne.cs`), both off. He had to ask a second time: the open Unity editor had kept the old test values on the Planet One object even though the code said off. The two switches are no longer saved in the scene, so the code is always what counts.
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
