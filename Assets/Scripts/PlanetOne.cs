@@ -983,6 +983,12 @@ public class PlanetOne : MonoBehaviour
         return kind[WrapX(x), WrapY(y)] == Snow;
     }
 
+    // True where the land was made as ice, whatever has been dug or built there since.
+    public bool IsIceAt(int x, int y)
+    {
+        return kind[WrapX(x), WrapY(y)] == Ice;
+    }
+
     public bool IsIce(Vector2 position)
     {
         return SurfaceMaterial(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y)) == Ice;

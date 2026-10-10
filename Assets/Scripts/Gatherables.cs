@@ -13,6 +13,16 @@ public class Gatherables : MonoBehaviour
     const double ShardDensity = 0.009;
     // Across the whole planet there are this many ice shards for every this many ferns.
     const int FernsPerSet = 8, ShardsPerSet = 5;
+    // There is one thornam bush for every this many ferns. Bushes only grow on snow that is right next to ice.
+    const int FernsPerBush = 13;
+    // A thornam bush stands as tall as the player. These say where its trunk meets the ground in Taivan's picture,
+    // as shares of the picture's width (from the left) and height (from the bottom), and how much of the
+    // picture's height the bush itself takes up.
+    const float BushHeight = PlayerController.Height;
+    const float BushFootAcross = 0.492f, BushFootUp = 0.1875f, BushDrawnShare = 0.75f;
+    // Loose thorns, vines and sticks are painted at the fine scale, this many pixels a side, and are this big in blocks.
+    const int LoosePixels = 128;
+    const float LooseSize = 0.8f;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
     const float FernFootAcross = 0.472f;
     // How far up the picture the ground line is, from the bottom edge, as a share of its height.
@@ -33,6 +43,11 @@ public class Gatherables : MonoBehaviour
 
     static readonly Color32 Clear = new Color32(0, 0, 0, 0);
     static readonly Color32 FernDark = new Color32(22, 104, 112, 255), FernLight = new Color32(72, 188, 170, 255);
+    // The colours of the thornam bush in Taivan's picture, used for the things it drops: its teal vines, its olive
+    // thorns and its brown trunk.
+    static readonly Color32 BushLight = new Color32(48, 192, 168, 255), BushDark = new Color32(48, 124, 122, 255);
+    static readonly Color32 ThornLight = new Color32(158, 180, 66, 255), ThornDark = new Color32(112, 134, 44, 255);
+    static readonly Color32 StickLight = new Color32(134, 102, 64, 255), BushTrunk = new Color32(96, 72, 48, 255);
     // The plant, one text row per pixel row from the top: a bluish green fiddlehead fern, a stalk whose tip is
     // still curled into a spiral. D is the darker outer side, L the lighter inner side.
     static readonly string[] FernPicture =
@@ -85,11 +100,17 @@ public class Gatherables : MonoBehaviour
         // One sprite per ground height: on raised ground the picture is drawn higher above the same spot.
         public Sprite[] Sprites;
         public float Width, Height;
+        // What comes loose when it is collected, and how many of each. Left empty, it is one of the item above.
+        public Item[] Drops;
+        public int[] DropCounts;
     }
 
 
     public Item PlantItem { get; private set; }
     public Item ShardItem { get; private set; }
+    public Item ThornItem { get; private set; }
+    public Item VineItem { get; private set; }
+    public Item StickItem { get; private set; }
     // True while the player is walking toward something they clicked.
     public bool Walking => target.HasValue;
 
@@ -175,7 +196,8 @@ public class Gatherables : MonoBehaviour
                 else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) things[new Vector2Int(x, y)] = shard;
             }
         }
-        KeepRatio(plant, shard, rand);
+        int ferns = KeepRatio(plant, shard, rand);
+        GrowBushes(MakeBush(), ferns / FernsPerBush, rand);
         mining.RowBuilt += BuildSideView;
         planet.BlockMined += OnBlockMined;
         // Ferns and ice shards are in the way: the player walks round them, or jumps onto them.
@@ -183,10 +205,127 @@ public class Gatherables : MonoBehaviour
         ShowNearby();
     }
 
+    // The thornam bush: Taivan's picture of a tangle of teal vines and thorns on a short brown trunk. Collecting one
+    // gives 3 thorns, 3 thornam bush vines and 1 thornam stick.
+    Kind MakeBush()
+    {
+        ThornItem = new Item("Thorn", LooseSprite((x, y) => ThornPixel(x, y)));
+        VineItem = new Item("Thornam bush vine", LooseSprite((x, y) => VinePixel(x, y)));
+        StickItem = new Item("Thornam stick", LooseSprite((x, y) => StickPixel(x, y)));
+
+        // Without the picture, a plain round bush in the same colours stands in for it.
+        Kind bush = MakeKind("Thornam bush", 16, 16, 16 / BushHeight, false, (x, y) =>
+            (x - 7.5f) * (x - 7.5f) + (y - 7f) * (y - 7f) < 46f ? BushLight : y > 9 && x >= 7 && x <= 8 ? BushTrunk : Clear);
+        var picture = Resources.Load<Texture2D>("Art/ThornamBush");
+        if (picture != null)
+        {
+            // The picture is used exactly as drawn, scaled so the bush stands as tall as the player.
+            float pixelsPerUnit = picture.height * BushDrawnShare / BushHeight;
+            float pictureHeight = picture.height / pixelsPerUnit;
+            var whole = new Rect(0, 0, picture.width, picture.height);
+            for (int level = 0; level < bush.Sprites.Length; level++)
+            {
+                // The pivot is where the trunk meets the ground. Dropping it draws the bush higher, for raised ground.
+                var pivot = new Vector2(BushFootAcross, BushFootUp - level * PlanetOne.HeightScale / pictureHeight);
+                bush.Sprites[level] = Sprite.Create(picture, whole, pivot, pixelsPerUnit);
+            }
+            bush.Item = new Item(bush.Item.Name, bush.Sprites[0]);
+            bush.Width = picture.width / pixelsPerUnit;
+            bush.Height = BushHeight;
+        }
+        bush.Drops = new[] { ThornItem, VineItem, StickItem };
+        bush.DropCounts = new[] { 3, 3, 1 };
+        return bush;
+    }
+
+    // Plants a number of thornam bushes, picked at random from the snow squares that are right next to ice.
+    void GrowBushes(Kind bush, int count, System.Random rand)
+    {
+        var shore = new List<Vector2Int>();
+        for (int y = 0; y < planet.height; y++)
+        {
+            for (int x = 0; x < planet.width; x++)
+            {
+                if (!planet.IsSnow(x, y) || things.ContainsKey(new Vector2Int(x, y))) continue;
+                if (Mathf.Abs(x - planet.width / 2) <= 1 && Mathf.Abs(y - (planet.height / 2 - 1)) <= 1) continue;
+                if (planet.IsIceAt(x - 1, y) || planet.IsIceAt(x + 1, y) || planet.IsIceAt(x, y - 1) || planet.IsIceAt(x, y + 1)) shore.Add(new Vector2Int(x, y));
+            }
+        }
+        for (int i = 0; i < count && shore.Count > 0; i++)
+        {
+            int pick = rand.Next(shore.Count);
+            things[shore[pick]] = bush;
+            shore[pick] = shore[shore.Count - 1];
+            shore.RemoveAt(shore.Count - 1);
+        }
+    }
+
+    static Sprite LooseSprite(System.Func<int, int, Color32> paint)
+    {
+        return PlanetOne.PaintSprite(LoosePixels, LoosePixels, new Vector2(0.5f, 0.06f), LoosePixels / LooseSize, true, paint);
+    }
+
+    // A thorn: a curved olive spike, thick at the base and sharp at the tip.
+    static Color32 ThornPixel(int x, int y)
+    {
+        var line = new Vector2[9];
+        for (int i = 0; i < line.Length; i++)
+        {
+            float t = i / (float)(line.Length - 1);
+            // A gentle curve from the base at the bottom left to the tip at the top right.
+            line[i] = Vector2.Lerp(Vector2.Lerp(new Vector2(42f, 106f), new Vector2(50f, 60f), t), Vector2.Lerp(new Vector2(50f, 60f), new Vector2(90f, 24f), t), t);
+        }
+        return StrokePixel(x, y, line, 8f, 0.6f, ThornLight, ThornDark);
+    }
+
+    // A length of thornam vine: a wavy teal strand with three small thorns still on it.
+    static Color32 VinePixel(int x, int y)
+    {
+        var line = new Vector2[13];
+        for (int i = 0; i < line.Length; i++) line[i] = new Vector2(14f + i * 8.3f, 104f - i * 6.5f + 12f * Mathf.Sin(i * 0.9f));
+        for (int i = 3; i <= 9; i += 3)
+        {
+            // Each thorn sticks out sideways from the vine.
+            Vector2 along = (line[i + 1] - line[i - 1]).normalized;
+            Vector2 sideways = new Vector2(along.y, -along.x) * (i == 6 ? -1f : 1f);
+            Color32 thorn = StrokePixel(x, y, new[] { line[i], line[i] + sideways * 16f + along * 4f }, 4f, 0.6f, ThornLight, ThornDark);
+            if (thorn.a > 0) return thorn;
+        }
+        return StrokePixel(x, y, line, 7f, 4.5f, BushLight, BushDark);
+    }
+
+    // A thornam stick: a short brown branch with a small fork.
+    static Color32 StickPixel(int x, int y)
+    {
+        Color32 main = StrokePixel(x, y, new[] { new Vector2(22f, 108f), new Vector2(58f, 70f), new Vector2(106f, 20f) }, 7.5f, 5f, StickLight, BushTrunk);
+        if (main.a > 0) return main;
+        return StrokePixel(x, y, new[] { new Vector2(62f, 66f), new Vector2(84f, 62f), new Vector2(100f, 66f) }, 4.5f, 2.2f, StickLight, BushTrunk);
+    }
+
+    // One pixel of a line drawn through some points, thick at the start and thin at the end: lit down one side and
+    // darker down the other. See-through if the pixel is not on the line.
+    static Color32 StrokePixel(int x, int y, Vector2[] line, float startWidth, float endWidth, Color32 light, Color32 dark)
+    {
+        var p = new Vector2(x + 0.5f, y + 0.5f);
+        float best = float.MaxValue, bestAlong = 0f, bestSide = 0f;
+        for (int i = 0; i < line.Length - 1; i++)
+        {
+            Vector2 step = line[i + 1] - line[i];
+            float t = Mathf.Clamp01(Vector2.Dot(p - line[i], step) / step.sqrMagnitude);
+            float distance = Vector2.Distance(p, line[i] + step * t);
+            if (distance >= best) continue;
+            best = distance;
+            bestAlong = (i + t) / (line.Length - 1);
+            bestSide = step.x * (p.y - line[i].y) - step.y * (p.x - line[i].x);
+        }
+        if (best > Mathf.Lerp(startWidth, endWidth, bestAlong)) return Clear;
+        return bestSide < 0f ? light : dark;
+    }
+
     // Makes the planet hold 5 ice shards for every 8 ferns, the amounts the pickaxe is made from. How many of each
     // a world starts with depends on how much snow and ice it has, so whichever there is too much of is thinned out,
     // picked at random from all over the planet.
-    void KeepRatio(Kind plant, Kind shard, System.Random rand)
+    int KeepRatio(Kind plant, Kind shard, System.Random rand)
     {
         var plants = new List<Vector2Int>();
         var shards = new List<Vector2Int>();
@@ -196,6 +335,7 @@ public class Gatherables : MonoBehaviour
         int sets = Mathf.Min(plants.Count / FernsPerSet, shards.Count / ShardsPerSet);
         Thin(plants, sets * FernsPerSet, rand);
         Thin(shards, sets * ShardsPerSet, rand);
+        return plants.Count;
     }
 
     // Takes things away at random until only so many are left.
@@ -346,7 +486,23 @@ public class Gatherables : MonoBehaviour
             shown.Remove(cell);
         }
         if (mining.Active) BuildSideView();
-        pickups.Drop(kind.Item, Foot(cell));
+        if (kind.Drops == null)
+        {
+            pickups.Drop(kind.Item, Foot(cell));
+        }
+        else
+        {
+            // Several things come loose at once, scattered a little so they can be told apart as they slide over.
+            int dropped = 0;
+            for (int i = 0; i < kind.Drops.Length; i++)
+            {
+                for (int n = 0; n < kind.DropCounts[i]; n++, dropped++)
+                {
+                    float angle = dropped * 2.4f;
+                    pickups.Drop(kind.Drops[i], Foot(cell) + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle) * 0.6f) * (0.12f + 0.05f * dropped));
+                }
+            }
+        }
         target = null;
     }
 
