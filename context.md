@@ -157,6 +157,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **The map is 6 times larger,** and you can **walk up from your ship and make a full loop around the planet, as though it were a sphere.** On the map, if you get to the top and keep going up, you come in at the bottom.
 - As built: the planet is 960 by 960 squares (6 times wider and 6 times taller than before; Claude's reading of "6x larger", not confirmed). It has no rock wall and no edges: it joins up with itself both ways, so going far enough north, south, east or west brings you back to the ship. A full loop is about three and a half minutes of walking.
+- **"1.5x the size of the map"** (asked 2026-10-10): the planet is now 1440 by 1440 squares, one and a half times as wide and as tall as the 960 it was (Claude read "the map" as the planet, like the "6x larger" request, and 1.5x as each side; not confirmed). A full loop is now about 8 minutes of walking at the current speed. There are about 4,800 ferns and 4,200 ice shards on it.
 - To make this work, only the land around the player is drawn (a little more than the screen shows), in both views, and the land's shapes are made so they meet without a seam at the join.
 - The crafting nook, the mini map's ship marker (which points the shortest way home) and the world map all follow the loop. Ferns and shards kept the same rarity per square, so the bigger planet has about 2,100 ferns and 1,600 shards.
 
@@ -210,7 +211,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## Built so far
 
 - Unity project at the repo root, for editor 6000.6.5f1. Open `Assets/Scenes/PlanetOne` and press Play.
-- Planet 1 is a 960 x 960 tile world that is generated when the game starts, differently each time: snow, slippery ice lakes, and raised rock with cliff faces on its south edges. It has no edges; it loops in every direction. Only the land near the player is drawn.
+- Planet 1 is a 1440 x 1440 tile world that is generated when the game starts, differently each time: snow, slippery ice lakes, and raised rock with cliff faces on its south edges. It has no edges; it loops in every direction. Only the land near the player is drawn.
 - A grey crashed ship sits in the middle of the map, with the crafting nook in the middle of its front. The player is an orange rectangle that starts just below it and walks with WASD or the arrow keys. The camera follows the player.
 - Every spot has a height. Ground is level 0 or, in patches (about a fifth of the walkable land), level 1. Rocks and the ship stand 2 above the highest ground next to them. In top-down, higher ground is drawn shifted up the screen with a cliff face on its south side.
 - Top-down jump: Space, 1.5 blocks high, with a shadow on the ground. You need it to get onto level 1; walking off an edge drops you back down.
