@@ -68,6 +68,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **Chunkier black hole, Terraria-style path** (asked later on 2026-10-10): "the black hole needs to be a bit more pixelated and the curve of its path needs to be like terraria." The black hole is now painted at 24 pixels per block with hard-edged pixels (it was 128 and smooth; 24 was Claude's pick for "a bit"). The sun and black hole both now cross the sky the way Terraria's sun and moon do: steadily from just past the left edge to just past the right, along a low, wide parabola that peaks mid-screen. The black hole still tips with its path and is level at midnight.
 
+## Ice axe (asked 2026-10-10)
+
+- He asked: "ice axe can be made out of 15 ice shards and 10 ferns it looks kinda like thors axe". It is a second recipe at the ship's workbench, beside the pickaxe: 10 ferns and 15 ice shards. Its picture is shaped after Thor's axe: a long handle with a heavy ice head that is a broad curved blade on one side and a blunt hammer on the other.
+- His picks:
+  - **Use:** his own answer: "damages spiders and you are now able to cut down the thornam bushes." With the axe equipped, left click a spider to hit it. Thornam bushes can now only be collected with the axe equipped; without it you are told you need one.
+  - **Fighting:** 5 hits to kill. Spiders have 50 health and the axe does 10. It reaches 2.2 blocks, swings about twice a second if the button is held, flashes the spider red and knocks it back half a block (reach, pace and knock-back are Claude's numbers).
+  - **Drops:** his own answer: "silk and legs and fang". A dead spider leaves 1 spider silk, 2 spider legs and 1 spider fang (the counts are Claude's reading). Nothing uses those three items yet; their pictures are Claude's.
+- Dead spiders do not come back.
+
 ## Health, spider damage and reflective ice (asked 2026-10-10)
 
 - He asked: "make ice reflective and make spiders do damage and render correctly. they glitch behind some blocks."

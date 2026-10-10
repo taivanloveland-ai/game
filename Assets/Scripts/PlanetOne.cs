@@ -292,7 +292,10 @@ public class PlanetOne : MonoBehaviour
         // The player wakes up beside the ship, where they started.
         var health = gameObject.AddComponent<Health>();
         health.Setup(this, controller, mining, inventory, pickups, hud, new Vector2(cx + 0.5f, cy - 0.5f));
-        gameObject.AddComponent<Spiders>().Setup(this, controller, mining, dayNight, health);
+        gameObject.AddComponent<Spiders>().Setup(this, controller, mining, dayNight, health, inventory, nook, pickups, cam);
+        // A thornam bush can only be cut down with the ice axe in hand.
+        gatherables.AxeEquipped = () => inventory.Equipped == nook.Axe;
+        gatherables.Say = text => hud.Say(text, 2f);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
     }

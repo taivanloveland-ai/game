@@ -22,6 +22,14 @@ public class Spiders : MonoBehaviour
     const float BiteDistance = 0.85f * Size, BiteSeconds = 0.5f;
     // How much health one bite takes, and how far into the bite it lands. A spider bites every 0.8 seconds.
     const float BiteDamage = 8f, BiteLandsAt = BiteSeconds * 0.55f;
+    // A spider takes 5 hits from the ice axe. The axe reaches this many blocks, swings this often when the button
+    // is held, and knocks a spider back this far.
+    const float MaxHealth = 50f, AxeDamage = 10f, AxeReach = 2.2f, SwingSeconds = 0.45f, KnockBack = 0.5f;
+    // A dead spider leaves 1 silk, this many legs and 1 fang, which slide to the player from this far away.
+    const int LegsDropped = 2;
+    const float DropPullRadius = 3f, DropScale = 0.8f;
+    // How far the pictures of those reach from their middle, in blocks.
+    const float LooseHalf = 0.4f;
     // Seen from above, it bites when its middle is this far from the edge of the player, which puts its fangs
     // just short of them. The players picture starts this far below the spot they stand on.
     const float TopBiteGap = 0.4f * Size, FeetBelow = 0.2f;
@@ -42,6 +50,7 @@ public class Spiders : MonoBehaviour
     static readonly Color BodyMark = new Color(0.68f, 0.86f, 0.95f), LegColor = new Color(0.74f, 0.9f, 0.97f);
     static readonly Color JointColor = new Color(0.88f, 0.97f, 1f), FangColor = new Color(0.5f, 0.74f, 0.9f);
     static readonly Color EyeColor = new Color(0.1f, 0.22f, 0.42f), RimColor = new Color(0.36f, 0.6f, 0.78f);
+    static readonly Color HurtTint = new Color(1f, 0.45f, 0.45f), SilkColor = new Color(0.95f, 0.98f, 1f);
 
     // One round or sausage-shaped part of a spider's picture. Later parts are painted over earlier ones.
     struct Part
@@ -68,6 +77,9 @@ public class Spiders : MonoBehaviour
         public float DecideAt;
         public SpriteRenderer Renderer;
         public SortingGroup Sorting;
+        public float Health = MaxHealth;
+        // It is drawn red until this time, after being hit.
+        public float HurtUntil;
     }
 
     PlanetOne planet;
@@ -75,19 +87,38 @@ public class Spiders : MonoBehaviour
     MiningMode mining;
     DayNight dayNight;
     Health health;
+    Inventory inventory;
+    CraftingNook nook;
+    Pickups pickups;
+    Camera cam;
+    float nextSwingAt;
     readonly List<Spider> spiders = new List<Spider>();
     Sprite[] topWalk, topBite, sideWalk, sideBite;
     System.Random rand;
 
     public int Count => spiders.Count;
+    // What a dead spider leaves behind.
+    public Item SilkItem { get; private set; }
+    public Item LegItem { get; private set; }
+    public Item FangItem { get; private set; }
 
-    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight, Health health)
+    public enum Strike { Missed, TooFar, Hit, Killed }
+
+    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight, Health health, Inventory inventory, CraftingNook nook, Pickups pickups, Camera cam)
     {
         this.planet = planet;
         this.player = player;
         this.mining = mining;
         this.dayNight = dayNight;
         this.health = health;
+        this.inventory = inventory;
+        this.nook = nook;
+        this.pickups = pickups;
+        this.cam = cam;
+
+        SilkItem = new Item("Spider silk", Paint(SilkParts(), LooseHalf, 0.04f, LooseHalf * 2f - 0.04f));
+        LegItem = new Item("Spider leg", Paint(LegParts(), LooseHalf, 0.04f, LooseHalf * 2f - 0.04f));
+        FangItem = new Item("Spider fang", Paint(FangParts(), LooseHalf, 0.04f, LooseHalf * 2f - 0.04f));
 
         topWalk = new Sprite[WalkFrames];
         sideWalk = new Sprite[WalkFrames];
@@ -138,6 +169,14 @@ public class Spiders : MonoBehaviour
     {
         Vector2 playerAt = player.GroundPosition;
         float playerFeet = player.FeetHeight;
+
+        // With the ice axe equipped, a left click swings it at the spider under the mouse. Holding the button keeps
+        // swinging at a steady pace.
+        if (Time.time >= nextSwingAt && inventory.Equipped == nook.Axe && !health.Down && (GameInput.LeftClickPressed() || GameInput.LeftClickHeld()))
+        {
+            if (StrikeAt(cam.ScreenToWorldPoint(GameInput.PointerPosition())) >= Strike.Hit) nextSwingAt = Time.time + SwingSeconds;
+        }
+
         foreach (Spider spider in spiders)
         {
             // The planet repeats, so work with the copy of the spider that is nearest the player.
@@ -216,6 +255,88 @@ public class Spiders : MonoBehaviour
         }
     }
 
+    // One swing of the ice axe at a point on screen (given in world units). It hits the spider drawn there, if the
+    // player is close enough to reach it.
+    public Strike StrikeAt(Vector2 point)
+    {
+        Vector2 playerAt = player.GroundPosition;
+        Spider struck = null;
+        float nearest = 0.6f * Size;
+        foreach (Spider spider in spiders)
+        {
+            if (spider.Renderer == null || !spider.Renderer.enabled) continue;
+            // From the side a spider's picture stands on its feet, so its middle is a little way up.
+            Vector2 drawnAt = (Vector2)spider.Renderer.transform.position + (mining.Active ? new Vector2(0f, 0.2f * Size) : Vector2.zero);
+            float away = Vector2.Distance(point, drawnAt);
+            if (away > nearest) continue;
+            nearest = away;
+            struck = spider;
+        }
+        if (struck == null) return Strike.Missed;
+
+        Vector2 at = planet.Nearest(struck.Position, playerAt);
+        if (Vector2.Distance(at, playerAt) > AxeReach) return Strike.TooFar;
+
+        struck.Health -= AxeDamage;
+        struck.HurtUntil = Time.time + 0.15f;
+        struck.Bite = -1f;
+        if (struck.Health <= 0f)
+        {
+            // It leaves its silk, a couple of legs and a fang where it died.
+            Vector2Int cell = Vector2Int.FloorToInt(at);
+            float level = planet.TopAt(cell.x, cell.y);
+            pickups.Drop(SilkItem, at, level, DropPullRadius, DropScale);
+            for (int i = 0; i < LegsDropped; i++) pickups.Drop(LegItem, at + new Vector2(i == 0 ? -0.3f : 0.3f, 0.1f), level, DropPullRadius, DropScale);
+            pickups.Drop(FangItem, at + new Vector2(0f, -0.25f), level, DropPullRadius, DropScale);
+            Destroy(struck.Sorting.gameObject);
+            spiders.Remove(struck);
+            return Strike.Killed;
+        }
+
+        // The blow knocks it back, away from the player.
+        Vector2 back = at - playerAt;
+        if (back.sqrMagnitude > 0.0001f)
+        {
+            Vector2Int cell = Vector2Int.FloorToInt(at);
+            at = Step(at, back.normalized * KnockBack, planet.TopAt(cell.x, cell.y));
+            struck.Position = new Vector2(Mathf.Repeat(at.x, planet.width), Mathf.Repeat(at.y, planet.height));
+        }
+        return Strike.Hit;
+    }
+
+    // What a dead spider leaves: a skein of silk, a jointed leg, and a curved fang.
+    static List<Part> SilkParts()
+    {
+        var parts = new List<Part>();
+        parts.Add(Sausage(new Vector2(0.2f, 0.26f), new Vector2(0.33f, 0.1f), 0.02f, 0.008f, SilkColor));
+        parts.Add(Ball(new Vector2(0f, 0.32f), 0.27f, 0.17f, SilkColor));
+        for (int i = -2; i <= 2; i++) parts.Add(Ball(new Vector2(0f, 0.32f + i * 0.055f), 0.25f - Mathf.Abs(i) * 0.035f, 0.01f, BodyMark, true));
+        parts.Add(Sausage(new Vector2(0f, 0.17f), new Vector2(0f, 0.47f), 0.04f, 0.04f, LegColor));
+        return parts;
+    }
+
+    static List<Part> LegParts()
+    {
+        var parts = new List<Part>();
+        var hip = new Vector2(-0.28f, 0.14f);
+        var knee = new Vector2(-0.02f, 0.52f);
+        var foot = new Vector2(0.3f, 0.08f);
+        parts.Add(Sausage(hip, knee, 0.065f, 0.052f, LegColor));
+        parts.Add(Sausage(knee, foot, 0.048f, 0.014f, LegColor));
+        parts.Add(Ball(knee, 0.062f, 0.062f, Color.Lerp(LegColor, JointColor, 0.7f)));
+        parts.Add(Ball(hip, 0.075f, 0.075f, BodyColor));
+        return parts;
+    }
+
+    static List<Part> FangParts()
+    {
+        var parts = new List<Part>();
+        parts.Add(Sausage(new Vector2(-0.1f, 0.54f), new Vector2(0.02f, 0.32f), 0.09f, 0.06f, FangColor));
+        parts.Add(Sausage(new Vector2(0.02f, 0.32f), new Vector2(0.15f, 0.1f), 0.06f, 0.012f, FangColor));
+        parts.Add(Ball(new Vector2(-0.12f, 0.58f), 0.12f, 0.085f, BodyColor));
+        return parts;
+    }
+
     // Wandering: walk one way for a while, or stand still for a while, then choose again.
     Vector2 Wander(Spider spider)
     {
@@ -275,7 +396,7 @@ public class Spiders : MonoBehaviour
             holderAt.position = new Vector3(mining.Along(at), level, 0f);
             renderer.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             spider.Sorting.sortingOrder = MiningMode.ObjectSortingOrder;
-            renderer.color = dayNight.WorldTint;
+            renderer.color = Time.time < spider.HurtUntil ? HurtTint : dayNight.WorldTint;
             return;
         }
 
@@ -288,7 +409,7 @@ public class Spiders : MonoBehaviour
         holderAt.position = new Vector3(at.x, sortAt, 0f);
         renderer.transform.SetLocalPositionAndRotation(new Vector3(0f, at.y + level * PlanetOne.HeightScale - sortAt, 0f), Quaternion.Euler(0f, 0f, turn));
         spider.Sorting.sortingOrder = 0;
-        renderer.color = Color.white;
+        renderer.color = Time.time < spider.HurtUntil ? HurtTint : Color.white;
     }
 
     // How far up the screen a spider counts as being, for deciding what is drawn over what in the top-down view.
