@@ -410,6 +410,18 @@ public class Gatherables : MonoBehaviour
         renderer.sprite = kind.Sprites[planet.GroundAt(cell.x, cell.y)];
         // Sorted by its foot, so the player walks in front of or behind it correctly.
         renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+
+        // Its reflection: the same picture upside down beneath its foot, drawn under the land. It shows wherever the
+        // ground there is ice, as with an ice shard, or a bush growing at the edge of a frozen lake.
+        var mirror = new GameObject("Reflection");
+        mirror.transform.SetParent(go.transform, false);
+        mirror.transform.localPosition = new Vector3(0f, planet.GroundAt(cell.x, cell.y) * PlanetOne.HeightScale, 0f);
+        mirror.transform.localScale = new Vector3(1f, PlanetOne.ReflectionSquash, 1f);
+        var mirrored = mirror.AddComponent<SpriteRenderer>();
+        mirrored.sprite = kind.Sprites[0];
+        mirrored.flipY = true;
+        mirrored.color = PlanetOne.ReflectionTint;
+        mirrored.sortingOrder = PlanetOne.ReflectionOrder;
         shown[cell] = go;
     }
 

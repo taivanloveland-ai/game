@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 // Ice spiders: pale creatures about a block wide that live on the ice. They wander until the player comes near, then
-// scuttle after them and bite when they catch up. A bite does nothing yet, since the player has no health.
+// scuttle after them and bite when they catch up. Each bite takes some of the player's health.
 // They are drawn from above in the top-down view and from the side in the side-scroller, after Taivan's drawing:
 // a pale ice-blue body, eight jointed legs, the same on both sides.
 public class Spiders : MonoBehaviour
@@ -19,6 +20,8 @@ public class Spiders : MonoBehaviour
     const float ChaseSpeed = 2.4f, WanderSpeed = 0.9f;
     // It bites when it is this close, and one bite takes this long.
     const float BiteDistance = 0.85f * Size, BiteSeconds = 0.5f;
+    // How much health one bite takes, and how far into the bite it lands. A spider bites every 0.8 seconds.
+    const float BiteDamage = 8f, BiteLandsAt = BiteSeconds * 0.55f;
     // Seen from above, it bites when its middle is this far from the edge of the player, which puts its fangs
     // just short of them. The players picture starts this far below the spot they stand on.
     const float TopBiteGap = 0.4f * Size, FeetBelow = 0.2f;
@@ -64,24 +67,27 @@ public class Spiders : MonoBehaviour
         public Vector2 WanderDirection;
         public float DecideAt;
         public SpriteRenderer Renderer;
+        public SortingGroup Sorting;
     }
 
     PlanetOne planet;
     PlayerController player;
     MiningMode mining;
     DayNight dayNight;
+    Health health;
     readonly List<Spider> spiders = new List<Spider>();
     Sprite[] topWalk, topBite, sideWalk, sideBite;
     System.Random rand;
 
     public int Count => spiders.Count;
 
-    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight)
+    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight, Health health)
     {
         this.planet = planet;
         this.player = player;
         this.mining = mining;
         this.dayNight = dayNight;
+        this.health = health;
 
         topWalk = new Sprite[WalkFrames];
         sideWalk = new Sprite[WalkFrames];
@@ -147,7 +153,8 @@ public class Spiders : MonoBehaviour
             Vector2Int cell = Vector2Int.FloorToInt(at);
             int level = planet.TopAt(cell.x, cell.y);
             bool sameHeight = Mathf.Abs(playerFeet - level) < 1.6f;
-            spider.Chasing = sameHeight && distance < (spider.Chasing ? GiveUpRadius : NoticeRadius);
+            // It loses interest once the player has fallen.
+            spider.Chasing = sameHeight && !health.Down && distance < (spider.Chasing ? GiveUpRadius : NoticeRadius);
 
             // What the spider goes for is the edge of the player, not the spot under their feet, so that it stops
             // beside them instead of underneath. Seen from above the player stands up the screen from their feet.
@@ -176,7 +183,10 @@ public class Spiders : MonoBehaviour
             {
                 // Close enough: face the player and bite, over and over.
                 if (reach > 0.01f) spider.Heading = toBody / reach;
+                float before = spider.Bite;
                 spider.Bite = spider.Bite < 0f ? 0f : (spider.Bite + Time.deltaTime) % (BiteSeconds * 1.6f);
+                // The bite lands at the end of the lunge.
+                if (before < BiteLandsAt && spider.Bite >= BiteLandsAt) health.Hurt(BiteDamage);
             }
             else
             {
@@ -234,13 +244,19 @@ public class Spiders : MonoBehaviour
     {
         if (spider.Renderer == null)
         {
-            var go = new GameObject("Ice Spider");
-            go.transform.SetParent(transform, false);
+            // The picture hangs under a holder. In the top-down view things are drawn in order of how far up the
+            // screen they are, and it is the holder's place that counts, so the picture can be put in the right
+            // order without being moved.
+            var holder = new GameObject("Ice Spider");
+            holder.transform.SetParent(transform, false);
+            spider.Sorting = holder.AddComponent<SortingGroup>();
+            var go = new GameObject("Picture");
+            go.transform.SetParent(holder.transform, false);
             spider.Renderer = go.AddComponent<SpriteRenderer>();
-            spider.Renderer.spriteSortPoint = SpriteSortPoint.Pivot;
             go.transform.localScale = new Vector3(Size, Size, 1f);
         }
         SpriteRenderer renderer = spider.Renderer;
+        Transform holderAt = spider.Sorting.transform;
         Vector2Int cell = Vector2Int.FloorToInt(at);
         int level = planet.TopAt(cell.x, cell.y);
         bool biting = spider.Bite >= 0f && spider.Bite < BiteSeconds;
@@ -256,8 +272,9 @@ public class Spiders : MonoBehaviour
             float facing = mining.Column ? spider.Heading.y : spider.Heading.x;
             renderer.sprite = biting ? sideBite[frame] : sideWalk[frame];
             renderer.flipX = facing < 0f;
-            renderer.transform.SetPositionAndRotation(new Vector3(mining.Along(at), level, 0f), Quaternion.identity);
-            renderer.sortingOrder = MiningMode.ObjectSortingOrder;
+            holderAt.position = new Vector3(mining.Along(at), level, 0f);
+            renderer.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            spider.Sorting.sortingOrder = MiningMode.ObjectSortingOrder;
             renderer.color = dayNight.WorldTint;
             return;
         }
@@ -267,9 +284,32 @@ public class Spiders : MonoBehaviour
         renderer.sprite = biting ? topBite[frame] : topWalk[frame];
         renderer.flipX = false;
         float turn = Mathf.Atan2(spider.Heading.y, spider.Heading.x) * Mathf.Rad2Deg - 90f;
-        renderer.transform.SetPositionAndRotation(new Vector3(at.x, at.y + level * PlanetOne.HeightScale, 0f), Quaternion.Euler(0f, 0f, turn));
-        renderer.sortingOrder = 0;
+        float sortAt = SortHeight(at, cell, level);
+        holderAt.position = new Vector3(at.x, sortAt, 0f);
+        renderer.transform.SetLocalPositionAndRotation(new Vector3(0f, at.y + level * PlanetOne.HeightScale - sortAt, 0f), Quaternion.Euler(0f, 0f, turn));
+        spider.Sorting.sortingOrder = 0;
         renderer.color = Color.white;
+    }
+
+    // How far up the screen a spider counts as being, for deciding what is drawn over what in the top-down view.
+    // A spider lies flat on the ground and reaches over the squares south of it. Each square of ground is drawn as
+    // if it stood at its far edge, so a spider placed by its middle would be covered by the flat ground just south
+    // of it. Instead it counts as being at its own southern edge, in front of all the ground it lies on. The one
+    // thing that should cover it is ground to the south that stands higher than it does, so it is kept just behind
+    // the nearest row with any of that.
+    float SortHeight(Vector2 at, Vector2Int cell, int level)
+    {
+        float reach = TopHalf * Size;
+        float sortAt = at.y - reach;
+        for (int row = cell.y - 1; row >= Mathf.FloorToInt(at.y - reach); row--)
+        {
+            bool higher = false;
+            for (int x = Mathf.FloorToInt(at.x - reach); x <= Mathf.FloorToInt(at.x + reach) && !higher; x++) higher = planet.TopAt(x, row) > level;
+            if (!higher) continue;
+            // A square is drawn as if at its far edge, which is one above its row.
+            return Mathf.Max(sortAt, row + 1.01f);
+        }
+        return sortAt;
     }
 
     // The spider seen from above, facing up the picture. Distances are in blocks from its middle. Gait is how far

@@ -28,10 +28,10 @@ public class Hud : MonoBehaviour
     }
 
     // Shows a short line of text above the hotbar for a moment.
-    public void Say(string text)
+    public void Say(string text, float seconds = 1.2f)
     {
         message = text;
-        messageUntil = Time.time + 1.2f;
+        messageUntil = Time.time + seconds;
     }
 
     void Update()

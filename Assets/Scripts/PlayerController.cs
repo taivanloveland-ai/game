@@ -34,6 +34,7 @@ public class PlayerController : MonoBehaviour
     // The colour the world is being tinted for the time of day.
     Color tint = Color.white;
     Transform shadow;
+    Transform reflection;
     SortingGroup sorting;
     Rigidbody2D body;
     Collider2D box;
@@ -71,11 +72,12 @@ public class PlayerController : MonoBehaviour
         ? new Vector2(transform.position.x, transform.position.y - Height / 2f + FeetDepth / 2f)
         : sideColumn ? new Vector2(sideSlice + 0.5f, transform.position.x) : new Vector2(transform.position.x, sideSlice + 0.5f);
 
-    public void Setup(PlanetOne planet, Transform bodyVisual, Transform shadow, SortingGroup sorting)
+    public void Setup(PlanetOne planet, Transform bodyVisual, Transform shadow, Transform reflection, SortingGroup sorting)
     {
         this.planet = planet;
         this.bodyVisual = bodyVisual;
         this.shadow = shadow;
+        this.reflection = reflection;
         this.sorting = sorting;
         bodyRenderer = bodyVisual.GetComponent<SpriteRenderer>();
         baseColor = bodyRenderer.color;
@@ -127,12 +129,20 @@ public class PlayerController : MonoBehaviour
         float lift = sideView ? 0f : Mathf.Max(altitude, LowestDrawn) * PlanetOne.HeightScale;
         // In a tunnel the ground overhead is drawn see-through, and the player is drawn on their own square beneath it.
         Vector2Int square = Vector2Int.FloorToInt(GroundPosition);
-        if (!sideView && planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(altitude + 0.01f))) lift = 0f;
+        bool underRoof = !sideView && planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(altitude + 0.01f));
+        if (underRoof) lift = 0f;
         // The camera follows the ground the player is on, not each jump.
-        CameraLift = sideView || lift == 0f ? 0f : Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale;
+        CameraLift = sideView || underRoof ? 0f : Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
         shadow.localPosition = new Vector3(0f, 0.1f + Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
+
+        // The reflection hangs upside down from the ground under the player, as far below it as they are above it.
+        // It only shows where the ground is ice. Under a roof there is none.
+        reflection.gameObject.SetActive(!sideView && !underRoof);
+        float floorLift = Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale;
+        float gap = Mathf.Max(0f, altitude - ground) * PlanetOne.HeightScale;
+        reflection.localPosition = new Vector3(0f, -Height / 2f + floorLift - gap - Height * PlanetOne.ReflectionSquash / 2f, 0f);
 
         float depth = sideView ? 0f : Mathf.Clamp01((LowestDrawn - altitude) / DarkestDepth);
         float light = Mathf.Lerp(1f, DeepestLight, depth);
@@ -320,6 +330,15 @@ public class PlayerController : MonoBehaviour
         if (!sideView) return FeetSquares(body.position).Contains(square);
         int along = sideColumn ? square.y : square.x, slice = sideColumn ? square.x : square.y;
         return slice == sideSlice && along + 1 > body.position.x - Width / 2f && along < body.position.x + Width / 2f;
+    }
+
+    // Puts the player somewhere else in the top-down view, standing on the ground there: waking up at the ship.
+    public void Respawn(Vector2 position)
+    {
+        Teleport(position);
+        velocity = Vector2.zero;
+        verticalSpeed = 0f;
+        altitude = SurfaceUnder(position);
     }
 
     // Darkens or restores the player's colour; white means their normal colour.

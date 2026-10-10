@@ -129,6 +129,15 @@ public class PlanetOne : MonoBehaviour
     static readonly Color32 ShipRim = new Color32(150, 158, 170, 255);
     // Bare stone, as seen from above where the snow or ice over it has been dug away.
     static readonly Color32 StoneColor = new Color32(70, 80, 96, 255), StoneRim = new Color32(98, 110, 128, 255);
+    // Ice is reflective in the top-down view. Reflections are drawn at this sorting order, under the land, and
+    // show through the top of the ice, which is this solid (out of 255).
+    public const int ReflectionOrder = -3;
+    const byte IceGlassAlpha = 150;
+    // How strong a reflection is drawn before the ice dims it, and how much shorter than the real thing it is,
+    // since the ground is seen at a slant.
+    public static readonly Color ReflectionTint = new Color(1f, 1f, 1f, 0.8f);
+    public const float ReflectionSquash = 0.7f;
+
     // A hole in a wall, seen from outside, is see-through.
     static readonly Color32 SeeThrough = new Color32(0, 0, 0, 0);
     // Marks a block of a tile's south face that is not there. The other values are the materials above.
@@ -181,6 +190,7 @@ public class PlanetOne : MonoBehaviour
     Tilemap terrain;
     Tilemap underground;
     Tilemap doorFloors;
+    Tilemap iceBeneath;
     // The squares whose ground is currently see-through because the player is under it.
     readonly List<Vector2Int> seeThrough = new List<Vector2Int>();
     // The open squares of the room or tunnel the player is in, worked out afresh each frame.
@@ -279,7 +289,10 @@ public class PlanetOne : MonoBehaviour
             }
         }
         gameObject.AddComponent<Building>().Setup(this, controller, mining, inventory, hud, gatherables, cam);
-        gameObject.AddComponent<Spiders>().Setup(this, controller, mining, dayNight);
+        // The player wakes up beside the ship, where they started.
+        var health = gameObject.AddComponent<Health>();
+        health.Setup(this, controller, mining, inventory, pickups, hud, new Vector2(cx + 0.5f, cy - 0.5f));
+        gameObject.AddComponent<Spiders>().Setup(this, controller, mining, dayNight, health);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
     }
@@ -311,7 +324,12 @@ public class PlanetOne : MonoBehaviour
         bodyVisual.transform.SetParent(visual.transform, false);
 
         var controller = player.AddComponent<PlayerController>();
-        controller.Setup(this, bodyVisual.transform, shadow.transform, sorting);
+        // The player's reflection in the ice: the same rectangle upside down beneath their feet. It is kept out of
+        // the sorted group above so that it is drawn under the land.
+        GameObject reflection = MakeBox("Reflection", Square, PlayerColor * ReflectionTint, new Vector2(PlayerController.Width, PlayerController.Height * ReflectionSquash), ReflectionOrder);
+        reflection.transform.SetParent(player.transform, false);
+
+        controller.Setup(this, bodyVisual.transform, shadow.transform, reflection.transform, sorting);
         return controller;
     }
 
@@ -500,6 +518,10 @@ public class PlanetOne : MonoBehaviour
         doorFloors = MakeTilemap(grid, "Door Floors", -1);
         doorFloors.tileAnchor = terrain.tileAnchor;
         doorFloors.color = UndergroundTint;
+
+        // The solid ice under the see-through ice, with reflections drawn between the two.
+        iceBeneath = MakeTilemap(grid, "Ice Beneath", ReflectionOrder - 1);
+        iceBeneath.tileAnchor = terrain.tileAnchor;
     }
 
     void Update()
@@ -633,6 +655,7 @@ public class PlanetOne : MonoBehaviour
             if (wanted.Contains(cell)) continue;
             terrain.SetTile((Vector3Int)cell, null);
             doorFloors.SetTile((Vector3Int)cell, null);
+            iceBeneath.SetTile((Vector3Int)cell, null);
         }
         foreach (Vector2Int cell in wanted.allPositionsWithin)
         {
@@ -642,7 +665,7 @@ public class PlanetOne : MonoBehaviour
     }
 
     // The tile for one square of the top-down view.
-    Tile TileAt(int x, int y)
+    Tile TileAt(int x, int y, bool glassy = false)
     {
         // What shows from above is whatever block is now on top, which mining or building may have changed.
         int level = DrawnTopAt(x, y);
@@ -656,7 +679,7 @@ public class PlanetOne : MonoBehaviour
         int looks = material == Ice ? IceMarks.Length : 3;
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
 
-        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop));
+        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
 
     // How many blocks tall the south face of a square is drawn: down to the ground south of it. Next to a deep hole
@@ -737,16 +760,21 @@ public class PlanetOne : MonoBehaviour
     // Puts the right tiles on the tilemaps for one square of the land that is being drawn.
     void SetLandTile(Vector2Int cell)
     {
-        terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y));
+        // Ice is reflective. Its tile is slightly see-through, with a solid copy of itself beneath, and reflections
+        // are drawn in between the two. They show on the ice and nowhere else, since no other ground is see-through.
+        bool ice = MaterialOf(SideBlockAt(cell.x, cell.y, DrawnTopAt(cell.x, cell.y) - 1)) == Ice;
+        terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y, ice));
+        iceBeneath.SetTile((Vector3Int)cell, ice ? TileAt(cell.x, cell.y, false) : null);
         doorFloors.SetTile((Vector3Int)cell, FloorInsideAt(cell.x, cell.y));
     }
 
     // One tile of the top-down view: the top of the block, plus the cliff face below it when the ground to the south
     // is lower. FaceBlocks says what each block of that face is; see FaceBlocks above.
-    Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, long faceBlocks = 0)
+    // Glassy is for ice that reflections show through.
+    Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, long faceBlocks = 0, bool glassy = false)
     {
         // The south face can be up to MaxFaceBlocks tall, which is too much to fit in one number with the rest.
-        var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (variant << 19)), faceBlocks);
+        var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (variant << 19) | (glassy ? 1 << 23 : 0)), faceBlocks);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         BlockPicture picture = PictureFor(material);
@@ -783,7 +811,11 @@ public class PlanetOne : MonoBehaviour
             bool rim =((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
             if (pictured) return PicturePixel(picture, fineX, fineY);
-            return material == Ice ? IcePixel(groundLevel, variant, fineX, fineY) : topColor;
+            if (material != Ice) return topColor;
+            // The top of ice is a little see-through when it is glassy, so reflections drawn beneath it show.
+            Color32 ice = IcePixel(groundLevel, variant, fineX, fineY);
+            if (glassy) ice.a = IceGlassAlpha;
+            return ice;
         });
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
