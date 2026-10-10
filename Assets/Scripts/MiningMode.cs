@@ -23,7 +23,7 @@ public class MiningMode : MonoBehaviour
     // How much dimmer each row behind the front one is, nearest first.
     static readonly Color[] BehindTints = { new Color(0.62f, 0.68f, 0.78f), new Color(0.45f, 0.5f, 0.6f), new Color(0.32f, 0.36f, 0.46f) };
     static readonly Color SnowTop = new Color32(234, 241, 247, 255), SnowDeep = new Color32(188, 205, 223, 255);
-    static readonly Color IceTop = new Color32(170, 209, 230, 255), IceDeep = new Color32(108, 158, 194, 255);
+    static readonly Color IceTop = new Color32(146, 202, 232, 255), IceDeep = new Color32(92, 150, 198, 255);
     static readonly Color Stone = new Color32(70, 80, 96, 255);
 
     // Drawing order, back to front: the rows behind (1 to 3, with 0 for one sliding in at the back), the front row (4),

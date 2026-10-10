@@ -39,13 +39,28 @@ public class PlanetOne : MonoBehaviour
         new[] { new Color32(226, 235, 243, 255), new Color32(219, 229, 239, 255), new Color32(231, 239, 246, 255) },
         new[] { new Color32(245, 249, 252, 255), new Color32(240, 245, 250, 255), new Color32(249, 252, 254, 255) },
     };
-    static readonly Color32[][] IceColors =
+    // Ice: a clear blue, with pale glints and the odd darker crack. The first of each pair is ground level, the second raised.
+    static readonly Color32[] IceBase = { new Color32(146, 202, 232, 255), new Color32(170, 217, 240, 255) };
+    static readonly Color32[] IceGlint = { new Color32(206, 235, 248, 255), new Color32(226, 244, 252, 255) };
+    static readonly Color32[] IceCrack = { new Color32(112, 174, 212, 255), new Color32(136, 192, 224, 255) };
+    // Each ice tile is one of these looks, picked at random so a lake never shows a repeating pattern. Most are plain;
+    // a few carry short marks. A mark is { x, y, length, sideways step, kind }: it starts at (x, y) and climbs one pixel
+    // per step, moving sideways by the step each time. Kind 1 is a glint, kind 2 a crack.
+    static readonly int[][][] IceMarks =
     {
-        new[] { new Color32(159, 201, 224, 255), new Color32(148, 192, 217, 255), new Color32(168, 207, 228, 255) },
-        new[] { new Color32(186, 220, 238, 255), new Color32(177, 213, 233, 255), new Color32(194, 225, 241, 255) },
+        new int[0][],
+        new int[0][],
+        new int[0][],
+        new int[0][],
+        new int[0][],
+        new[] { new[] { 3, 11, 4, 1, 1 }, new[] { 10, 6, 2, 1, 1 } },
+        new[] { new[] { 7, 13, 5, 1, 1 } },
+        new[] { new[] { 2, 6, 3, 1, 1 }, new[] { 11, 11, 3, 1, 1 } },
+        new[] { new[] { 4, 12, 5, 1, 2 }, new[] { 8, 8, 3, -1, 2 } },
+        new[] { new[] { 12, 5, 2, 1, 1 } },
     };
     static readonly Color32 SnowRim = new Color32(200, 214, 228, 255), SnowFace = new Color32(176, 194, 214, 255), SnowFoot = new Color32(152, 173, 197, 255);
-    static readonly Color32 IceRim = new Color32(128, 176, 208, 255), IceFace = new Color32(112, 164, 200, 255), IceFoot = new Color32(92, 142, 181, 255);
+    static readonly Color32 IceRim = new Color32(200, 232, 246, 255), IceFace = new Color32(104, 166, 206, 255), IceFoot = new Color32(84, 144, 188, 255);
     static readonly Color32 RockEdge = new Color32(138, 152, 170, 255);
     static readonly Color32 CliffFace = new Color32(59, 70, 86, 255), CliffCrack = new Color32(48, 58, 73, 255), CliffFoot = new Color32(40, 49, 62, 255);
     static readonly Color32 ShipRim = new Color32(150, 158, 170, 255);
@@ -225,7 +240,8 @@ public class PlanetOne : MonoBehaviour
                 // Plain tiles get one of a few shades; tiles with an edge all share one so the edges line up cleanly.
                 // A tile drawn from a picture always looks exactly like the picture, so it has no shades.
                 bool pictured = PictureFor(kind[x, y]) != null;
-                int variant = !pictured && rims == 0 && drop == 0 ? rand.Next(3) : 0;
+                int looks = kind[x, y] == Ice ? IceMarks.Length : 3;
+                int variant = !pictured && rims == 0 && drop == 0 ? rand.Next(looks) : 0;
                 terrain.SetTile(new Vector3Int(x, y, 0), TerrainTile(kind[x, y], ground[x, y], level, drop, rims, variant));
             }
         }
@@ -242,7 +258,7 @@ public class PlanetOne : MonoBehaviour
         Color32 topColor, rimColor;
         switch (material)
         {
-            case Ice: topColor = IceColors[groundLevel][pictured ? 0 : variant]; rimColor = IceRim; break;
+            case Ice: topColor = IceBase[groundLevel]; rimColor = IceRim; break;
             case Rock: topColor = RockColors[variant % RockColors.Length]; rimColor = RockEdge; break;
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
             default: topColor = SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
@@ -260,11 +276,24 @@ public class PlanetOne : MonoBehaviour
             if (y >= TilePixels) return PaintFace(material, x, y - TilePixels, facePixels);
             bool rim = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
-            return pictured ? PicturePixel(picture, fineX, fineY) : topColor;
+            if (pictured) return PicturePixel(picture, fineX, fineY);
+            return material == Ice ? IcePixel(groundLevel, variant, x, y) : topColor;
         });
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
+    }
+
+    // One pixel of the top of an ice tile: the ice blue, or a glint or crack where this tile's look has a mark.
+    static Color32 IcePixel(int groundLevel, int variant, int x, int y)
+    {
+        foreach (int[] mark in IceMarks[variant])
+        {
+            int step = mark[1] - y;
+            if (step < 0 || step >= mark[2] || x != mark[0] + step * mark[3]) continue;
+            return mark[4] == 1 ? IceGlint[groundLevel] : IceCrack[groundLevel];
+        }
+        return IceBase[groundLevel];
     }
 
     // The drawn picture for a kind of ground, or null if that kind is drawn as flat colour.
