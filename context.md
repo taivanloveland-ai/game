@@ -83,6 +83,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - `IceShardItem.png`: the loose ice shard (see above).
 - `Fern.png`: the fiddlehead fern, redrawn by Claude from his sketch (see above).
 - `SnowBlock.png`: a white square with faint grey streaks, supplied 2026-10-10 "for the snow blocks". It is used for the top of snow tiles in td and for snow blocks in sc (both views confirmed 2026-10-10: "make the snow in the top down too"). It is shown exactly as he drew it: one picture per block, same way up, same colours. Claude's first version tinted and flipped it, and through an import problem it did not show in td at all; he objected ("the snow isnt what i made!"). Lesson: use his art unaltered unless he asks for changes.
+- `IceBlock.png`: a bright blue square with pale diagonal streaks, supplied 2026-10-10 as "ice for sc and td". Used the same way as the snow picture: the top of ice tiles in td and ice blocks in sc, exactly as drawn. The standing ice shards were recoloured to this picture's blues so they still look like part of the ice.
 - Art sent so far is 128 by 128 pixels with hard pixel edges.
 
 ## Look and feel decisions
