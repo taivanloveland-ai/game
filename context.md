@@ -142,7 +142,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## Temporary settings to undo later
 
 - **The player starts with an ice pickaxe, for testing purposes** (asked 2026-10-10). `startWithPickaxe` on the Planet One object, in `PlanetOne.cs`. Turn it off when the first pickaxe should have to be crafted again.
-- **5x walking speed** (asked 2026-10-10, after the mountains went in a 4-minute walk away). `speed` in `PlayerController.cs` is 25: five times the original 5, the same as the earlier "x5 temporarily". The speed he chose for the game is 3 (three fifths). At 25 the mountains are under 30 seconds away.
+- (Undone 2026-10-10: the 5x walking speed test setting. He asked "undo x5", so `speed` in `PlayerController.cs` is back to 3, the speed he chose for the game.)
 - **Days are 1 minute "for now"** (asked 2026-10-10). `cycleSeconds` in `DayNight.cs` is 60; the length he chose for the game is 6 minutes (360). Read as the full day and night together, as before.
 - **The player starts with 999 of each block (snow, ice, stone) "just for now"** (asked 2026-10-10), already on hotbar slots 2 to 4. `startWithBlocks` on the Planet One object, in `PlanetOne.cs`. Set it to 0 for the real game.
 
