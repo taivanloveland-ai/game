@@ -15,7 +15,7 @@ public class Hud : MonoBehaviour
     bool itemsOpen;
     string message;
     float messageUntil;
-    GUIStyle countStyle, smallCountStyle, nameStyle, titleStyle, messageStyle;
+    GUIStyle countStyle, smallCountStyle, nameStyle, itemNameStyle, titleStyle, messageStyle;
 
     // What is being dragged with the mouse, and the hotbar slot it was picked up from (-1 if it came from the items panel).
     Item dragged;
@@ -105,6 +105,8 @@ public class Hud : MonoBehaviour
             countStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.LowerRight };
             smallCountStyle = new GUIStyle(countStyle) { fontSize = 14 };
             nameStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.UpperCenter };
+            // Long names such as "Thornam bush vine" are shown a little smaller so they fit over their slot.
+            itemNameStyle = new GUIStyle(nameStyle) { fontSize = 10, clipping = TextClipping.Overflow };
             titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             messageStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         }
@@ -216,7 +218,7 @@ public class Hud : MonoBehaviour
             Rect slot = ItemSlot(i);
             GUI.Box(slot, GUIContent.none);
             GUI.DrawTexture(new Rect(slot.x + 22f, slot.y + 20f, slot.width - 44f, slot.height - 40f), stack.Item.Icon.texture, ScaleMode.ScaleToFit);
-            GUI.Label(new Rect(slot.x, slot.y + 2f, slot.width, 18f), stack.Item.Name, nameStyle);
+            GUI.Label(new Rect(slot.x, slot.y + 2f, slot.width, 18f), stack.Item.Name, stack.Item.Name.Length > 13 ? itemNameStyle : nameStyle);
             GUI.Label(new Rect(slot.x, slot.y, slot.width - 6f, slot.height - 2f), "x" + stack.Count, countStyle);
         }
     }

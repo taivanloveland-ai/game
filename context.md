@@ -68,6 +68,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **Chunkier black hole, Terraria-style path** (asked later on 2026-10-10): "the black hole needs to be a bit more pixelated and the curve of its path needs to be like terraria." The black hole is now painted at 24 pixels per block with hard-edged pixels (it was 128 and smooth; 24 was Claude's pick for "a bit"). The sun and black hole both now cross the sky the way Terraria's sun and moon do: steadily from just past the left edge to just past the right, along a low, wide parabola that peaks mid-screen. The black hole still tips with its path and is level at midnight.
 
+## Thornam bushes (asked 2026-10-10)
+
+- He drew a bush (a tangle of teal vines with small olive thorns on a short brown trunk) and asked: "add these as thornam bushes that drop 3 thorns and 3 thornam bush vines and 1 thornam stick." His picture is used exactly as drawn, as `Assets/Resources/Art/ThornamBush.png`.
+- His picks:
+  - **Where:** his own answer: "pretty rare next to ice". They grow only on snow squares that are right next to ice.
+  - **How many:** his own answer: "1 per 13", read as 1 bush for every 13 ferns. That is about 320 to 370 on the planet.
+  - **Size:** player height (0.9 blocks tall; the picture is a little wider than a block).
+- As built: left click collects one like a fern (you walk over if it is further off). It gives 3 thorns, 3 thornam bush vines and 1 thornam stick, which scatter a little and slide to you. A bush blocks its square like ferns and shards do, and does not grow back. The three items' pictures are Claude's, painted at the fine pixel scale in the bush's own colours. Nothing uses the items yet.
+
 ## Ice spiders (asked 2026-10-10)
 
 - He drew a pale ice-blue spider seen from above (round body, small dark face mark, eight bent legs) and asked: "can you fix this up and make it look real good like a spider and add animation of it walking and make it fit in td and sc and symetrical". His drawing was the reference; the game paints its own spider after it at the fine pixel scale (128 per block), mirrored so both sides match. His picture file is not used in the game.
