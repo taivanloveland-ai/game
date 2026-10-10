@@ -15,5 +15,7 @@ class ArtImport : AssetPostprocessor
         importer.alphaIsTransparency = true;
         importer.mipmapEnabled = true;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
+        // Lets the game read the picture's pixels, which it needs for painting a picture onto ground tiles.
+        importer.isReadable = true;
     }
 }

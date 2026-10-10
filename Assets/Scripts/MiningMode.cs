@@ -60,7 +60,7 @@ public class MiningMode : MonoBehaviour
     TilemapCollider2D tileCollider;
     CompositeCollider2D composite;
     Tile rockTopTile;
-    readonly Dictionary<Color32, Tile> tiles = new Dictionary<Color32, Tile>();
+    readonly Dictionary<int, Tile> tiles = new Dictionary<int, Tile>();
     // Black pictures laid over a row, see-through where light reaches: one for the front row,
     // and one for the row that is becoming the front row during a step.
     SpriteRenderer dark, incomingDark;
@@ -413,10 +413,15 @@ public class MiningMode : MonoBehaviour
         if (darker && block != PlanetOne.SideBlock.Ship) color *= 0.965f;
         color.a = 1f;
 
-        Color32 key = color;
+        // Snow blocks use the drawn snow picture when there is one, flipped on about half of them so they do not repeat.
+        bool pictured = block == PlanetOne.SideBlock.Snow && planet.SnowSprite != null;
+        bool flipped = pictured && ((hash >> 16) & 1) == 1;
+        Color32 c = color;
+        int key = (c.r << 16) | (c.g << 8) | c.b | (pictured ? 1 << 24 : 0) | (flipped ? 1 << 25 : 0);
         if (!tiles.TryGetValue(key, out Tile tile))
         {
-            tile = PlanetOne.MakeTile(color, planet.Square, true);
+            tile = PlanetOne.MakeTile(color, pictured ? planet.SnowSprite : planet.Square, true);
+            if (flipped) tile.transform = Matrix4x4.Scale(new Vector3(-1f, 1f, 1f));
             tiles[key] = tile;
         }
         return tile;

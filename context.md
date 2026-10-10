@@ -78,6 +78,13 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - For the walk he first picked "finds a way and jumps", then changed it: **just walk in a straight line**. It still jumps onto raised ground by itself (Claude kept that; not confirmed).
 - **W and S in sc get an animation**, so changing rows is not so much faster than walking in. He first asked for "like a fade"; Claude made the whole screen fade to black, and he changed it: instead of the whole screen blacking out, **the blocks shift forward, get brighter, and become the front blocks**.
 
+## Taivan's own art (in `Assets/Resources/Art`)
+
+- `IceShardItem.png`: the loose ice shard (see above).
+- `Fern.png`: the fiddlehead fern, redrawn by Claude from his sketch (see above).
+- `SnowBlock.png`: a white square with faint grey streaks, supplied 2026-10-10 "for the snow blocks". It is used for the top of snow tiles in td and for snow blocks in sc (Claude's reading that both views were meant; not confirmed), tinted for height and depth, and flipped at random so it does not repeat.
+- Art sent so far is 128 by 128 pixels with hard pixel edges.
+
 ## Look and feel decisions
 
 - **Engine:** Unity (decided 2026-10-09).

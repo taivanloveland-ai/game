@@ -23,6 +23,8 @@ public class PlanetOne : MonoBehaviour
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3;
     const int TilePixels = 16;
     const int FacePixels = 8;
+    // The snow picture is drawn with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
+    const int SnowPictureDetail = 8;
     // Grey rocks and the ship stand this many blocks above the highest ground next to them, so a 1.5 block jump never clears them.
     const int RockHeight = 2;
     const int MaxIceDepth = 4;
@@ -52,6 +54,12 @@ public class PlanetOne : MonoBehaviour
 
     // A plain white one-tile sprite; tint it to get a coloured block.
     public Sprite Square { get; private set; }
+    // The drawn snow picture as a one-block sprite, or null if there is no picture.
+    public Sprite SnowSprite { get; private set; }
+
+    // The snow picture's pixels, for painting it onto top-down tiles.
+    Color32[] snowPixels;
+    int snowWidth, snowHeight;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -66,6 +74,19 @@ public class PlanetOne : MonoBehaviour
     void Awake()
     {
         Square = PaintSprite((x, y) => new Color32(255, 255, 255, 255));
+
+        // The drawn snow picture, if there is one, is used for the top of snow tiles and for snow blocks in mining mode.
+        var snowPicture = Resources.Load<Texture2D>("Art/SnowBlock");
+        if (snowPicture != null)
+        {
+            SnowSprite = Sprite.Create(snowPicture, new Rect(0, 0, snowPicture.width, snowPicture.height), new Vector2(0.5f, 0.5f), snowPicture.width);
+            if (snowPicture.isReadable)
+            {
+                snowPixels = snowPicture.GetPixels32();
+                snowWidth = snowPicture.width;
+                snowHeight = snowPicture.height;
+            }
+        }
 
         int cx = width / 2, cy = height / 2;
         BuildTerrain(cx, cy);
@@ -204,7 +225,9 @@ public class PlanetOne : MonoBehaviour
                 int drop = Mathf.Max(0, level - TopAt(x, y - 1, level));
                 int rims = (TopAt(x, y + 1, level) < level ? 1 : 0) | (TopAt(x - 1, y, level) < level ? 2 : 0) | (TopAt(x + 1, y, level) < level ? 4 : 0);
                 // Plain tiles get one of a few shades; tiles with an edge all share one so the edges line up cleanly.
-                int variant = rims == 0 && drop == 0 ? rand.Next(3) : 0;
+                // Snow drawn from the picture has four versions instead of three: the picture flipped each way.
+                bool pictured = kind[x, y] == Snow && snowPixels != null;
+                int variant = rims == 0 && drop == 0 ? rand.Next(pictured ? 4 : 3) : 0;
                 terrain.SetTile(new Vector3Int(x, y, 0), TerrainTile(kind[x, y], ground[x, y], level, drop, rims, variant));
             }
         }
@@ -216,28 +239,45 @@ public class PlanetOne : MonoBehaviour
         int key = material | (groundLevel << 2) | (level << 3) | (drop << 6) | (rims << 9) | (variant << 12);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
+        bool pictured = material == Snow && snowPixels != null;
         Color32 topColor, rimColor;
         switch (material)
         {
             case Ice: topColor = IceColors[groundLevel][variant]; rimColor = IceRim; break;
             case Rock: topColor = RockColors[variant % RockColors.Length]; rimColor = RockEdge; break;
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
-            default: topColor = SnowColors[groundLevel][variant]; rimColor = SnowRim; break;
+            default: topColor = SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
         }
 
         int facePixels = drop * FacePixels;
         int spriteHeight = TilePixels + facePixels;
         // The pivot sits where the far edge of the square is on flat ground, so higher blocks are drawn shifted up.
         var pivot = new Vector2(0.5f, (spriteHeight - level * FacePixels) / (float)spriteHeight);
-        Sprite sprite = PaintSprite(TilePixels, spriteHeight, pivot, (x, y) =>
+        // Tiles that use the snow picture are painted with several picture pixels for each ordinary tile pixel.
+        int detail = pictured ? SnowPictureDetail : 1;
+        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, pictured, (fineX, fineY) =>
         {
+            int x = fineX / detail, y = fineY / detail;
             if (y >= TilePixels) return PaintFace(material, x, y - TilePixels, facePixels);
             bool rim = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
-            return rim ? rimColor : topColor;
+            if (rim) return rimColor;
+            return pictured ? SnowPicturePixel(fineX, fineY, variant, topColor) : topColor;
         });
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
+    }
+
+    // One pixel of the top of a snow tile, taken from the snow picture and tinted for its height.
+    // The variant flips the picture left-right and top-bottom so neighbouring tiles do not all look alike.
+    Color32 SnowPicturePixel(int x, int y, int variant, Color32 tint)
+    {
+        int size = TilePixels * SnowPictureDetail;
+        if ((variant & 1) != 0) x = size - 1 - x;
+        if ((variant & 2) != 0) y = size - 1 - y;
+        int pictureX = x * snowWidth / size, pictureY = y * snowHeight / size;
+        Color32 c = snowPixels[(snowHeight - 1 - pictureY) * snowWidth + pictureX];
+        return new Color32((byte)(c.r * tint.r / 255), (byte)(c.g * tint.g / 255), (byte)(c.b * tint.b / 255), 255);
     }
 
     // The south-facing side of a raised block. y counts down from the top of the face.
@@ -398,7 +438,13 @@ public class PlanetOne : MonoBehaviour
     // As above, with a chosen number of pixels per block instead of the usual 16.
     public static Sprite PaintSprite(int pixelWidth, int pixelHeight, Vector2 pivot, float pixelsPerUnit, System.Func<int, int, Color32> paint)
     {
-        var texture = new Texture2D(pixelWidth, pixelHeight) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        return PaintSprite(pixelWidth, pixelHeight, pivot, pixelsPerUnit, false, paint);
+    }
+
+    // As above. Smooth is for detailed pictures that are shown smaller than they are painted; chunky pixel art leaves it off.
+    public static Sprite PaintSprite(int pixelWidth, int pixelHeight, Vector2 pivot, float pixelsPerUnit, bool smooth, System.Func<int, int, Color32> paint)
+    {
+        var texture = new Texture2D(pixelWidth, pixelHeight) { filterMode = smooth ? FilterMode.Bilinear : FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         var pixels = new Color32[pixelWidth * pixelHeight];
         for (int y = 0; y < pixelHeight; y++)
         {
