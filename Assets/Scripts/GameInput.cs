@@ -79,6 +79,17 @@ public static class GameInput
 #endif
     }
 
+    // Escape closes whatever menu is open.
+    public static bool CancelPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        return k != null && k.escapeKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.Escape);
+#endif
+    }
+
     // R switches between the top-down view and mining mode.
     public static bool ToggleViewPressed()
     {

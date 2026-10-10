@@ -136,7 +136,10 @@ public class PlanetOne : MonoBehaviour
         hud.Setup(inventory);
         var pickups = gameObject.AddComponent<Pickups>();
         pickups.Setup(this, controller, mining, dayNight, inventory);
-        gameObject.AddComponent<Gatherables>().Setup(this, controller, mining, dayNight, pickups, cam);
+        var gatherables = gameObject.AddComponent<Gatherables>();
+        gatherables.Setup(this, controller, mining, dayNight, pickups, cam);
+        // The crafting nook is set into the middle of the ship's front.
+        gameObject.AddComponent<CraftingNook>().Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
     }
 
     PlayerController BuildPlayer(Vector2 position)

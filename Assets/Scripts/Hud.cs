@@ -3,7 +3,7 @@ using UnityEngine;
 // On-screen inventory: a hotbar for tools along the bottom, and a panel of carried items that Tab opens and closes.
 public class Hud : MonoBehaviour
 {
-    // There are no tools yet, so the hotbar is empty slots for now.
+    // The hotbar shows the tools the player has made, first made on the left.
     const int HotbarSlots = 5;
     const float SlotSize = 56f;
     const float Gap = 6f;
@@ -48,7 +48,12 @@ public class Hud : MonoBehaviour
         float hotbarTop = Screen.height - SlotSize - 16f;
         for (int i = 0; i < HotbarSlots; i++)
         {
-            GUI.Box(new Rect(hotbarLeft + i * (SlotSize + Gap), hotbarTop, SlotSize, SlotSize), GUIContent.none);
+            var slot = new Rect(hotbarLeft + i * (SlotSize + Gap), hotbarTop, SlotSize, SlotSize);
+            GUI.Box(slot, GUIContent.none);
+            if (i < inventory.Tools.Count)
+            {
+                GUI.DrawTexture(new Rect(slot.x + 6f, slot.y + 6f, slot.width - 12f, slot.height - 12f), inventory.Tools[i].Icon.texture, ScaleMode.ScaleToFit);
+            }
         }
         GUI.Label(new Rect(hotbarLeft, hotbarTop - 22f, hotbarWidth, 20f), "Tools        [Tab] Items", nameStyle);
 
