@@ -62,6 +62,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **Black hole turns through the night** (asked later on 2026-10-10): "make the black hole rotate throuout the night realistically so its level at midnight." Its disc now stays lined up with its path across the sky: tipped steeply up as it rises, level at midnight, tipped down as it sets.
 
+- **Mining in td** (asked later on 2026-10-10: "make it so you can mine in td"): with the pickaxe equipped, left clicking a square in td hits the top block of that square. Same reach (3 blocks), same hits (snow 1, ice 2, stone 5), and holding the button works too. Mining the top block of the square was Claude's choice, to mirror how building in td stacks on top.
+
 ## Building and houses (asked 2026-10-10)
 
 - **Doorways must show in td** (asked later on 2026-10-10): he made a doorway in sc and in td "it looks like a wall but i can walk through it. thats a problem." Now a gap under the top of a wall shows in td: a dark opening in the wall's south face, or a dark notch cut into the west, east or north edge of its top when the way in is from that side. Dug-out cave mouths show the same way.

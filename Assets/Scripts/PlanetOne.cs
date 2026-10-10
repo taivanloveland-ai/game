@@ -235,7 +235,7 @@ public class PlanetOne : MonoBehaviour
         var nook = gameObject.AddComponent<CraftingNook>();
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
         if (startWithPickaxe) inventory.AddTool(nook.Pickaxe);
-        gameObject.AddComponent<Mining>().Setup(this, controller, mining, inventory, hud, pickups, nook, cam);
+        gameObject.AddComponent<Mining>().Setup(this, controller, mining, inventory, hud, pickups, nook, gatherables, cam);
         gameObject.AddComponent<Building>().Setup(this, controller, mining, inventory, hud, gatherables, cam);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
