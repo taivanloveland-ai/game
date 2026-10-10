@@ -89,6 +89,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
 - Nothing is saved between plays yet, so a new world also means an empty inventory.
 
+## Maps and rarer materials (asked 2026-10-10)
+
+- **Materials are even more uncommon, especially the ferns.** Ferns are now on 0.4% of snow squares (about 50 to 80 in a world, down from about 190) and ice shards on 0.9% of ice squares (about 20 to 50, down from about 60).
+- **A mini map in the top right corner,** and **pressing M opens a world map of what has been on your mini map.**
+- His picks from the options:
+  - **What the maps show:** the land, you and the ship. Ferns and ice shards are not shown.
+  - **Mini map range:** about 40 squares across.
+- As built: both maps are top-down in either view. The mini map keeps you in the middle; the ship's marker (yellow) sticks to the mini map's edge when the ship is out of range, pointing the way home. The world map is dark where you have not been. M or Escape closes it. Like everything else, what you have explored is not saved between plays.
+
 ## Crafting nook (asked 2026-10-10)
 
 - A **little nook in the spaceship with a hanging hammer and wrench**, where you can craft with **8 ferns and 5 ice shards**.
@@ -136,7 +145,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Mining mode: R shows the player's row from the side, with three faded rows behind it, snow 4 or 5 blocks deep over stone, ice as a bowl up to 4 blocks deep, and a 1.5 block jump (Space). W or the up arrow steps to the row behind and S or the down arrow to the row in front, when nothing there is in the way. Each step takes a quarter of a second, about the time it takes to walk one block in td: stepping back, the rows behind slide forward and brighten, the nearest one becoming the front row while the old front row fades away; stepping forward is the reverse. Holding the key keeps stepping. To make the slide visible, each row further back is drawn 0.2 blocks higher than the one in front of it. Ice is slippery and snow is a little slow there too. No mining yet.
 - Mining mode darkness: the ground is lit where it touches open air and fades to black 1.5 blocks in. Shading only applies to a block if there is a block in front of it in the next row forward (asked 2026-10-09); a block with nothing in front stays fully lit and lets light into its neighbours.
 - Day and night: a 2 minute cycle starting just after sunrise. In sc the red sun arcs across a dusky purple sky by day; at night the sky goes black with stars and the black hole arcs across. At night the sc ground and player are tinted dark blue, and top-down gets a dark blue wash.
-- Things to collect: about 190 fiddlehead ferns on the snow (1.25% of snow squares, bluish green, the tall frond about the player's height) and about 60 ice shards on the ice (1.5% of ice squares, curved pale spikes about three quarters of a block tall). The numbers vary a little from world to world. Neither grows back.
+- Things to collect: about 50 to 80 fiddlehead ferns on the snow (0.4% of snow squares, bluish green, the tall frond about the player's height) and about 20 to 50 ice shards on the ice (0.9% of ice squares, curved pale spikes about three quarters of a block tall). The numbers vary from world to world. Neither grows back.
+- Maps: a mini map in the top right shows 40 squares around the player with markers for the player and the ship; M opens a world map of everything the mini map has shown (`WorldMap.cs`).
 - Collecting: right click one. Within a block it drops at once; otherwise the player walks to it in a straight line, jumping onto raised ground, then it drops. If a rock or the ship is on that line, the click does nothing. In sc the walk is along the row only. Pressing a movement key or jump cancels the walk. A drop sits for a third of a second, then slides to the player from up to 2 blocks away and goes into the inventory.
 - Inventory: stacks per kind of item with no limits. On screen there is a 5-slot tool hotbar, which shows crafted tools, and an Items panel opened with Tab that grows a row at a time.
 - Crafting: right clicking the nook on the ship's front (top-down only) walks the player over and opens the "Ship workbench" panel. 8 ferns and 5 ice shards make an ice pickaxe, which goes into the hotbar. The pickaxe has no use yet.

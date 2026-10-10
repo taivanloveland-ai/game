@@ -9,8 +9,8 @@ public class Gatherables : MonoBehaviour
     // The fern's picture is a little taller than the player, which makes the tall frond itself about the player's height.
     const float PlantHeight = PlayerController.Height * 1.1f;
     // How much of the snow has a plant on it, and how much of the ice has a shard.
-    const double PlantDensity = 0.0125;
-    const double ShardDensity = 0.015;
+    const double PlantDensity = 0.004;
+    const double ShardDensity = 0.009;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
     const float FernFootAcross = 0.472f;
     // How far up the picture the ground line is, from the bottom edge, as a share of its height.

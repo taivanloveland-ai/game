@@ -161,6 +161,8 @@ public class PlanetOne : MonoBehaviour
         gatherables.Setup(this, controller, mining, dayNight, pickups, cam);
         // The crafting nook is set into the middle of the ship's front.
         gameObject.AddComponent<CraftingNook>().Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
+        // The maps mark the ship at the middle of its hull.
+        gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
     }
 
     PlayerController BuildPlayer(Vector2 position)
@@ -497,6 +499,19 @@ public class PlanetOne : MonoBehaviour
 
     // Everything that belongs to the top-down view hangs under this.
     public Transform TopDownRoot => topDownRoot.transform;
+
+    // The colour a spot is shown in on the maps: white snow, blue ice, grey rock and ship, each paler where raised.
+    public Color32 MapColorAt(int x, int y)
+    {
+        if (!InBounds(x, y)) return RockColors[0];
+        switch (kind[x, y])
+        {
+            case Ice: return IceBase[ground[x, y]];
+            case Rock: return RockColors[0];
+            case Ship: return ShipColor;
+            default: return ground[x, y] > 0 ? new Color32(255, 255, 255, 255) : new Color32(222, 230, 238, 255);
+        }
+    }
 
     public bool IsSnow(int x, int y)
     {
