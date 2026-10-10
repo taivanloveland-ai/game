@@ -6,15 +6,18 @@ using UnityEngine;
 // otherwise the player walks to it in a straight line first, jumping where needed. If a rock or the ship is in the way, nothing happens.
 public class Gatherables : MonoBehaviour
 {
-    // A plant is three quarters as tall as the player.
-    const float PlantHeight = PlayerController.Height * 0.75f;
+    // The fern's picture is a little taller than the player, which makes the tall frond itself about the player's height.
+    const float PlantHeight = PlayerController.Height * 1.1f;
     // How many picture pixels make one block for the ice shard. Its picture is 13 pixels tall, so it stands about 0.73 blocks.
     const float ShardPixelsPerUnit = 8f / (PlayerController.Height * 0.5f);
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.025;
     const double ShardDensity = 0.03;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
-    const float FernFootAcross = 0.559f;
+    const float FernFootAcross = 0.472f;
+    // How far up the picture the ground line is, from the bottom edge, as a share of its height.
+    // The snow mound and shadow at the fern's foot sit around and just below this line.
+    const float FernFootUp = 0.088f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
     // Where in its square a thing stands, measured up from the near edge.
@@ -53,8 +56,8 @@ public class Gatherables : MonoBehaviour
     };
     // The same blues as the ice it grows from, so a shard reads as part of the ice: a lit side a little paler than
     // the ice, a middle that matches it, and a far side a little deeper.
-    // These follow the drawn ice picture: its pale streak colour, its main blue, and a deeper blue.
-    static readonly Color32 ShardLight = new Color32(180, 223, 244, 255), ShardShade = new Color32(109, 194, 233, 255), ShardDark = new Color32(74, 156, 203, 255);
+    // These follow the ice it grows from: the ice's glint colour, its main blue, and a deeper blue.
+    static readonly Color32 ShardLight = new Color32(206, 235, 248, 255), ShardShade = new Color32(146, 202, 232, 255), ShardDark = new Color32(108, 170, 210, 255);
     // The ice shard, one text row per pixel row from the top. It is long and gently curved, thick at the base and
     // tapering to a point, like the pick of a pickaxe. The base spreads out where it joins the ice.
     // L is the lit side, S the middle, D the far side.
@@ -134,7 +137,7 @@ public class Gatherables : MonoBehaviour
             for (int level = 0; level < plant.Sprites.Length; level++)
             {
                 // The pivot is the foot of the stem. Dropping it below the picture draws the fern higher, for raised ground.
-                var pivot = new Vector2(FernFootAcross, -level * PlanetOne.HeightScale / PlantHeight);
+                var pivot = new Vector2(FernFootAcross, FernFootUp - level * PlanetOne.HeightScale / PlantHeight);
                 plant.Sprites[level] = Sprite.Create(fernPicture, whole, pivot, pixelsPerUnit);
             }
             plant.Item = new Item(plant.Item.Name, plant.Sprites[0]);

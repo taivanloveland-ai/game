@@ -86,6 +86,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - `IceBlock.png`: a bright blue square with pale diagonal streaks, supplied 2026-10-10 as "ice for sc and td". Used the same way as the snow picture: the top of ice tiles in td and ice blocks in sc, exactly as drawn. The standing ice shards were recoloured to this picture's blues so they still look like part of the ice.
 - Art sent so far is 128 by 128 pixels with hard pixel edges.
 
+### Art frustration and fixes (2026-10-10)
+
+- He said he was frustrated: the fern did not look like it belonged, and the ice shard sprite, the spike and the ice block sprite were ugly. Claude's diagnosis was that the pieces were made separately in clashing styles (different pixel sizes, outlines and shading on some things only, pictures repeating in every square, bright colours next to muted ones).
+- He then asked for three fixes, plus taller ferns:
+  - **Fern looks like it is actually growing there:** it now comes up out of a small mound of snow, casts a soft shadow on the ground, has a young frond beside the tall one, and its edge is a soft teal instead of near-black. The tall frond is about the player's height.
+  - **No outline on the loose ice shard:** it is his shape in a pale blue with no edge.
+  - **Ice blocks look good:** his `IceBlock.png` is no longer used (it is in git history). Ice is drawn by the game as a clear blue with a few short pale glints and the odd crack, picked at random per square so nothing repeats; raised ice is paler. In sc, ice goes from that blue to a deeper blue with depth.
+- Not yet addressed: he also called the standing spike ugly. It was only recoloured to match the new ice.
+
 ## Look and feel decisions
 
 - **Engine:** Unity (decided 2026-10-09).
