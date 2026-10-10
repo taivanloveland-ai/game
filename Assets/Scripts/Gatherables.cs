@@ -103,6 +103,8 @@ public class Gatherables : MonoBehaviour
         // What comes loose when it is collected, and how many of each. Left empty, it is one of the item above.
         public Item[] Drops;
         public int[] DropCounts;
+        // True for things that can only be collected with the ice axe equipped.
+        public bool NeedsAxe;
     }
 
 
@@ -111,6 +113,9 @@ public class Gatherables : MonoBehaviour
     public Item ThornItem { get; private set; }
     public Item VineItem { get; private set; }
     public Item StickItem { get; private set; }
+    // Set from outside: whether the player has the ice axe in hand, and a way to show them a line of text.
+    public System.Func<bool> AxeEquipped;
+    public System.Action<string> Say;
     // True while the player is walking toward something they clicked.
     public bool Walking => target.HasValue;
 
@@ -235,6 +240,7 @@ public class Gatherables : MonoBehaviour
         }
         bush.Drops = new[] { ThornItem, VineItem, StickItem };
         bush.DropCounts = new[] { 3, 3, 1 };
+        bush.NeedsAxe = true;
         return bush;
     }
 
@@ -473,6 +479,11 @@ public class Gatherables : MonoBehaviour
     public bool ClickAt(Vector2 point)
     {
         if (!FindThingAt(point, out Vector2Int cell)) return false;
+        if (things[planet.Wrap(cell)].NeedsAxe && (AxeEquipped == null || !AxeEquipped()))
+        {
+            Say?.Invoke("You need an ice axe to cut down a thornam bush");
+            return false;
+        }
         if (InReach(cell))
         {
             Collect(cell);
