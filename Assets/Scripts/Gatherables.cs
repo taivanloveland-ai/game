@@ -6,15 +6,15 @@ using UnityEngine;
 // otherwise the player walks to it in a straight line first, jumping where needed. If a rock or the ship is in the way, nothing happens.
 public class Gatherables : MonoBehaviour
 {
-    // A plant is half as tall as the player.
-    const float PlantHeight = PlayerController.Height * 0.5f;
+    // A plant is three quarters as tall as the player.
+    const float PlantHeight = PlayerController.Height * 0.75f;
     // How many picture pixels make one block for the ice shard. Its picture is 13 pixels tall, so it stands about 0.73 blocks.
-    const float ShardPixelsPerUnit = 8f / PlantHeight;
+    const float ShardPixelsPerUnit = 8f / (PlayerController.Height * 0.5f);
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.025;
     const double ShardDensity = 0.03;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
-    const float FernFootAcross = 0.551f;
+    const float FernFootAcross = 0.559f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
     // Where in its square a thing stands, measured up from the near edge.
@@ -118,7 +118,7 @@ public class Gatherables : MonoBehaviour
         this.pickups = pickups;
         this.cam = cam;
 
-        // The fern's picture is scaled so it stands exactly half the player's height.
+        // The fern's picture is scaled so it stands exactly PlantHeight tall.
         Kind plant = MakeKind("Fiddlehead fern", FernPicture[0].Length, FernPicture.Length, FernPicture.Length / PlantHeight, (x, y) =>
         {
             char c = FernPicture[y][x];
