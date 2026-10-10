@@ -10,7 +10,8 @@ public class Pickups : MonoBehaviour
     // A fresh drop sits still for a moment so you see it land before it flies to you.
     const float PullDelay = 0.35f;
     // How close the player has to be for a thing knocked loose from the ground to start sliding over, and how big it is drawn.
-    const float GroundPullRadius = 2f;
+    // It is wide enough to cover anywhere a fern or ice shard can be collected from, including from a block above or below.
+    const float GroundPullRadius = 3f;
     const float GroundScale = 0.8f;
 
     class Dropped
