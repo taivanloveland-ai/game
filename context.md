@@ -59,7 +59,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Story:** the planets orbit a binary star system where the other star is a black hole.
 - In the side-scroller you can see the **sun in the daytime** and the **black hole at night**.
 - His picks from the options:
-  - **Day length:** 2 minutes for a full day and night, for now, for testing purposes. Expect this to be lengthened later.
+  - **Day length:** 2 minutes for a full day and night at first, for testing. On 2026-10-10 he said "day is 6 minutes": a full day and night now takes 6 minutes, 3 of day and 3 of night (Claude's reading; he may have meant 6 minutes of daylight).
   - **Black hole:** tilted disc. A black disc with a thin ring and a flat glowing band across its middle.
   - **Sun:** red and dim.
   - **Night:** everything gets darker, in both sc and top-down.
@@ -88,11 +88,6 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **The world is randomized:** planet 1 is built from a new random seed every time the game starts, so the snow, ice, rocks, raised ground, ferns and shards are in different places each play. The ship and the open crash site are always in the middle.
 - As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
 - Nothing is saved between plays yet, so a new world also means an empty inventory.
-
-## Temporary settings to undo later
-
-- **Player speed is 5 times normal, temporarily** (asked 2026-10-10). `speed` in `PlayerController.cs` is 25 and should go back to 5.
-- **A full day and night takes 2 minutes,** for testing (asked 2026-10-09). To be lengthened later.
 
 ## Bigger planet that loops (asked 2026-10-10)
 
@@ -156,7 +151,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Top-down jump: Space, 1.5 blocks high, with a shadow on the ground. You need it to get onto level 1; walking off an edge drops you back down.
 - Mining mode: R shows the player's row from the side, with three faded rows behind it, snow 4 or 5 blocks deep over stone, ice as a bowl up to 4 blocks deep, and a 1.5 block jump (Space). W or the up arrow steps to the row behind and S or the down arrow to the row in front, when nothing there is in the way. Each step takes a quarter of a second, about the time it takes to walk one block in td: stepping back, the rows behind slide forward and brighten, the nearest one becoming the front row while the old front row fades away; stepping forward is the reverse. Holding the key keeps stepping. To make the slide visible, each row further back is drawn 0.2 blocks higher than the one in front of it. Ice is slippery and snow is a little slow there too. No mining yet.
 - Mining mode darkness: the ground is lit where it touches open air and fades to black 1.5 blocks in. Shading only applies to a block if there is a block in front of it in the next row forward (asked 2026-10-09); a block with nothing in front stays fully lit and lets light into its neighbours.
-- Day and night: a 2 minute cycle starting just after sunrise. In sc the red sun arcs across a dusky purple sky by day; at night the sky goes black with stars and the black hole arcs across. At night the sc ground and player are tinted dark blue, and top-down gets a dark blue wash.
+- Day and night: a 6 minute cycle starting just after sunrise. In sc the red sun arcs across a dusky purple sky by day; at night the sky goes black with stars and the black hole arcs across. At night the sc ground and player are tinted dark blue, and top-down gets a dark blue wash.
 - Things to collect: fiddlehead ferns on 0.4% of snow squares (about 2,100 on the planet; bluish green, the tall frond about the player's height) and ice shards on 0.9% of ice squares (about 1,600; curved pale spikes about three quarters of a block tall). Neither grows back.
 - Maps: a mini map in the top right shows 40 squares around the player with markers for the player and the ship; M opens a world map of everything the mini map has shown (`WorldMap.cs`).
 - Collecting: right click one. Within a block it drops at once; otherwise the player walks to it in a straight line, jumping onto raised ground, then it drops. If a rock or the ship is on that line, the click does nothing. In sc the walk is along the row only. Pressing a movement key or jump cancels the walk. A drop sits for a third of a second, then slides to the player from up to 2 blocks away and goes into the inventory.

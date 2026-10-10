@@ -11,9 +11,7 @@ public class PlayerController : MonoBehaviour
     // In the top-down view only the player's feet touch the ground: the bottom part of the rectangle.
     const float FeetDepth = 0.4f;
 
-    // TEMPORARY: five times the normal speed of 5, for getting around the big planet quickly while testing.
-    // Set this back to 5f when the testing is done.
-    public float speed = 25f;
+    public float speed = 5f;
     // Walking through snow is a little slower than full speed. 1 would be no slowdown.
     public float snowSpeedFactor = 0.9f;
     // How quickly the player can change speed on ice, in units per second each second. Lower is more slippery.
