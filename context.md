@@ -68,6 +68,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **Chunkier black hole, Terraria-style path** (asked later on 2026-10-10): "the black hole needs to be a bit more pixelated and the curve of its path needs to be like terraria." The black hole is now painted at 24 pixels per block with hard-edged pixels (it was 128 and smooth; 24 was Claude's pick for "a bit"). The sun and black hole both now cross the sky the way Terraria's sun and moon do: steadily from just past the left edge to just past the right, along a low, wide parabola that peaks mid-screen. The black hole still tips with its path and is level at midnight.
 
+## Ice spiders (asked 2026-10-10)
+
+- He drew a pale ice-blue spider seen from above (round body, small dark face mark, eight bent legs) and asked: "can you fix this up and make it look real good like a spider and add animation of it walking and make it fit in td and sc and symetrical". His drawing was the reference; the game paints its own spider after it at the fine pixel scale (128 per block), mirrored so both sides match. His picture file is not used in the game.
+- His picks:
+  - **Behaviour:** his own answer: "chases you also add biting animations." It wanders until you come within 7 squares, then chases you (giving up past 11), and bites over and over when it reaches you. A bite does nothing yet because there is no health.
+  - **Where:** on the ice. They stay on the ice and will not follow you onto snow.
+  - **Size:** about a block wide, legs and all.
+- As built: about 400 to 450 on the planet (0.12% of ice squares; Claude's number), none within 14 squares of the start. They move at 2.4 squares a second chasing and 0.9 wandering (the player's normal speed is 3). In td they are seen from above and turn to face where they are going; in sc they are seen from the side and only the ones in the row or column on screen show. You can walk through them for now (Claude's choice). 8 walking pictures and 5 biting pictures for each view.
+
 ## Building and houses (asked 2026-10-10)
 
 - **Longer hotbar** (asked later on 2026-10-10): the hotbar is 10 slots (keys 1 to 9, and 0 for the tenth), and the mouse wheel scrolls along it, going round at the ends. A block put in a slot keeps that slot when you run out: it is drawn faint with a 0, and the next ones you get are in the same slot, until you drag something else there or drag it off. His words: "if you put an item in a slot and run out then get the item again, teh item goes into that slot until it is switched with something."

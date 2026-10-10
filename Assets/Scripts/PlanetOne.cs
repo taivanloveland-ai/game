@@ -278,6 +278,7 @@ public class PlanetOne : MonoBehaviour
             }
         }
         gameObject.AddComponent<Building>().Setup(this, controller, mining, inventory, hud, gatherables, cam);
+        gameObject.AddComponent<Spiders>().Setup(this, controller, mining, dayNight);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
     }
