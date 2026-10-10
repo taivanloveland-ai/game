@@ -24,6 +24,8 @@ public class MiningMode : MonoBehaviour
     static readonly Color[] BehindTints = { new Color(0.62f, 0.68f, 0.78f), new Color(0.45f, 0.5f, 0.6f), new Color(0.32f, 0.36f, 0.46f) };
     static readonly Color SnowTop = new Color32(234, 241, 247, 255), SnowDeep = new Color32(188, 205, 223, 255);
     static readonly Color IceTop = new Color32(146, 202, 232, 255), IceDeep = new Color32(92, 150, 198, 255);
+    // What the game's own ice blocks are multiplied by at their deepest, taking the surface blue down to the deep blue.
+    static readonly Color IceDepthTint = new Color(0.63f, 0.74f, 0.85f);
     static readonly Color Stone = new Color32(70, 80, 96, 255);
 
     // Drawing order, back to front: the rows behind (1 to 3, with 0 for one sliding in at the back), the front row (4),
@@ -416,9 +418,22 @@ public class MiningMode : MonoBehaviour
         // Snow and ice blocks use their drawn pictures when there are any, exactly as drawn: no colouring and no flipping.
         Sprite picture = block == PlanetOne.SideBlock.Snow ? planet.SnowSprite : block == PlanetOne.SideBlock.Ice ? planet.IceSprite : null;
         if (picture != null) color = Color.white;
+
+        // Ice without a drawn picture uses the game's own finely drawn ice blocks. Most are plain; about one in three
+        // carries a glint or a crack. The block is tinted toward a deeper blue the further down it is.
+        int iceLook = 0;
+        if (picture == null && block == PlanetOne.SideBlock.Ice)
+        {
+            int roll = (hash >> 17) & 15;
+            int marked = planet.IceSideSprites.Length - 1;
+            iceLook = 1 + (roll < 5 && marked > 0 ? 1 + roll % marked : 0);
+            picture = planet.IceSideSprites[iceLook - 1];
+            color = Color.Lerp(Color.white, IceDepthTint, (depth - 1) / 3f);
+        }
+
         Color32 c = color;
-        // Snow and ice pictures are both drawn white, so the kind of block is part of the key to keep them apart.
-        int key = (c.r << 16) | (c.g << 8) | c.b | (picture != null ? (int)block << 24 : 0);
+        // Pictured blocks are mostly drawn white, so the kind of block and its look are part of the key to keep them apart.
+        int key = (c.r << 16) | (c.g << 8) | c.b | (picture != null ? (int)block << 24 : 0) | (iceLook << 27);
         if (!tiles.TryGetValue(key, out Tile tile))
         {
             tile = PlanetOne.MakeTile(color, picture != null ? picture : planet.Square, true);

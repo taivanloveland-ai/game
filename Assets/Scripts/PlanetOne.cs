@@ -25,6 +25,8 @@ public class PlanetOne : MonoBehaviour
     const int FacePixels = 8;
     // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
     const int PictureDetail = 8;
+    // Glints and cracks in the ice are thin lines this many fine pixels either side of their centre (3 pixels wide).
+    const int IceMarkHalfWidth = 1;
     // Grey rocks and the ship stand this many blocks above the highest ground next to them, so a 1.5 block jump never clears them.
     const int RockHeight = 2;
     const int MaxIceDepth = 4;
@@ -72,6 +74,8 @@ public class PlanetOne : MonoBehaviour
     // The drawn pictures for snow and ice as one-block sprites, or null where there is no picture.
     public Sprite SnowSprite => snowPicture?.Sprite;
     public Sprite IceSprite => icePicture?.Sprite;
+    // Ice blocks drawn by the game for mining mode: plain ice first, then one for each marked look.
+    public Sprite[] IceSideSprites { get; private set; }
 
     // A drawn picture of a block: as a sprite for mining mode, and as pixels for painting onto top-down tiles.
     class BlockPicture
@@ -100,6 +104,7 @@ public class PlanetOne : MonoBehaviour
         // Drawn pictures, where they exist, are used for the top of tiles here and for blocks in mining mode.
         snowPicture = LoadBlockPicture("Art/SnowBlock");
         icePicture = LoadBlockPicture("Art/IceBlock");
+        IceSideSprites = MakeIceSideSprites();
 
         int cx = width / 2, cy = height / 2;
         BuildTerrain(cx, cy);
@@ -271,32 +276,55 @@ public class PlanetOne : MonoBehaviour
         int spriteHeight = TilePixels + facePixels;
         // The pivot sits where the far edge of the square is on flat ground, so higher blocks are drawn shifted up.
         var pivot = new Vector2(0.5f, (spriteHeight - level * FacePixels) / (float)spriteHeight);
-        // Tiles that use a picture are painted with several picture pixels for each ordinary tile pixel.
-        int detail = pictured ? PictureDetail : 1;
-        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, pictured, (fineX, fineY) =>
+        // Tiles that use a picture, and ice, are painted with several fine pixels for each ordinary tile pixel,
+        // so their detail is as fine as the snow picture's.
+        bool fine = pictured || material == Ice;
+        int detail = fine ? PictureDetail : 1;
+        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) =>
         {
             int x = fineX / detail, y = fineY / detail;
             if (y >= TilePixels) return PaintFace(material, x, y - TilePixels, facePixels);
             bool rim = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
             if (pictured) return PicturePixel(picture, fineX, fineY);
-            return material == Ice ? IcePixel(groundLevel, variant, x, y) : topColor;
+            return material == Ice ? IcePixel(groundLevel, variant, fineX, fineY) : topColor;
         });
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
     }
 
-    // One pixel of the top of an ice tile: the ice blue, or a glint or crack where this tile's look has a mark.
-    static Color32 IcePixel(int groundLevel, int variant, int x, int y)
+    // One fine pixel of an ice block: the ice blue, or a glint or crack where this look has a mark.
+    // The marks are laid out on the 16-pixel tile grid but drawn as thin lines at the fine scale.
+    static Color32 IcePixel(int groundLevel, int variant, int fineX, int fineY)
     {
         foreach (int[] mark in IceMarks[variant])
         {
-            int step = mark[1] - y;
-            if (step < 0 || step >= mark[2] || x != mark[0] + step * mark[3]) continue;
+            int step = mark[1] * PictureDetail + PictureDetail - 1 - fineY;
+            if (step < 0 || step >= mark[2] * PictureDetail) continue;
+            int lineX = mark[0] * PictureDetail + PictureDetail / 2 + step * mark[3];
+            if (Mathf.Abs(fineX - lineX) > IceMarkHalfWidth) continue;
             return mark[4] == 1 ? IceGlint[groundLevel] : IceCrack[groundLevel];
         }
         return IceBase[groundLevel];
+    }
+
+    // Ice blocks for mining mode, one for each look that differs from plain: element 0 is plain ice.
+    Sprite[] MakeIceSideSprites()
+    {
+        var looks = new List<int> { 0 };
+        for (int look = 1; look < IceMarks.Length; look++)
+        {
+            if (IceMarks[look].Length > 0) looks.Add(look);
+        }
+        int size = TilePixels * PictureDetail;
+        var sprites = new Sprite[looks.Count];
+        for (int i = 0; i < sprites.Length; i++)
+        {
+            int look = looks[i];
+            sprites[i] = PaintSprite(size, size, new Vector2(0.5f, 0.5f), size, true, (x, y) => IcePixel(0, look, x, y));
+        }
+        return sprites;
     }
 
     // The drawn picture for a kind of ground, or null if that kind is drawn as flat colour.
