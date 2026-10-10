@@ -6,10 +6,15 @@ using UnityEngine.Tilemaps;
 // Builds the frozen crash planet when the scene starts: ground, rock, the wrecked ship, the player and the camera.
 // Every spot has a height in blocks. The top-down view is angled: higher ground is drawn shifted up the screen,
 // with a cliff face showing on its south side. Mining mode uses the same heights to draw a row from the side.
+//
+// The planet has no edges. It joins up with itself, so walking far enough in any direction brings you back to
+// where you started. Positions in the game just keep counting past the planet's size; whenever the land is looked
+// up, the position is wrapped back into the planet. Only the land around the player is ever drawn.
 public class PlanetOne : MonoBehaviour
 {
-    public int width = 160;
-    public int height = 160;
+    // The size of the planet in squares. Not saved in the scene, so these numbers are always the ones used.
+    [System.NonSerialized] public int width = 960;
+    [System.NonSerialized] public int height = 960;
     // The world is different every time the game starts. Untick this to always build the world from the seed below.
     public bool randomWorld = true;
     // The number the world is built from. The same seed always gives the same world.
@@ -35,7 +40,18 @@ public class PlanetOne : MonoBehaviour
     const int MaxIceDepth = 4;
     // A random world must let the player walk to at least this share of its snow and ice from the crash site.
     const float MinReachableShare = 0.8f;
-    const int Blocked = 99;
+    // The top-down view holds only the tiles this far either side of the player: a little more than the screen shows.
+    const int WindowHalfWidth = 22;
+    const int WindowHalfHeight = 16;
+    // Roughly how many squares across the big shapes of the land are: snow, ice and rock; raised ground; snow depth.
+    const float LandBlobSize = 26f, RaisedBlobSize = 17f, DepthBlobSize = 8f;
+
+    // Where the land noise is above the first number it is rock, and below the second it is ice. Raised ground is where
+    // its own noise is above the third.
+    const float RockAbove = 0.62f, IceBelow = 0.38f, RaisedAbove = 0.6f;
+
+    // Camera limits that never come into play, for a world with no edges.
+    public static readonly Rect Unbounded = new Rect(-1e7f, -1e7f, 2e7f, 2e7f);
 
     public static readonly Color[] RockColors = { new Color32(93, 107, 126, 255), new Color32(84, 98, 117, 255) };
     public static readonly Color ShipColor = new Color32(120, 128, 140, 255);
@@ -100,7 +116,16 @@ public class PlanetOne : MonoBehaviour
     byte[,] iceDepth;
     byte[,] snowDepth;
     GameObject topDownRoot;
+    Tilemap terrain;
     readonly Dictionary<int, Tile> terrainTiles = new Dictionary<int, Tile>();
+    PlayerController player;
+    // Mixed into each square's position to pick which look its tile has.
+    int variantSeed;
+    // The squares whose tiles are currently on the tilemap. Empty until the first tiles are placed.
+    RectInt window;
+
+    // The squares of land being drawn around the player right now, in unwrapped positions.
+    public RectInt LandWindow => window;
 
     void Awake()
     {
@@ -112,18 +137,21 @@ public class PlanetOne : MonoBehaviour
         IceSideSprites = MakeIceSideSprites();
 
         int cx = width / 2, cy = height / 2;
+        var timer = System.Diagnostics.Stopwatch.StartNew();
         var picker = new System.Random();
         if (randomWorld) seed = picker.Next(1, 1000000);
-        System.Random rand = GenerateLand(cx, cy);
+        GenerateLand(cx, cy);
+        float reachable = ReachableShare(cx, cy);
         // A random world is thrown away and picked again if rock walls off too much of it from the crash site.
-        for (int tries = 0; randomWorld && tries < 20 && ReachableShare(cx, cy) < MinReachableShare; tries++)
+        for (int tries = 0; randomWorld && tries < 5 && reachable < MinReachableShare; tries++)
         {
             seed = picker.Next(1, 1000000);
-            rand = GenerateLand(cx, cy);
+            GenerateLand(cx, cy);
+            reachable = ReachableShare(cx, cy);
         }
         // Logged so a world worth keeping can be built again by typing its seed in and unticking Random World.
-        Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(ReachableShare(cx, cy) * 100f) + "% of its snow and ice can be walked to)");
-        BuildTerrain(rand);
+        Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(reachable * 100f) + "% of its snow and ice can be walked to, worked out in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds)");
+        BuildTerrain();
 
         Camera cam = Camera.main;
         if (cam == null)
@@ -141,11 +169,13 @@ public class PlanetOne : MonoBehaviour
         cam.transparencySortAxis = Vector3.up;
 
         PlayerController controller = BuildPlayer(new Vector2(cx + 0.5f, cy - 0.5f));
+        player = controller;
+        ShowLandAround(Vector2Int.FloorToInt(player.GroundPosition));
 
         var follow = cam.GetComponent<CameraFollow>();
         if (follow == null) follow = cam.gameObject.AddComponent<CameraFollow>();
         follow.target = controller.transform;
-        follow.bounds = new Rect(0f, 0f, width, height);
+        follow.bounds = Unbounded;
 
         var mining = gameObject.AddComponent<MiningMode>();
         var dayNight = gameObject.AddComponent<DayNight>();
@@ -197,12 +227,12 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Works out the shape of the world from the seed: what each spot is made of and how high it is.
-    // Nothing is drawn yet. Returns the random number source, which the drawing carries on from.
-    System.Random GenerateLand(int cx, int cy)
+    // Nothing is drawn yet.
+    void GenerateLand(int cx, int cy)
     {
         var rand = new System.Random(seed);
-        float ox = (float)rand.NextDouble() * 1000f, oy = (float)rand.NextDouble() * 1000f;
-        float hx = (float)rand.NextDouble() * 1000f, hy = (float)rand.NextDouble() * 1000f;
+        int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
+        variantSeed = rand.Next();
 
         kind = new byte[width, height];
         ground = new byte[width, height];
@@ -211,17 +241,14 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < width; x++)
             {
-                int edge = Mathf.Min(Mathf.Min(x, y), Mathf.Min(width - 1 - x, height - 1 - y));
                 float fromCrash = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
-                float e = Noise(x + ox, y + oy, 26f);
-                // Raise the ground into rock near the map edge so the world is walled in.
-                if (edge < 8) e += (8 - edge) / 8f * 0.6f;
+                float e = LoopingNoise(x, y, LandBlobSize, landSeed, 3);
                 // Flatten the land around the crash site so the start is open snow.
                 e = 0.5f + (e - 0.5f) * Mathf.Clamp01((fromCrash - 6f) / 6f);
 
-                kind[x, y] = edge == 0 || e > 0.62f ? Rock : e < 0.36f ? Ice : Snow;
+                kind[x, y] = e > RockAbove ? Rock : e < IceBelow ? Ice : Snow;
                 // Patches of ground one block higher. The crash site itself stays at ground level.
-                ground[x, y] = (byte)(fromCrash > 8f && Noise(x + hx, y + hy, 17f) > 0.56f ? 1 : 0);
+                ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
         }
         // The wrecked ship sits just above the spot where the player starts.
@@ -239,16 +266,12 @@ public class PlanetOne : MonoBehaviour
                 int highest = 0;
                 for (int ny = y - 1; ny <= y + 1; ny++)
                 {
-                    for (int nx = x - 1; nx <= x + 1; nx++)
-                    {
-                        if (nx >= 0 && ny >= 0 && nx < width && ny < height) highest = Mathf.Max(highest, ground[nx, ny]);
-                    }
+                    for (int nx = x - 1; nx <= x + 1; nx++) highest = Mathf.Max(highest, ground[WrapX(nx), WrapY(ny)]);
                 }
                 top[x, y] = (byte)(highest + RockHeight);
             }
         }
-        ComputeGroundDepths(ox, oy);
-        return rand;
+        ComputeGroundDepths(depthSeed);
     }
 
     // How much of the walkable land can be reached on foot from the crash site, from 0 to 1.
@@ -268,8 +291,8 @@ public class PlanetOne : MonoBehaviour
             reached++;
             foreach (Vector2Int step in steps)
             {
-                Vector2Int n = p + step;
-                if (!InBounds(n.x, n.y) || seen[n.x, n.y] || kind[n.x, n.y] == Rock || kind[n.x, n.y] == Ship) continue;
+                Vector2Int n = Wrap(p + step);
+                if (seen[n.x, n.y] || kind[n.x, n.y] == Rock || kind[n.x, n.y] == Ship) continue;
                 seen[n.x, n.y] = true;
                 queue.Enqueue(n);
             }
@@ -283,33 +306,56 @@ public class PlanetOne : MonoBehaviour
         return reached / (float)walkable;
     }
 
-    // Draws the top-down view of the land.
-    void BuildTerrain(System.Random rand)
+    // Sets up the top-down view of the land. The tiles themselves are placed as the player moves around.
+    void BuildTerrain()
     {
         var grid = new GameObject("Grid").AddComponent<Grid>();
         grid.transform.SetParent(transform, false);
         topDownRoot = grid.gameObject;
-        Tilemap terrain = MakeTilemap(grid, "Terrain", 0);
+        terrain = MakeTilemap(grid, "Terrain", 0);
         // Each tile is sorted on its own by the far edge of its square, so the player is drawn over the tile
         // they stand on and behind taller tiles nearer the bottom of the screen.
         terrain.tileAnchor = new Vector3(0.5f, 1f, 0f);
         terrain.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Individual;
+    }
 
-        for (int y = 0; y < height; y++)
+    void Update()
+    {
+        if (topDownRoot.activeSelf) ShowLandAround(Vector2Int.FloorToInt(player.GroundPosition));
+    }
+
+    // Makes sure the tiles around a square are on the tilemap, and takes away the ones that have fallen out of range.
+    // The planet is far too big to draw all at once, and drawing only what is near also lets it repeat without a seam.
+    void ShowLandAround(Vector2Int centre)
+    {
+        var wanted = new RectInt(centre.x - WindowHalfWidth, centre.y - WindowHalfHeight, WindowHalfWidth * 2 + 1, WindowHalfHeight * 2 + 1);
+        if (wanted.Equals(window)) return;
+
+        foreach (Vector2Int cell in window.allPositionsWithin)
         {
-            for (int x = 0; x < width; x++)
-            {
-                int level = top[x, y];
-                int drop = Mathf.Max(0, level - TopAt(x, y - 1, level));
-                int rims = (TopAt(x, y + 1, level) < level ? 1 : 0) | (TopAt(x - 1, y, level) < level ? 2 : 0) | (TopAt(x + 1, y, level) < level ? 4 : 0);
-                // Plain tiles get one of a few shades; tiles with an edge all share one so the edges line up cleanly.
-                // A tile drawn from a picture always looks exactly like the picture, so it has no shades.
-                bool pictured = PictureFor(kind[x, y]) != null;
-                int looks = kind[x, y] == Ice ? IceMarks.Length : 3;
-                int variant = !pictured && rims == 0 && drop == 0 ? rand.Next(looks) : 0;
-                terrain.SetTile(new Vector3Int(x, y, 0), TerrainTile(kind[x, y], ground[x, y], level, drop, rims, variant));
-            }
+            if (!wanted.Contains(cell)) terrain.SetTile((Vector3Int)cell, null);
         }
+        foreach (Vector2Int cell in wanted.allPositionsWithin)
+        {
+            if (!window.Contains(cell)) terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y));
+        }
+        window = wanted;
+    }
+
+    // The tile for one square of the top-down view.
+    Tile TileAt(int x, int y)
+    {
+        byte material = kind[WrapX(x), WrapY(y)];
+        int level = TopAt(x, y);
+        int drop = Mathf.Max(0, level - TopAt(x, y - 1));
+        int rims = (TopAt(x, y + 1) < level ? 1 : 0) | (TopAt(x - 1, y) < level ? 2 : 0) | (TopAt(x + 1, y) < level ? 4 : 0);
+        // Plain tiles get one of a few looks; tiles with an edge all share one so the edges line up cleanly.
+        // A tile drawn from a picture always looks exactly like the picture, so it has no other looks.
+        // The look is worked out from the square's position, so a square looks the same every time it comes into view.
+        bool pictured = PictureFor(material) != null;
+        int looks = material == Ice ? IceMarks.Length : 3;
+        int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
+        return TerrainTile(material, GroundAt(x, y), level, drop, rims, variant);
     }
 
     // One tile of the top-down view: the top of the block, plus the cliff face below it when the ground to the south is lower.
@@ -451,7 +497,7 @@ public class PlanetOne : MonoBehaviour
 
     // Works out how deep the ice and snow go everywhere. Ice is shallow at the shore and deeper toward the middle,
     // so from the side a patch of ice looks like a lake or river that froze in its bed.
-    void ComputeGroundDepths(float ox, float oy)
+    void ComputeGroundDepths(int depthSeed)
     {
         iceDepth = new byte[width, height];
         snowDepth = new byte[width, height];
@@ -473,8 +519,7 @@ public class PlanetOne : MonoBehaviour
             Vector2Int p = queue.Dequeue();
             foreach (Vector2Int step in steps)
             {
-                Vector2Int n = p + step;
-                if (n.x < 0 || n.y < 0 || n.x >= width || n.y >= height) continue;
+                Vector2Int n = Wrap(p + step);
                 if (distance[n.x, n.y] <= distance[p.x, p.y] + 1) continue;
                 distance[n.x, n.y] = distance[p.x, p.y] + 1;
                 queue.Enqueue(n);
@@ -487,14 +532,36 @@ public class PlanetOne : MonoBehaviour
             {
                 if (kind[x, y] == Ice) iceDepth[x, y] = (byte)Mathf.Min(distance[x, y], MaxIceDepth);
                 // Snow is 4 or 5 blocks deep, changing gently from place to place.
-                snowDepth[x, y] = (byte)(Mathf.PerlinNoise((x + ox) * 0.13f, (y + oy) * 0.13f) > 0.5f ? 5 : 4);
+                snowDepth[x, y] = (byte)(LoopingNoise(x, y, DepthBlobSize, depthSeed, 1) > 0.5f ? 5 : 4);
             }
         }
     }
 
-    bool InBounds(int x, int y)
+    // Brings a position back into the planet. Going off one side comes back on the other.
+    public int WrapX(int x)
     {
-        return x >= 0 && y >= 0 && x < width && y < height;
+        x %= width;
+        return x < 0 ? x + width : x;
+    }
+
+    public int WrapY(int y)
+    {
+        y %= height;
+        return y < 0 ? y + height : y;
+    }
+
+    public Vector2Int Wrap(Vector2Int cell)
+    {
+        return new Vector2Int(WrapX(cell.x), WrapY(cell.y));
+    }
+
+    // Because the planet repeats, every spot can be found again one planet-width away in each direction.
+    // This gives the copy of a spot that is closest to another position.
+    public Vector2 Nearest(Vector2 spot, Vector2 from)
+    {
+        return new Vector2(
+            from.x + Mathf.Repeat(spot.x - from.x + width / 2f, width) - width / 2f,
+            from.y + Mathf.Repeat(spot.y - from.y + height / 2f, height) - height / 2f);
     }
 
     // Everything that belongs to the top-down view hangs under this.
@@ -503,7 +570,8 @@ public class PlanetOne : MonoBehaviour
     // The colour a spot is shown in on the maps: white snow, blue ice, grey rock and ship, each paler where raised.
     public Color32 MapColorAt(int x, int y)
     {
-        if (!InBounds(x, y)) return RockColors[0];
+        x = WrapX(x);
+        y = WrapY(y);
         switch (kind[x, y])
         {
             case Ice: return IceBase[ground[x, y]];
@@ -515,37 +583,33 @@ public class PlanetOne : MonoBehaviour
 
     public bool IsSnow(int x, int y)
     {
-        return InBounds(x, y) && kind[x, y] == Snow;
+        return kind[WrapX(x), WrapY(y)] == Snow;
     }
 
     public bool IsIce(Vector2 position)
     {
-        int x = Mathf.FloorToInt(position.x), y = Mathf.FloorToInt(position.y);
-        return InBounds(x, y) && kind[x, y] == Ice;
+        return kind[WrapX(Mathf.FloorToInt(position.x)), WrapY(Mathf.FloorToInt(position.y))] == Ice;
     }
 
-    // Height in blocks of whatever is at a spot. Anything past the edge of the map counts as too tall to enter.
+    // Height in blocks of whatever is at a spot.
     public int TopAt(int x, int y)
     {
-        return TopAt(x, y, Blocked);
-    }
-
-    int TopAt(int x, int y, int outside)
-    {
-        return InBounds(x, y) ? top[x, y] : outside;
+        return top[WrapX(x), WrapY(y)];
     }
 
     // Height of the snow or ice surface at a spot, ignoring any rock or ship standing on it.
     public int GroundAt(int x, int y)
     {
-        return InBounds(x, y) ? ground[x, y] : 0;
+        return ground[WrapX(x), WrapY(y)];
     }
 
     // The block at one spot of a row seen from the side. Level 0 is the first block above the lowest ground,
     // and negative levels are underground.
     public SideBlock SideBlockAt(int x, int row, int level)
     {
-        if (!InBounds(x, row) || level >= top[x, row]) return SideBlock.Air;
+        x = WrapX(x);
+        row = WrapY(row);
+        if (level >= top[x, row]) return SideBlock.Air;
 
         byte k = kind[x, row];
         int surface = ground[x, row];
@@ -574,18 +638,47 @@ public class PlanetOne : MonoBehaviour
         return lit ? RockEdge : (Color32)RockColors[0];
     }
 
-    // Smooth blobs of noise: big shapes with smaller detail layered on top. Returns roughly 0 to 1.
-    static float Noise(float x, float y, float size)
+    // Smooth blobs of noise about blobSize squares across, with finer detail layered on top for each extra layer.
+    // It joins up with itself across the edges of the planet, so the land has no seam. Returns roughly 0 to 1.
+    float LoopingNoise(int x, int y, float blobSize, int noiseSeed, int layers)
     {
-        float sum = 0f, amplitude = 0.5f, total = 0f, scale = 1f / size;
-        for (int i = 0; i < 3; i++)
+        // A whole number of blobs has to fit across the planet for the edges to meet.
+        int across = Mathf.Max(1, Mathf.RoundToInt(width / blobSize)), down = Mathf.Max(1, Mathf.RoundToInt(height / blobSize));
+        float sum = 0f, amplitude = 0.5f, total = 0f;
+        for (int i = 0; i < layers; i++)
         {
-            sum += Mathf.PerlinNoise(x * scale, y * scale) * amplitude;
+            sum += GridNoise(x * across / (float)width, y * down / (float)height, across, down, noiseSeed + i * 101) * amplitude;
             total += amplitude;
             amplitude *= 0.5f;
-            scale *= 2f;
+            across *= 2;
+            down *= 2;
         }
         return sum / total;
+    }
+
+    // Random values on a grid, blended smoothly between grid points. The grid repeats after `across` and `down` points.
+    static float GridNoise(float x, float y, int across, int down, int noiseSeed)
+    {
+        int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+        float fx = x - x0, fy = y - y0;
+        float sx = fx * fx * (3f - 2f * fx), sy = fy * fy * (3f - 2f * fy);
+        int x1 = (x0 + 1) % across, y1 = (y0 + 1) % down;
+        x0 %= across;
+        y0 %= down;
+        float a = Hash(x0, y0, noiseSeed), b = Hash(x1, y0, noiseSeed), c = Hash(x0, y1, noiseSeed), d = Hash(x1, y1, noiseSeed);
+        return Mathf.Lerp(Mathf.Lerp(a, b, sx), Mathf.Lerp(c, d, sx), sy);
+    }
+
+    // A repeatable random value from 0 up to (but not including) 1 for a grid point.
+    static float Hash(int x, int y, int hashSeed)
+    {
+        unchecked
+        {
+            uint h = (uint)(x * 374761393) ^ (uint)(y * 668265263) ^ (uint)(hashSeed * 1274126177);
+            h = (h ^ (h >> 13)) * 1274126177u;
+            h ^= h >> 16;
+            return (h >> 8) / 16777216f;
+        }
     }
 
     // Makes a one-tile sprite by asking the paint function for each pixel.

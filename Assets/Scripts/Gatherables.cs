@@ -85,11 +85,6 @@ public class Gatherables : MonoBehaviour
         public float Width, Height;
     }
 
-    class Thing
-    {
-        public Kind Kind;
-        public GameObject TopDown;
-    }
 
     public Item PlantItem { get; private set; }
     public Item ShardItem { get; private set; }
@@ -108,7 +103,13 @@ public class Gatherables : MonoBehaviour
     DayNight dayNight;
     Pickups pickups;
     Camera cam;
-    readonly Dictionary<Vector2Int, Thing> things = new Dictionary<Vector2Int, Thing>();
+    // What stands on each square of the planet that has something, by the square's position within the planet.
+    readonly Dictionary<Vector2Int, Kind> things = new Dictionary<Vector2Int, Kind>();
+    // The top-down pictures of the things near the player, by the position they are drawn at. Because the planet
+    // repeats, that position can be many planet-widths away from the square's position within the planet.
+    readonly Dictionary<Vector2Int, GameObject> shown = new Dictionary<Vector2Int, GameObject>();
+    readonly List<Vector2Int> outOfRange = new List<Vector2Int>();
+    RectInt shownWindow;
     readonly List<SpriteRenderer> sideView = new List<SpriteRenderer>();
 
     // The thing being walked to, and the view and row the walk started in.
@@ -165,11 +166,35 @@ public class Gatherables : MonoBehaviour
             for (int x = 0; x < planet.width; x++)
             {
                 double roll = rand.NextDouble();
-                if (planet.IsSnow(x, y) && roll < PlantDensity) Place(plant, x, y);
-                else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) Place(shard, x, y);
+                if (planet.IsSnow(x, y) && roll < PlantDensity) things[new Vector2Int(x, y)] = plant;
+                else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) things[new Vector2Int(x, y)] = shard;
             }
         }
         mining.RowBuilt += BuildSideView;
+        ShowNearby();
+    }
+
+    // Keeps a top-down picture for every thing on the land that is currently drawn, and none for the rest.
+    void ShowNearby()
+    {
+        RectInt window = planet.LandWindow;
+        if (window.Equals(shownWindow)) return;
+        shownWindow = window;
+
+        outOfRange.Clear();
+        foreach (Vector2Int cell in shown.Keys)
+        {
+            if (!window.Contains(cell)) outOfRange.Add(cell);
+        }
+        foreach (Vector2Int cell in outOfRange)
+        {
+            Destroy(shown[cell]);
+            shown.Remove(cell);
+        }
+        foreach (Vector2Int cell in window.allPositionsWithin)
+        {
+            if (!shown.ContainsKey(cell) && things.TryGetValue(planet.Wrap(cell), out Kind kind)) Show(kind, cell);
+        }
     }
 
     // Makes a kind of thing from a small picture. The pivot is at its foot. For raised ground, empty space is added
@@ -193,16 +218,16 @@ public class Gatherables : MonoBehaviour
         };
     }
 
-    void Place(Kind kind, int x, int y)
+    void Show(Kind kind, Vector2Int cell)
     {
         var go = new GameObject(kind.Item.Name);
         go.transform.SetParent(planet.TopDownRoot, false);
-        go.transform.position = Foot(new Vector2Int(x, y));
+        go.transform.position = Foot(cell);
         var renderer = go.AddComponent<SpriteRenderer>();
-        renderer.sprite = kind.Sprites[planet.GroundAt(x, y)];
+        renderer.sprite = kind.Sprites[planet.GroundAt(cell.x, cell.y)];
         // Sorted by its foot, so the player walks in front of or behind it correctly.
         renderer.spriteSortPoint = SpriteSortPoint.Pivot;
-        things[new Vector2Int(x, y)] = new Thing { Kind = kind, TopDown = go };
+        shown[cell] = go;
     }
 
     // Where a thing stands in the world as seen from above.
@@ -216,14 +241,14 @@ public class Gatherables : MonoBehaviour
     {
         foreach (SpriteRenderer renderer in sideView) Destroy(renderer.gameObject);
         sideView.Clear();
-        for (int x = 0; x < planet.width; x++)
+        for (int x = mining.WindowStart; x < mining.WindowStart + MiningMode.WindowColumns; x++)
         {
-            if (!things.TryGetValue(new Vector2Int(x, mining.Row), out Thing thing)) continue;
-            var go = new GameObject(thing.Kind.Item.Name);
+            if (!things.TryGetValue(planet.Wrap(new Vector2Int(x, mining.Row)), out Kind kind)) continue;
+            var go = new GameObject(kind.Item.Name);
             go.transform.SetParent(mining.Root, false);
             go.transform.position = new Vector3(x + 0.5f, planet.GroundAt(x, mining.Row), 0f);
             var renderer = go.AddComponent<SpriteRenderer>();
-            renderer.sprite = thing.Kind.Sprites[0];
+            renderer.sprite = kind.Sprites[0];
             renderer.sortingOrder = MiningMode.ObjectSortingOrder;
             sideView.Add(renderer);
         }
@@ -234,6 +259,10 @@ public class Gatherables : MonoBehaviour
         if (mining.Active)
         {
             foreach (SpriteRenderer renderer in sideView) renderer.color = dayNight.WorldTint;
+        }
+        else
+        {
+            ShowNearby();
         }
         if (GameInput.HarvestPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
         if (target.HasValue) Walk();
@@ -260,11 +289,16 @@ public class Gatherables : MonoBehaviour
 
     void Collect(Vector2Int cell)
     {
-        Thing thing = things[cell];
-        Destroy(thing.TopDown);
-        things.Remove(cell);
+        Vector2Int onPlanet = planet.Wrap(cell);
+        Kind kind = things[onPlanet];
+        things.Remove(onPlanet);
+        if (shown.TryGetValue(cell, out GameObject picture))
+        {
+            Destroy(picture);
+            shown.Remove(cell);
+        }
         if (mining.Active) BuildSideView();
-        pickups.Drop(thing.Kind.Item, Foot(cell));
+        pickups.Drop(kind.Item, Foot(cell));
         target = null;
     }
 
@@ -280,11 +314,11 @@ public class Gatherables : MonoBehaviour
             for (int x = px - 1; x <= px + 1; x++)
             {
                 var cell = new Vector2Int(x, y);
-                if (!things.TryGetValue(cell, out Thing thing)) continue;
+                if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
                 float ground = planet.GroundAt(x, y);
                 float bottom = side ? ground : y + BaseOffset + ground * PlanetOne.HeightScale;
-                if (Mathf.Abs(point.x - (x + 0.5f)) > thing.Kind.Width / 2f + ClickPadding) continue;
-                if (point.y < bottom - ClickPadding || point.y > bottom + thing.Kind.Height + ClickPadding) continue;
+                if (Mathf.Abs(point.x - (x + 0.5f)) > kind.Width / 2f + ClickPadding) continue;
+                if (point.y < bottom - ClickPadding || point.y > bottom + kind.Height + ClickPadding) continue;
                 found = cell;
                 return true;
             }
@@ -350,7 +384,7 @@ public class Gatherables : MonoBehaviour
         Vector2Int goal = target.Value;
         // Give up if the thing is gone, the view or row changed, or the player took over the controls.
         bool sameView = mining.Active == walkInSideView && (!walkInSideView || mining.Row == walkRow);
-        if (!things.ContainsKey(goal) || !sameView || player.HasManualInput)
+        if (!things.ContainsKey(planet.Wrap(goal)) || !sameView || player.HasManualInput)
         {
             target = null;
             return;

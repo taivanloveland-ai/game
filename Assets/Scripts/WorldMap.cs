@@ -3,6 +3,9 @@ using UnityEngine;
 // The maps. A mini map in the top right corner shows the land around the player, with markers for the player and
 // the ship. Everything the mini map has ever shown is remembered, and pressing M opens a world map of all of it.
 // Both maps are top-down, whichever view the game is in. Ferns and ice shards are not shown.
+//
+// The planet has no edges, so the mini map carries straight on past the edge of the world map picture and shows
+// the land from its opposite side. On the world map, going off the top brings your marker back in at the bottom.
 public class WorldMap : MonoBehaviour
 {
     // How many squares across the mini map shows, and how big it is on screen.
@@ -27,7 +30,7 @@ public class WorldMap : MonoBehaviour
     Vector2 ship;
     Texture2D picture;
     bool[,] explored;
-    Vector2Int lastCell = new Vector2Int(-1, -1);
+    Vector2Int lastCell = new Vector2Int(int.MinValue, int.MinValue);
     GUIStyle titleStyle;
 
     public void Setup(PlanetOne planet, PlayerController player, Vector2 ship)
@@ -52,6 +55,13 @@ public class WorldMap : MonoBehaviour
         Explore();
     }
 
+    // Where the player is within the planet, however many times they have gone round it.
+    Vector2 PlayerOnPlanet()
+    {
+        Vector2 at = player.GroundPosition;
+        return new Vector2(Mathf.Repeat(at.x, planet.width), Mathf.Repeat(at.y, planet.height));
+    }
+
     // Remembers every square the mini map is showing right now.
     void Explore()
     {
@@ -65,10 +75,11 @@ public class WorldMap : MonoBehaviour
         {
             for (int x = cell.x - half; x < cell.x + half; x++)
             {
-                if (x < 0 || y < 0 || x >= planet.width || y >= planet.height || explored[x, y]) continue;
-                explored[x, y] = true;
+                int px = planet.WrapX(x), py = planet.WrapY(y);
+                if (explored[px, py]) continue;
+                explored[px, py] = true;
                 ExploredCount++;
-                picture.SetPixel(x, y, planet.MapColorAt(x, y));
+                picture.SetPixel(px, py, planet.MapColorAt(px, py));
                 changed = true;
             }
         }
@@ -89,15 +100,25 @@ public class WorldMap : MonoBehaviour
         GUI.DrawTexture(frame, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        // The whole world picture is drawn inside the frame, shifted so the player sits in the middle;
-        // the frame cuts off everything outside the squares around them.
+        // The whole world picture is drawn inside the frame, shifted so the player sits in the middle; the frame cuts
+        // off everything outside the squares around them. Near an edge of the picture, copies of it are drawn
+        // alongside so the mini map shows the land that lies across the join.
         float scale = MiniMapSize / MiniMapSquares;
-        Vector2 at = player.GroundPosition;
+        Vector2 at = PlayerOnPlanet();
+        float worldWidth = planet.width * scale, worldHeight = planet.height * scale;
+        float left = MiniMapSize / 2f - at.x * scale, top = MiniMapSize / 2f - (planet.height - at.y) * scale;
         GUI.BeginGroup(frame);
-        var world = new Rect(MiniMapSize / 2f - at.x * scale, MiniMapSize / 2f - (planet.height - at.y) * scale, planet.width * scale, planet.height * scale);
-        GUI.DrawTexture(world, picture);
-        // The ship's marker stays on the edge of the mini map when the ship is out of range, pointing the way home.
-        var shipSpot = new Vector2(world.x + ship.x * scale, world.y + (planet.height - ship.y) * scale);
+        for (int copyY = -1; copyY <= 1; copyY++)
+        {
+            for (int copyX = -1; copyX <= 1; copyX++)
+            {
+                var copy = new Rect(left + copyX * worldWidth, top + copyY * worldHeight, worldWidth, worldHeight);
+                if (copy.xMax > 0f && copy.x < MiniMapSize && copy.yMax > 0f && copy.y < MiniMapSize) GUI.DrawTexture(copy, picture);
+            }
+        }
+        // The ship's marker shows the shortest way home, and stays on the edge of the mini map when the ship is out of range.
+        Vector2 toShip = planet.Nearest(ship, at) - at;
+        var shipSpot = new Vector2(MiniMapSize / 2f + toShip.x * scale, MiniMapSize / 2f - toShip.y * scale);
         shipSpot.x = Mathf.Clamp(shipSpot.x, 5f, MiniMapSize - 5f);
         shipSpot.y = Mathf.Clamp(shipSpot.y, 5f, MiniMapSize - 5f);
         DrawMark(shipSpot, 8f, ShipMark);
@@ -120,10 +141,10 @@ public class WorldMap : MonoBehaviour
         GUI.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close", titleStyle);
         GUI.DrawTexture(frame, picture);
 
-        float scale = size / planet.width;
-        Vector2 at = player.GroundPosition;
-        DrawMark(new Vector2(frame.x + ship.x * scale, frame.y + (planet.height - ship.y) * scale), 10f, ShipMark);
-        DrawMark(new Vector2(frame.x + at.x * scale, frame.y + (planet.height - at.y) * scale), 9f, PlayerMark);
+        float scaleX = size / planet.width, scaleY = size / planet.height;
+        Vector2 at = PlayerOnPlanet();
+        DrawMark(new Vector2(frame.x + ship.x * scaleX, frame.y + (planet.height - ship.y) * scaleY), 10f, ShipMark);
+        DrawMark(new Vector2(frame.x + at.x * scaleX, frame.y + (planet.height - at.y) * scaleY), 9f, PlayerMark);
     }
 
     // A small square marker with a dark edge so it shows up on snow.

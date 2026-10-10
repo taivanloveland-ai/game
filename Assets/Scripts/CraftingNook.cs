@@ -52,9 +52,9 @@ public class CraftingNook : MonoBehaviour
     Inventory inventory;
     Hud hud;
     Camera cam;
-    // The square of the ship's front that the nook is set into, and the spot on the ground at its foot.
+    // The square of the ship's front that the nook is set into.
     Vector2Int cell;
-    Vector2 foot;
+    Transform picture;
     bool walking;
     Vector2 lastSpot;
     float lastMovedAt;
@@ -70,14 +70,14 @@ public class CraftingNook : MonoBehaviour
         this.hud = hud;
         this.cam = cam;
         this.cell = cell;
-        foot = new Vector2(cell.x + 0.5f, cell.y);
+
 
         Pickaxe = new Item("Ice pickaxe", PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => PickaxePixel(x, y)));
 
         // The picture sits on the ship's front face, which is drawn one square up from the ground in front of it.
         var go = new GameObject("Crafting Nook");
         go.transform.SetParent(planet.TopDownRoot, false);
-        go.transform.position = new Vector3(cell.x + 0.5f, cell.y + 0.02f, 0f);
+        picture = go.transform;
         var renderer = go.AddComponent<SpriteRenderer>();
         renderer.sprite = PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0f), (x, y) => NookPixel(x, y));
         // Sorted by its bottom edge, which puts it over the ship and under a player standing in front of it.
@@ -128,7 +128,13 @@ public class CraftingNook : MonoBehaviour
         return side < -1f ? HandleLight : Handle;
     }
 
-    bool InReach => Vector2.Distance(player.GroundPosition, foot) <= Reach && player.FeetHeight < 0.5f;
+    // The planet repeats, so after a trip round it the ship is met again a whole planet away from where it began.
+    // This is the corner of the nook's square in the copy of the ship nearest the player.
+    Vector2 Corner => planet.Nearest(cell, player.GroundPosition);
+    // The spot on the ground at the nook's foot.
+    Vector2 Foot => Corner + new Vector2(0.5f, 0f);
+
+    bool InReach => Vector2.Distance(player.GroundPosition, Foot) <= Reach && player.FeetHeight < 0.5f;
 
     void Update()
     {
@@ -139,6 +145,7 @@ public class CraftingNook : MonoBehaviour
             walking = false;
             return;
         }
+        picture.position = Foot + new Vector2(0f, 0.02f);
         if (GameInput.HarvestPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
         if (walking) Walk();
         // Walking away or pressing Escape puts the menu away.
@@ -149,7 +156,8 @@ public class CraftingNook : MonoBehaviour
     // if they need to and the crafting menu opens. Returns false if the click was somewhere else.
     public bool ClickAt(Vector2 point)
     {
-        if (point.x < cell.x || point.x > cell.x + 1 || point.y < cell.y || point.y > cell.y + 1) return false;
+        Vector2 corner = Corner;
+        if (point.x < corner.x || point.x > corner.x + 1f || point.y < corner.y || point.y > corner.y + 1f) return false;
         gatherables.CancelWalk();
         if (InReach)
         {
@@ -191,7 +199,7 @@ public class CraftingNook : MonoBehaviour
         }
 
         // Aim for the ground just in front of the nook, jumping when the ground just ahead is higher than the player's feet.
-        Vector2 heading = (foot + Vector2.down * 0.4f - player.GroundPosition).normalized;
+        Vector2 heading = (Foot + Vector2.down * 0.4f - player.GroundPosition).normalized;
         Vector2 justAhead = player.GroundPosition + heading * 0.55f;
         int topAhead = planet.TopAt(Mathf.FloorToInt(justAhead.x), Mathf.FloorToInt(justAhead.y));
         player.Steer(heading, topAhead <= 1 && topAhead > player.FeetHeight + 0.05f);
