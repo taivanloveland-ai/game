@@ -52,6 +52,18 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Switching:** R always means the row view and G the column view. Pressing the other key while in sc turns the view 90 degrees on the spot. Pressing the key of the view you are in goes back to td.
   - **Sky:** his own answer: in the column view "you cannot see the sun or black hole and the day continues". Stars still show at night and the sky still changes colour; keeping the stars was Claude's reading, not confirmed.
 
+## Building and houses (asked 2026-10-10)
+
+- He asked: "building. you can place the blocks if you drag them from your inventory to your hotbar. also make it so if someones building a house, when youre in it the whole roof is transparent and when youre out its opaque."
+- **Hotbar:** blocks (snow, ice, stone) are dragged from the Items panel (Tab) onto a hotbar slot. The slot shows how many are left and empties when they run out. Slots can be dragged onto each other to swap; dragging a block off the bar takes it off (you still carry it). Tools cannot be pushed off the bar. Only blocks can go on the bar (Claude's choice).
+- His picks:
+  - **Placing:** left click with a block equipped. (Left click also still mines with the pickaxe equipped and collects ferns and shards.)
+  - **Views:** you can build in sc and in td. In sc the block goes in the empty space you click. In td it is stacked on top of the square you click.
+  - **Rules:** within 3 blocks of you, in an empty space touching another block or the ground, and not where you are standing.
+  - **Roof:** his own answer: "when the player is covered and theres walls or if the roof is a square or rectangle, and its obviously a covering, make the whole thing transparent. but if there are different rooms, only make the room youre in transparent."
+- How the roof rule is built (Claude's reading): in td, when you are under a block, the roof over every covered square you could walk to without leaving cover goes see-through, walls or no walls. A gap one square wide between walls counts as a doorway, and the room stops there, so the next room keeps its roof. The walls round the room fade as well and leave a darker footprint, so the room reads like a floor plan. Tunnels you dig work the same way.
+- Blocks can be placed up to 10 blocks above the lowest ground (Claude's number). Placed blocks can be mined again and give the block back.
+
 ## Heights, jumping and changing rows (asked 2026-10-09)
 
 - In mining mode, **W** takes you into the row behind you, if it is available.

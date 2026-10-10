@@ -301,6 +301,16 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
+    // True if the player's body is in a block-sized space of the world: a square, at a level.
+    public bool Occupies(Vector2Int square, int level)
+    {
+        float feet = FeetHeight;
+        if (level + 1 <= feet + 0.01f || level >= feet + Height - 0.01f) return false;
+        if (!sideView) return FeetSquares(body.position).Contains(square);
+        int along = sideColumn ? square.y : square.x, slice = sideColumn ? square.x : square.y;
+        return slice == sideSlice && along + 1 > body.position.x - Width / 2f && along < body.position.x + Width / 2f;
+    }
+
     // Darkens or restores the player's colour; white means their normal colour.
     public void SetTint(Color tint)
     {

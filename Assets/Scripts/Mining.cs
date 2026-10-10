@@ -60,9 +60,9 @@ public class Mining : MonoBehaviour
         this.nook = nook;
         this.cam = cam;
 
-        SnowItem = new Item("Snow", planet.SnowSprite != null ? planet.SnowSprite : planet.Square);
-        IceItem = new Item("Ice", planet.IceSprite != null ? planet.IceSprite : planet.IceSideSprites[0]);
-        StoneItem = new Item("Stone", PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, StonePixel));
+        SnowItem = new Item("Snow", planet.SnowSprite != null ? planet.SnowSprite : planet.Square, PlanetOne.SideBlock.Snow);
+        IceItem = new Item("Ice", planet.IceSprite != null ? planet.IceSprite : planet.IceSideSprites[0], PlanetOne.SideBlock.Ice);
+        StoneItem = new Item("Stone", PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, StonePixel), PlanetOne.SideBlock.Stone);
 
         crackSprites = new Sprite[CrackStages];
         for (int stage = 0; stage < CrackStages; stage++)
@@ -130,7 +130,8 @@ public class Mining : MonoBehaviour
         if (block == PlanetOne.SideBlock.Air) return Result.Nothing;
         if (inventory.Equipped != nook.Pickaxe)
         {
-            hud.Say(inventory.Tools.Contains(nook.Pickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
+            // With a block in hand the click is for building, so there is nothing to say about mining.
+            if (inventory.Equipped == null || !inventory.Equipped.Placeable) hud.Say(inventory.Tools.Contains(nook.Pickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
             return Result.NoPickaxe;
         }
         var centre = new Vector2(x + 0.5f, level + 0.5f);
@@ -155,7 +156,7 @@ public class Mining : MonoBehaviour
 
         hits = 0;
         planet.Mine(square.x, square.y, level);
-        view.RemoveBlock(x, level);
+        view.RedrawBlock(x, level);
         pickups.Drop(ItemFor(block), new Vector2(square.x + 0.5f, square.y + 0.5f), level + 0.3f, DropPullRadius, DropScale);
         return Result.Broke;
     }

@@ -30,6 +30,8 @@ public class PlanetOne : MonoBehaviour
     public const float HeightScale = 0.5f;
     // The tallest anything gets: rock standing 2 blocks above raised ground.
     public const int MaxTop = 3;
+    // Blocks can be placed up to this many blocks above the lowest ground, and no higher.
+    public const int BuildLimit = 10;
 
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3, Stone = 4;
     // How many blocks deep the ground goes. The very bottom layer cannot be mined.
@@ -57,9 +59,13 @@ public class PlanetOne : MonoBehaviour
     // its own noise is above the third.
     const float RockAbove = 0.62f, IceBelow = 0.38f, RaisedAbove = 0.6f;
 
-    // Ground over the player turns see-through this many squares around them, wherever the tunnel they are in is open.
+    // In a passage one square wide, the ground over the player turns see-through this many squares along it.
     const int SeeThroughRadius = 2;
-    static readonly Color RoofTint = new Color(1f, 1f, 1f, 0.3f);
+    // A room's roof turns see-through at most this many squares from the player.
+    const int RoomReach = 14;
+    static readonly Color RoofTint = new Color(1f, 1f, 1f, 0.2f);
+    // Under a see-through roof, the squares the walls stand on are drawn this much darker than the floor.
+    static readonly Color WallFootprintTint = new Color(0.55f, 0.58f, 0.66f);
     // The floor of a tunnel is drawn darker than land in the open.
     static readonly Color UndergroundTint = new Color(0.5f, 0.56f, 0.68f);
 
@@ -132,6 +138,10 @@ public class PlanetOne : MonoBehaviour
     // The blocks that have been mined away, by spot: the levels removed from that spot's column.
     readonly Dictionary<Vector2Int, HashSet<int>> mined = new Dictionary<Vector2Int, HashSet<int>>();
 
+    // The blocks the player has placed, by spot: the level each is at and what it is. A placed block can sit above
+    // empty space, as the roof of a house does.
+    readonly Dictionary<Vector2Int, Dictionary<int, SideBlock>> placed = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>();
+
     // Raised after a block is mined, with its spot (unwrapped, as given) and level.
     public event System.Action<int, int, int> BlockMined;
     // How many blocks deep the ice and the snow go at each spot, seen from the side.
@@ -142,6 +152,11 @@ public class PlanetOne : MonoBehaviour
     Tilemap underground;
     // The squares whose ground is currently see-through because the player is under it.
     readonly List<Vector2Int> seeThrough = new List<Vector2Int>();
+    // The open squares of the room or tunnel the player is in, worked out afresh each frame.
+    readonly HashSet<Vector2Int> room = new HashSet<Vector2Int>();
+    readonly HashSet<Vector2Int> roomWalls = new HashSet<Vector2Int>();
+    readonly Queue<Vector2Int> roomQueue = new Queue<Vector2Int>();
+    static readonly Vector2Int[] Sides = { Vector2Int.left, Vector2Int.right, Vector2Int.up, Vector2Int.down };
     readonly Dictionary<int, Tile> terrainTiles = new Dictionary<int, Tile>();
     PlayerController player;
     // Mixed into each square's position to pick which look its tile has.
@@ -219,6 +234,7 @@ public class PlanetOne : MonoBehaviour
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
         if (startWithPickaxe) inventory.AddTool(nook.Pickaxe);
         gameObject.AddComponent<Mining>().Setup(this, controller, mining, inventory, hud, pickups, nook, cam);
+        gameObject.AddComponent<Building>().Setup(this, controller, mining, inventory, hud, gatherables, cam);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
     }
@@ -267,6 +283,7 @@ public class PlanetOne : MonoBehaviour
         baseTop = new byte[width, height];
         top = new sbyte[width, height];
         mined.Clear();
+        placed.Clear();
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
@@ -369,9 +386,9 @@ public class PlanetOne : MonoBehaviour
         return SideBlockAt(x, y, level) == SideBlock.Air && TopAt(x, y) > level;
     }
 
-    // When the player is under a roof, the ground above them and above the open tunnel around them turns see-through,
-    // so they and the tunnel floor can be seen from above. It is redone every frame, which also keeps it right when
-    // tiles are replaced as the player moves.
+    // When the player is under a roof, the whole roof of the room they are in turns see-through, so they and the
+    // floor can be seen from above: a house they have built, or a tunnel they have dug. Other rooms keep their roofs.
+    // It is redone every frame, which also keeps it right when tiles are replaced as the player moves.
     void ShowUnderRoof()
     {
         foreach (Vector2Int cell in seeThrough)
@@ -384,19 +401,87 @@ public class PlanetOne : MonoBehaviour
         int level = Mathf.FloorToInt(player.FeetHeight + 0.01f);
         Vector2Int at = Vector2Int.FloorToInt(player.GroundPosition);
         if (!IsTunnel(at.x, at.y, level)) return;
-        for (int y = at.y - SeeThroughRadius; y <= at.y + SeeThroughRadius; y++)
+
+        // The room is every covered, open square that can be walked to from the player's without leaving cover.
+        // A gap one square wide between walls is a doorway: it belongs to the room, but the room stops there.
+        // In a passage that is one square wide all the way, the roof opens up a few squares either side instead.
+        room.Clear();
+        roomQueue.Clear();
+        room.Add(at);
+        roomQueue.Enqueue(at);
+        while (roomQueue.Count > 0)
         {
-            for (int x = at.x - SeeThroughRadius; x <= at.x + SeeThroughRadius; x++)
+            Vector2Int cell = roomQueue.Dequeue();
+            bool narrow = cell != at && IsDoorway(cell, level);
+            foreach (Vector2Int side in Sides)
             {
-                if (!IsTunnel(x, y, level)) continue;
-                var cell = new Vector3Int(x, y, 0);
-                // A tile normally keeps its own colour; this lets this one square be faded.
-                terrain.SetTileFlags(cell, TileFlags.None);
-                terrain.SetColor(cell, RoofTint);
-                underground.SetTile(cell, TunnelFloorTile(x, y, level));
-                seeThrough.Add(new Vector2Int(x, y));
+                Vector2Int next = cell + side;
+                if (room.Contains(next) || !IsTunnel(next.x, next.y, level)) continue;
+                int away = Mathf.Max(Mathf.Abs(next.x - at.x), Mathf.Abs(next.y - at.y));
+                if (away > RoomReach) continue;
+                if (narrow && (away > SeeThroughRadius || !IsDoorway(next, level))) continue;
+                room.Add(next);
+                roomQueue.Enqueue(next);
             }
         }
+
+        // The room's floor shows through its roof. The walls round it fade too, since they are drawn tall enough to
+        // hide the floor behind them, and each leaves a darker footprint so the shape of the room stays clear.
+        roomWalls.Clear();
+        foreach (Vector2Int cell in room)
+        {
+            Fade(cell, TunnelFloorTile(cell.x, cell.y, level), Color.white);
+            for (int y = cell.y - 1; y <= cell.y + 1; y++)
+            {
+                for (int x = cell.x - 1; x <= cell.x + 1; x++)
+                {
+                    var wall = new Vector2Int(x, y);
+                    if (room.Contains(wall) || roomWalls.Contains(wall)) continue;
+                    SideBlock block = SideBlockAt(x, y, level);
+                    if (block == SideBlock.Air) continue;
+                    roomWalls.Add(wall);
+                    Fade(wall, TerrainTile(MaterialOf(block), 0, 0, 0, 0, 0), WallFootprintTint);
+                }
+            }
+        }
+    }
+
+    // Makes one square of the land see-through and shows a tile beneath it, in a shade of its own.
+    void Fade(Vector2Int square, Tile beneath, Color shade)
+    {
+        var cell = (Vector3Int)square;
+        // A tile normally keeps its own colour; this lets this one square be faded.
+        terrain.SetTileFlags(cell, TileFlags.None);
+        terrain.SetColor(cell, RoofTint);
+        underground.SetTile(cell, beneath);
+        underground.SetTileFlags(cell, TileFlags.None);
+        underground.SetColor(cell, shade);
+        seeThrough.Add(square);
+    }
+
+    // True for an open square with something solid on both sides of it, either way round: a doorway, or a passage
+    // one square wide.
+    bool IsDoorway(Vector2Int cell, int level)
+    {
+        bool west = SideBlockAt(cell.x - 1, cell.y, level) != SideBlock.Air, east = SideBlockAt(cell.x + 1, cell.y, level) != SideBlock.Air;
+        bool south = SideBlockAt(cell.x, cell.y - 1, level) != SideBlock.Air, north = SideBlockAt(cell.x, cell.y + 1, level) != SideBlock.Air;
+        return (west && east) || (south && north);
+    }
+
+    // The square of land whose picture is under a point of the top-down view. Higher ground is drawn further up
+    // the screen, so this is not always the square the point is over on flat ground.
+    public Vector2Int SquareAt(Vector2 point)
+    {
+        int x = Mathf.FloorToInt(point.x), pointRow = Mathf.FloorToInt(point.y);
+        // Nearer squares are drawn over further ones, so the nearest one whose picture holds the point wins.
+        for (int y = pointRow - BuildLimit / 2 - 1; y <= pointRow + GroundDepth / 2 + 1; y++)
+        {
+            int level = TopAt(x, y);
+            float topEdge = y + level * HeightScale;
+            float face = Mathf.Clamp(level - TopAt(x, y - 1), 0, MaxDrawnDrop) * HeightScale;
+            if (point.y >= topEdge - face && point.y < topEdge + 1f) return new Vector2Int(x, y);
+        }
+        return new Vector2Int(x, pointRow);
     }
 
     // The tile for the floor of a tunnel: whatever block is under the open space at that level.
@@ -696,6 +781,7 @@ public class PlanetOne : MonoBehaviour
     {
         x = WrapX(x);
         row = WrapY(row);
+        if (placed.Count > 0 && placed.TryGetValue(new Vector2Int(x, row), out Dictionary<int, SideBlock> put) && put.TryGetValue(level, out SideBlock placedBlock)) return placedBlock;
         if (level >= baseTop[x, row]) return SideBlock.Air;
         if (mined.TryGetValue(new Vector2Int(x, row), out HashSet<int> gone) && gone.Contains(level)) return SideBlock.Air;
 
@@ -740,23 +826,42 @@ public class PlanetOne : MonoBehaviour
         if (was == SideBlock.Air || was == SideBlock.Ship || level <= -GroundDepth) return SideBlock.Air;
 
         var spot = new Vector2Int(WrapX(x), WrapY(row));
-        if (!mined.TryGetValue(spot, out HashSet<int> gone)) mined[spot] = gone = new HashSet<int>();
-        gone.Add(level);
+        // A block the player placed is simply taken away again. A block of the land is recorded as mined.
+        if (!placed.TryGetValue(spot, out Dictionary<int, SideBlock> put) || !put.Remove(level))
+        {
+            if (!mined.TryGetValue(spot, out HashSet<int> gone)) mined[spot] = gone = new HashSet<int>();
+            gone.Add(level);
+        }
         // If that was the top block, the top of this spot is now the next block down that is still there.
         int newTop = top[spot.x, spot.y];
         while (newTop > -GroundDepth && SideBlockAt(x, row, newTop - 1) == SideBlock.Air) newTop--;
-        if (newTop != top[spot.x, spot.y])
-        {
-            top[spot.x, spot.y] = (sbyte)newTop;
-            // The spot and the four around it are redrawn, since their edges and cliff faces depend on its height.
-            RedrawTile(x, row);
-            RedrawTile(x - 1, row);
-            RedrawTile(x + 1, row);
-            RedrawTile(x, row - 1);
-            RedrawTile(x, row + 1);
-        }
+        top[spot.x, spot.y] = (sbyte)newTop;
+        RedrawAround(x, row);
         BlockMined?.Invoke(x, row, level);
         return was;
+    }
+
+    // Puts a block in an empty space. Returns false, doing nothing, if the space is taken or out of bounds.
+    public bool Place(int x, int row, int level, SideBlock block)
+    {
+        if (level >= BuildLimit || level <= -GroundDepth || SideBlockAt(x, row, level) != SideBlock.Air) return false;
+
+        var spot = new Vector2Int(WrapX(x), WrapY(row));
+        if (!placed.TryGetValue(spot, out Dictionary<int, SideBlock> put)) placed[spot] = put = new Dictionary<int, SideBlock>();
+        put[level] = block;
+        if (level >= top[spot.x, spot.y]) top[spot.x, spot.y] = (sbyte)(level + 1);
+        RedrawAround(x, row);
+        return true;
+    }
+
+    // Redraws a spot and the four around it, since their edges and cliff faces depend on its height.
+    void RedrawAround(int x, int y)
+    {
+        RedrawTile(x, y);
+        RedrawTile(x - 1, y);
+        RedrawTile(x + 1, y);
+        RedrawTile(x, y - 1);
+        RedrawTile(x, y + 1);
     }
 
     // Redraws one square of the top-down view, wherever its copies currently are on the tilemap.

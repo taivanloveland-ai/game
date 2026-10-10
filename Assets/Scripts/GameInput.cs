@@ -48,10 +48,14 @@ public static class GameInput
         return Move().y < 0f;
     }
 
+    // Set by the on-screen inventory: true while the mouse is over it, so clicks there do not also land on the world.
+    public static System.Func<bool> PointerOverInventory;
+
     // Left mouse button, on the frame it is pressed. Pointing at a fern or ice shard, it collects it; pointing at a
-    // block in the side-scroller, it is one hit with the pickaxe.
+    // block in the side-scroller, it is one hit with the pickaxe; with a block equipped, it places the block.
     public static bool LeftClickPressed()
     {
+        if (PointerOverInventory != null && PointerOverInventory()) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
 #else
