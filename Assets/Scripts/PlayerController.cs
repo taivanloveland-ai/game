@@ -10,6 +10,11 @@ public class PlayerController : MonoBehaviour
     public const float Height = 0.9f;
     // In the top-down view only the player's feet touch the ground: the bottom part of the rectangle.
     const float FeetDepth = 0.4f;
+    // Top-down, the player is drawn no lower than this many blocks, however deep they are, and reaches their
+    // darkest shade this many blocks further down.
+    const float LowestDrawn = -1f;
+    const float DarkestDepth = 4f;
+    const float DeepestLight = 0.45f;
 
     // Squares per second at a full walk. This is three fifths of the original 5.
     public float speed = 3f;
@@ -26,6 +31,8 @@ public class PlayerController : MonoBehaviour
     Transform bodyVisual;
     SpriteRenderer bodyRenderer;
     Color baseColor;
+    // The colour the world is being tinted for the time of day.
+    Color tint = Color.white;
     Transform shadow;
     SortingGroup sorting;
     Rigidbody2D body;
@@ -64,7 +71,9 @@ public class PlayerController : MonoBehaviour
         this.bodyVisual = bodyVisual;
         this.shadow = shadow;
         this.sorting = sorting;
-        altitude = GroundUnder(transform.position);
+        bodyRenderer = bodyVisual.GetComponent<SpriteRenderer>();
+        baseColor = bodyRenderer.color;
+        altitude = SurfaceUnder(transform.position);
     }
 
     void Awake()
@@ -106,18 +115,25 @@ public class PlayerController : MonoBehaviour
     void LateUpdate()
     {
         // Top-down, height is shown by drawing the player further up the screen, with a shadow left on the ground.
-        float ground = sideView ? 0f : GroundUnder(transform.position);
-        float lift = sideView ? 0f : altitude * PlanetOne.HeightScale;
+        // Down a hole, the player is never drawn more than a block below the ground, or they would vanish behind
+        // the land in front. They are drawn darker the deeper they are, to show they are down in it.
+        float ground = sideView ? 0f : FloorUnder(transform.position, altitude);
+        float lift = sideView ? 0f : Mathf.Max(altitude, LowestDrawn) * PlanetOne.HeightScale;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
-        shadow.localPosition = new Vector3(0f, 0.1f + ground * PlanetOne.HeightScale, 0f);
+        shadow.localPosition = new Vector3(0f, 0.1f + Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
+
+        float depth = sideView ? 0f : Mathf.Clamp01((LowestDrawn - altitude) / DarkestDepth);
+        float light = Mathf.Lerp(1f, DeepestLight, depth);
+        bodyRenderer.color = new Color(baseColor.r * tint.r * light, baseColor.g * tint.g * light, baseColor.b * tint.b * light, baseColor.a);
     }
 
     void MoveTopDown()
     {
         float dt = Time.fixedDeltaTime;
         Vector2 position = body.position;
-        bool grounded = altitude <= GroundUnder(position) + 0.001f;
+        float floor = FloorUnder(position, altitude);
+        bool grounded = altitude <= floor + 0.001f;
 
         // On ice the player speeds up, turns and stops gradually. Everywhere else movement is instant.
         bool onIce = grounded && planet.IsIce(new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f));
@@ -132,44 +148,84 @@ public class PlayerController : MonoBehaviour
         if (!grounded)
         {
             verticalSpeed -= Gravity * dt;
-            altitude += verticalSpeed * dt;
+            float risen = altitude + verticalSpeed * dt;
+            if (risen <= floor)
+            {
+                // Landed.
+                altitude = floor;
+                verticalSpeed = 0f;
+            }
+            else if (verticalSpeed > 0f && !Fits(position, risen))
+            {
+                // Bumped their head on the roof of a tunnel.
+                verticalSpeed = 0f;
+            }
+            else
+            {
+                altitude = risen;
+            }
         }
 
         // Try each direction on its own so the player slides along edges instead of stopping dead.
         var next = new Vector2(position.x + velocity.x * dt, position.y);
-        if (CanStand(next)) position = next;
+        if (Fits(next, altitude)) position = next;
         else velocity.x = 0f;
         next = new Vector2(position.x, position.y + velocity.y * dt);
-        if (CanStand(next)) position = next;
+        if (Fits(next, altitude)) position = next;
         else velocity.y = 0f;
 
-        float ground = GroundUnder(position);
-        if (altitude <= ground)
+        // Stepping onto ground a hair higher than the feet lifts the player onto it.
+        floor = FloorUnder(position, altitude);
+        if (altitude <= floor)
         {
-            altitude = ground;
+            altitude = floor;
             verticalSpeed = 0f;
         }
         body.MovePosition(position);
     }
 
-    // The player can be somewhere if nothing under their feet is taller than their feet are high.
-    bool CanStand(Vector2 position)
-    {
-        return GroundUnder(position) <= altitude + 0.01f;
-    }
-
-    // The tallest thing under the player's feet at a top-down position.
-    int GroundUnder(Vector2 position)
+    // The squares the player's feet are over at a top-down position.
+    RectInt FeetSquares(Vector2 position)
     {
         int x0 = Mathf.FloorToInt(position.x - Width / 2f + 0.001f), x1 = Mathf.FloorToInt(position.x + Width / 2f - 0.001f);
         float feetBottom = position.y - Height / 2f;
         int y0 = Mathf.FloorToInt(feetBottom + 0.001f), y1 = Mathf.FloorToInt(feetBottom + FeetDepth - 0.001f);
-        // Mined-out ground can be below zero, so start from the lowest number there is.
-        int tallest = int.MinValue;
-        for (int y = y0; y <= y1; y++)
+        return new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+    }
+
+    // The player can be somewhere at a height if no block is in the space their body would take up there. This works
+    // the same on the surface, in a hole, and in a tunnel with ground overhead.
+    bool Fits(Vector2 position, float feet)
+    {
+        int bottom = Mathf.FloorToInt(feet + 0.01f), top = Mathf.FloorToInt(feet + Height - 0.01f);
+        foreach (Vector2Int square in FeetSquares(position).allPositionsWithin)
         {
-            for (int x = x0; x <= x1; x++) tallest = Mathf.Max(tallest, planet.TopAt(x, y));
+            for (int level = bottom; level <= top; level++)
+            {
+                if (planet.SideBlockAt(square.x, square.y, level) != PlanetOne.SideBlock.Air) return false;
+            }
         }
+        return true;
+    }
+
+    // The height of the floor under the player's feet: the top of the highest block at or below them.
+    float FloorUnder(Vector2 position, float feet)
+    {
+        int highest = -PlanetOne.GroundDepth;
+        foreach (Vector2Int square in FeetSquares(position).allPositionsWithin)
+        {
+            int level = Mathf.FloorToInt(feet + 0.01f) - 1;
+            while (level >= -PlanetOne.GroundDepth && planet.SideBlockAt(square.x, square.y, level) == PlanetOne.SideBlock.Air) level--;
+            highest = Mathf.Max(highest, level + 1);
+        }
+        return highest;
+    }
+
+    // The top of the land under the player's feet, counting anything standing on it.
+    int SurfaceUnder(Vector2 position)
+    {
+        int tallest = int.MinValue;
+        foreach (Vector2Int square in FeetSquares(position).allPositionsWithin) tallest = Mathf.Max(tallest, planet.TopAt(square.x, square.y));
         return tallest;
     }
 
@@ -221,12 +277,7 @@ public class PlayerController : MonoBehaviour
     // Darkens or restores the player's colour; white means their normal colour.
     public void SetTint(Color tint)
     {
-        if (bodyRenderer == null)
-        {
-            bodyRenderer = bodyVisual.GetComponent<SpriteRenderer>();
-            baseColor = bodyRenderer.color;
-        }
-        bodyRenderer.color = new Color(baseColor.r * tint.r, baseColor.g * tint.g, baseColor.b * tint.b, baseColor.a);
+        this.tint = tint;
     }
 
     // Moves the side view to a different row without moving the player.
@@ -247,7 +298,9 @@ public class PlayerController : MonoBehaviour
         Teleport(position);
         velocity = Vector2.zero;
         verticalSpeed = 0f;
-        altitude = Mathf.Max(feet, GroundUnder(position));
+        // Stay at the same height, so a player down a hole or in a tunnel is still down there in the top-down view.
+        // Only if they would not fit there (which moving to the middle of the row can cause) are they put on the surface.
+        altitude = Fits(position, feet) ? Mathf.Max(feet, FloorUnder(position, feet)) : SurfaceUnder(position);
     }
 
     void Teleport(Vector2 position)
