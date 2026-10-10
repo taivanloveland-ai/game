@@ -8,8 +8,6 @@ public class Gatherables : MonoBehaviour
 {
     // The fern's picture is a little taller than the player, which makes the tall frond itself about the player's height.
     const float PlantHeight = PlayerController.Height * 1.1f;
-    // How many picture pixels make one block for the ice shard. Its picture is 13 pixels tall, so it stands about 0.73 blocks.
-    const float ShardPixelsPerUnit = 8f / (PlayerController.Height * 0.5f);
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.0125;
     const double ShardDensity = 0.015;
@@ -56,27 +54,28 @@ public class Gatherables : MonoBehaviour
     };
     // The same blues as the ice it grows from, so a shard reads as part of the ice: a lit side a little paler than
     // the ice, a middle that matches it, and a far side a little deeper.
-    // These follow the ice it grows from: the ice's glint colour, its main blue, and a deeper blue.
-    static readonly Color32 ShardLight = new Color32(206, 235, 248, 255), ShardShade = new Color32(146, 202, 232, 255), ShardDark = new Color32(108, 170, 210, 255);
-    // The ice shard, one text row per pixel row from the top. It is long and gently curved, thick at the base and
-    // tapering to a point, like the pick of a pickaxe. The base spreads out where it joins the ice.
-    // L is the lit side, S the middle, D the far side.
-    static readonly string[] ShardPicture =
+    // These follow the ice it grows from: the ice's glint colour, a blue a little paler than the ice so the shard
+    // shows against it, and a deeper blue.
+    static readonly Color32 ShardLight = new Color32(214, 239, 250, 255), ShardShade = new Color32(174, 219, 242, 255), ShardDark = new Color32(104, 166, 208, 255);
+    // The standing ice shard is painted at the same fine scale as the snow picture: 128 pixels to a block.
+    const int ShardPixelsWide = 40;
+    const int ShardPixelsTall = 96;
+    const float ShardPixelsPerUnit = 128f;
+
+    // One pixel of the standing ice shard. It is long and gently curved, thick at the base and tapering to a point,
+    // like the pick of a pickaxe, and it spreads out a little where it joins the ice. y counts down from the top.
+    static Color32 ShardPixel(int x, int y)
     {
-        "L....",
-        "L....",
-        "LS...",
-        ".LS..",
-        ".LS..",
-        ".LSD.",
-        "..LSD",
-        "..LSD",
-        "..LSD",
-        ".LLSD",
-        ".LLSD",
-        ".LLSD",
-        "LLSSD",
-    };
+        // How far up the shard this row is: 0 at the base, 1 at the tip.
+        float up = 1f - (y + 0.5f) / ShardPixelsTall;
+        // The middle of the shard leans to the left as it rises, and it narrows all the way up.
+        float middle = 25f - 15f * Mathf.Pow(up, 1.6f);
+        float halfWidth = Mathf.Lerp(12f, 1.2f, Mathf.Pow(up, 0.8f)) + 4f * Mathf.Clamp01(1f - up / 0.07f);
+        float across = (x + 0.5f - middle) / halfWidth;
+        if (across < -1f || across > 1f) return Clear;
+        // Lit down its left side, deeper blue down its right, and the ice's own blue between.
+        return across < -0.3f ? ShardLight : across > 0.45f ? ShardDark : ShardShade;
+    }
 
     class Kind
     {
@@ -129,7 +128,7 @@ public class Gatherables : MonoBehaviour
         this.cam = cam;
 
         // The fern's picture is scaled so it stands exactly PlantHeight tall.
-        Kind plant = MakeKind("Fiddlehead fern", FernPicture[0].Length, FernPicture.Length, FernPicture.Length / PlantHeight, (x, y) =>
+        Kind plant = MakeKind("Fiddlehead fern", FernPicture[0].Length, FernPicture.Length, FernPicture.Length / PlantHeight, false, (x, y) =>
         {
             char c = FernPicture[y][x];
             return c == 'D' ? FernDark : c == 'L' ? FernLight : Clear;
@@ -149,11 +148,7 @@ public class Gatherables : MonoBehaviour
             plant.Item = new Item(plant.Item.Name, plant.Sprites[0]);
             plant.Width = fernPicture.width / pixelsPerUnit;
         }
-        Kind shard = MakeKind("Ice shard", ShardPicture[0].Length, ShardPicture.Length, ShardPixelsPerUnit, (x, y) =>
-        {
-            char c = ShardPicture[y][x];
-            return c == 'L' ? ShardLight : c == 'S' ? ShardShade : c == 'D' ? ShardDark : Clear;
-        });
+        Kind shard = MakeKind("Ice shard", ShardPixelsWide, ShardPixelsTall, ShardPixelsPerUnit, true, ShardPixel);
         // Once it has been knocked loose, an ice shard looks like the drawn picture, both on the ground and in the inventory.
         var shardPicture = Resources.Load<Texture2D>("Art/IceShardItem");
         if (shardPicture != null)
@@ -179,13 +174,14 @@ public class Gatherables : MonoBehaviour
 
     // Makes a kind of thing from a small picture. The pivot is at its foot. For raised ground, empty space is added
     // underneath so it is drawn that much higher while still being sorted by where it actually stands.
-    static Kind MakeKind(string name, int pixelsWide, int pixelsTall, float pixelsPerUnit, System.Func<int, int, Color32> paint)
+    // Fine is for pictures painted at the snow picture's scale, which are shown smaller than they are painted.
+    static Kind MakeKind(string name, int pixelsWide, int pixelsTall, float pixelsPerUnit, bool fine, System.Func<int, int, Color32> paint)
     {
         var sprites = new Sprite[2];
         for (int level = 0; level < sprites.Length; level++)
         {
             int lift = Mathf.RoundToInt(level * PlanetOne.HeightScale * pixelsPerUnit);
-            sprites[level] = PlanetOne.PaintSprite(pixelsWide, pixelsTall + lift, new Vector2(0.5f, 0f), pixelsPerUnit,
+            sprites[level] = PlanetOne.PaintSprite(pixelsWide, pixelsTall + lift, new Vector2(0.5f, 0f), pixelsPerUnit, fine,
                 (x, y) => y < pixelsTall ? paint(x, y) : Clear);
         }
         return new Kind

@@ -102,7 +102,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Fern looks like it is actually growing there:** it now comes up out of a small mound of snow, casts a soft shadow on the ground, has a young frond beside the tall one, and its edge is a soft teal instead of near-black. The tall frond is about the player's height.
   - **No outline on the loose ice shard:** it is his shape in a pale blue with no edge.
   - **Ice blocks look good:** his `IceBlock.png` is no longer used (it is in git history). Ice is drawn by the game as a clear blue with a few short pale glints and the odd crack, picked at random per square so nothing repeats; raised ice is paler. In sc, ice goes from that blue to a deeper blue with depth.
-- Not yet addressed: he also called the standing spike ugly. It was only recoloured to match the new ice.
+- The standing ice spike, which he had also called ugly, was redrawn at the fine pixel scale after he asked for "the ice spikes also": a smooth, gently curved spike about three quarters of a block tall, lit on the left, deeper blue on the right.
 - **Pixel size to match:** he asked for the pickaxe and ice blocks to be "as pixely as the snow". His snow picture is 128 pixels across one block, so game-drawn art that sits beside his pictures is painted at that fine scale: the ice's glints and cracks are thin 3-pixel lines, and the ice pickaxe is a 128-pixel picture. Use this scale for new art unless he says otherwise.
 
 ## Look and feel decisions
