@@ -19,12 +19,11 @@ public class PlanetOne : MonoBehaviour
     public bool randomWorld = true;
     // The number the world is built from. The same seed always gives the same world.
     public int seed = 1;
-    // TEMPORARY, for testing: the player begins with an ice pickaxe already made, so mining can be tried straight away.
-    // Untick this (or remove it) when the game should make the player craft their first pickaxe again.
-    public bool startWithPickaxe = true;
-    // TEMPORARY, for testing: the player begins with this many of each block (snow, ice and stone), already on the
-    // hotbar, so building can be tried straight away. Set it to 0 (or remove it) for the real game.
-    public int startWithBlocks = 999;
+    // For testing only, and off in the real game: tick this to begin with an ice pickaxe already made.
+    public bool startWithPickaxe = false;
+    // For testing only, and 0 in the real game: begin with this many of each block (snow, ice and stone), already
+    // on the hotbar.
+    public int startWithBlocks = 0;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship }
