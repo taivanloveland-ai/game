@@ -28,7 +28,11 @@ public class PlanetOne : MonoBehaviour
     // The tallest anything gets: rock standing 2 blocks above raised ground.
     public const int MaxTop = 3;
 
-    const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3;
+    const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3, Stone = 4;
+    // How many blocks deep the ground goes. The very bottom layer cannot be mined.
+    public const int GroundDepth = 14;
+    // A cliff face in the top-down view is never drawn taller than this many blocks; deeper holes look the same from above.
+    const int MaxDrawnDrop = 4;
     const int TilePixels = 16;
     const int FacePixels = 8;
     // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
@@ -87,6 +91,8 @@ public class PlanetOne : MonoBehaviour
     static readonly Color32 RockEdge = new Color32(138, 152, 170, 255);
     static readonly Color32 CliffFace = new Color32(59, 70, 86, 255), CliffCrack = new Color32(48, 58, 73, 255), CliffFoot = new Color32(40, 49, 62, 255);
     static readonly Color32 ShipRim = new Color32(150, 158, 170, 255);
+    // Bare stone, as seen from above where the snow or ice over it has been dug away.
+    static readonly Color32 StoneColor = new Color32(70, 80, 96, 255), StoneRim = new Color32(98, 110, 128, 255);
     static readonly Color PlayerColor = new Color32(240, 138, 46, 255);
     static readonly Color SkyColor = new Color32(11, 16, 24, 255);
 
@@ -111,7 +117,14 @@ public class PlanetOne : MonoBehaviour
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
     byte[,] ground;
-    byte[,] top;
+    // The top of each spot as the world was made, and as it is now after any mining. Mining can take it below zero.
+    byte[,] baseTop;
+    sbyte[,] top;
+    // The blocks that have been mined away, by spot: the levels removed from that spot's column.
+    readonly Dictionary<Vector2Int, HashSet<int>> mined = new Dictionary<Vector2Int, HashSet<int>>();
+
+    // Raised after a block is mined, with its spot (unwrapped, as given) and level.
+    public event System.Action<int, int, int> BlockMined;
     // How many blocks deep the ice and the snow go at each spot, seen from the side.
     byte[,] iceDepth;
     byte[,] snowDepth;
@@ -190,7 +203,9 @@ public class PlanetOne : MonoBehaviour
         var gatherables = gameObject.AddComponent<Gatherables>();
         gatherables.Setup(this, controller, mining, dayNight, pickups, cam);
         // The crafting nook is set into the middle of the ship's front.
-        gameObject.AddComponent<CraftingNook>().Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
+        var nook = gameObject.AddComponent<CraftingNook>();
+        nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
+        gameObject.AddComponent<Mining>().Setup(this, controller, mining, inventory, hud, pickups, nook, cam);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
     }
@@ -236,7 +251,9 @@ public class PlanetOne : MonoBehaviour
 
         kind = new byte[width, height];
         ground = new byte[width, height];
-        top = new byte[width, height];
+        baseTop = new byte[width, height];
+        top = new sbyte[width, height];
+        mined.Clear();
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
@@ -261,14 +278,16 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < width; x++)
             {
-                top[x, y] = ground[x, y];
+                baseTop[x, y] = ground[x, y];
+                top[x, y] = (sbyte)ground[x, y];
                 if (kind[x, y] != Rock && kind[x, y] != Ship) continue;
                 int highest = 0;
                 for (int ny = y - 1; ny <= y + 1; ny++)
                 {
                     for (int nx = x - 1; nx <= x + 1; nx++) highest = Mathf.Max(highest, ground[WrapX(nx), WrapY(ny)]);
                 }
-                top[x, y] = (byte)(highest + RockHeight);
+                baseTop[x, y] = (byte)(highest + RockHeight);
+                top[x, y] = (sbyte)baseTop[x, y];
             }
         }
         ComputeGroundDepths(depthSeed);
@@ -345,9 +364,10 @@ public class PlanetOne : MonoBehaviour
     // The tile for one square of the top-down view.
     Tile TileAt(int x, int y)
     {
-        byte material = kind[WrapX(x), WrapY(y)];
+        // What shows from above is whatever block is now on top, which mining may have changed.
+        byte material = SurfaceMaterial(x, y);
         int level = TopAt(x, y);
-        int drop = Mathf.Max(0, level - TopAt(x, y - 1));
+        int drop = Mathf.Clamp(level - TopAt(x, y - 1), 0, MaxDrawnDrop);
         int rims = (TopAt(x, y + 1) < level ? 1 : 0) | (TopAt(x - 1, y) < level ? 2 : 0) | (TopAt(x + 1, y) < level ? 4 : 0);
         // Plain tiles get one of a few looks; tiles with an edge all share one so the edges line up cleanly.
         // A tile drawn from a picture always looks exactly like the picture, so it has no other looks.
@@ -355,13 +375,13 @@ public class PlanetOne : MonoBehaviour
         bool pictured = PictureFor(material) != null;
         int looks = material == Ice ? IceMarks.Length : 3;
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
-        return TerrainTile(material, GroundAt(x, y), level, drop, rims, variant);
+        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant);
     }
 
     // One tile of the top-down view: the top of the block, plus the cliff face below it when the ground to the south is lower.
     Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant)
     {
-        int key = material | (groundLevel << 2) | (level << 3) | (drop << 6) | (rims << 9) | (variant << 12);
+        int key = material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 15) | (variant << 18);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         BlockPicture picture = PictureFor(material);
@@ -372,6 +392,7 @@ public class PlanetOne : MonoBehaviour
             case Ice: topColor = IceBase[groundLevel]; rimColor = IceRim; break;
             case Rock: topColor = RockColors[variant % RockColors.Length]; rimColor = RockEdge; break;
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
+            case Stone: topColor = StoneColor; rimColor = StoneRim; break;
             default: topColor = SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
         }
 
@@ -487,6 +508,7 @@ public class PlanetOne : MonoBehaviour
             case Ice: return foot ? IceFoot : IceFace;
             case Ship: return ShipSideColor;
             case Rock:
+            case Stone:
                 if (y < 2) return RockEdge;
                 if (foot) return CliffFoot;
                 bool crack = (x == 3 && y > 4) || (x == 8 && y < 11) || (x == 12 && y > 6);
@@ -572,8 +594,9 @@ public class PlanetOne : MonoBehaviour
     {
         x = WrapX(x);
         y = WrapY(y);
-        switch (kind[x, y])
+        switch (SurfaceMaterial(x, y))
         {
+            case Stone: return StoneColor;
             case Ice: return IceBase[ground[x, y]];
             case Rock: return RockColors[0];
             case Ship: return ShipColor;
@@ -588,7 +611,7 @@ public class PlanetOne : MonoBehaviour
 
     public bool IsIce(Vector2 position)
     {
-        return kind[WrapX(Mathf.FloorToInt(position.x)), WrapY(Mathf.FloorToInt(position.y))] == Ice;
+        return SurfaceMaterial(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y)) == Ice;
     }
 
     // Height in blocks of whatever is at a spot.
@@ -609,20 +632,70 @@ public class PlanetOne : MonoBehaviour
     {
         x = WrapX(x);
         row = WrapY(row);
-        if (level >= top[x, row]) return SideBlock.Air;
+        if (level >= baseTop[x, row]) return SideBlock.Air;
+        if (mined.TryGetValue(new Vector2Int(x, row), out HashSet<int> gone) && gone.Contains(level)) return SideBlock.Air;
 
         byte k = kind[x, row];
         int surface = ground[x, row];
         if (k == Rock)
         {
             if (level < surface) return SideBlock.Stone;
-            return level == top[x, row] - 1 ? SideBlock.RockTop : SideBlock.Rock;
+            return level == baseTop[x, row] - 1 ? SideBlock.RockTop : SideBlock.Rock;
         }
         if (level >= surface) return SideBlock.Ship;
 
         int depth = surface - level;
         if (k == Ice && depth <= iceDepth[x, row]) return SideBlock.Ice;
         return depth <= snowDepth[x, row] ? SideBlock.Snow : SideBlock.Stone;
+    }
+
+    // The material showing on top of a spot, as the top-down view draws it.
+    byte SurfaceMaterial(int x, int y)
+    {
+        switch (SideBlockAt(x, y, TopAt(x, y) - 1))
+        {
+            case SideBlock.Snow: return Snow;
+            case SideBlock.Ice: return Ice;
+            case SideBlock.Ship: return Ship;
+            case SideBlock.Stone: return Stone;
+            default: return Rock;
+        }
+    }
+
+    // Mines the block at one level of a spot. Returns what the block was, or Air if there was nothing there to mine:
+    // empty space, part of the ship, or the unbreakable bottom layer of the ground.
+    public SideBlock Mine(int x, int row, int level)
+    {
+        SideBlock was = SideBlockAt(x, row, level);
+        if (was == SideBlock.Air || was == SideBlock.Ship || level <= -GroundDepth) return SideBlock.Air;
+
+        var spot = new Vector2Int(WrapX(x), WrapY(row));
+        if (!mined.TryGetValue(spot, out HashSet<int> gone)) mined[spot] = gone = new HashSet<int>();
+        gone.Add(level);
+        // If that was the top block, the top of this spot is now the next block down that is still there.
+        int newTop = top[spot.x, spot.y];
+        while (newTop > -GroundDepth && SideBlockAt(x, row, newTop - 1) == SideBlock.Air) newTop--;
+        if (newTop != top[spot.x, spot.y])
+        {
+            top[spot.x, spot.y] = (sbyte)newTop;
+            // The spot and the four around it are redrawn, since their edges and cliff faces depend on its height.
+            RedrawTile(x, row);
+            RedrawTile(x - 1, row);
+            RedrawTile(x + 1, row);
+            RedrawTile(x, row - 1);
+            RedrawTile(x, row + 1);
+        }
+        BlockMined?.Invoke(x, row, level);
+        return was;
+    }
+
+    // Redraws one square of the top-down view, wherever its copies currently are on the tilemap.
+    void RedrawTile(int x, int y)
+    {
+        foreach (Vector2Int cell in window.allPositionsWithin)
+        {
+            if (WrapX(cell.x) == WrapX(x) && WrapY(cell.y) == WrapY(y)) terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y));
+        }
     }
 
     // Hides or shows everything that belongs to the top-down view (the player and camera are shared).

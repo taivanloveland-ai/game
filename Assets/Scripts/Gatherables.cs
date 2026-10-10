@@ -171,7 +171,15 @@ public class Gatherables : MonoBehaviour
             }
         }
         mining.RowBuilt += BuildSideView;
+        planet.BlockMined += OnBlockMined;
         ShowNearby();
+    }
+
+    // When the block a thing is standing on is mined out from under it, the thing comes loose as if it had been collected.
+    void OnBlockMined(int x, int row, int level)
+    {
+        var cell = new Vector2Int(x, row);
+        if (level == planet.GroundAt(x, row) - 1 && things.ContainsKey(planet.Wrap(cell))) Collect(cell);
     }
 
     // Keeps a top-down picture for every thing on the land that is currently drawn, and none for the rest.
