@@ -16,6 +16,7 @@ public class CraftingNook : MonoBehaviour
     static readonly Color32 Frame = new Color32(150, 158, 170, 255), Rail = new Color32(104, 112, 124, 255), Recess = new Color32(30, 34, 42, 255);
     static readonly Color32 HammerHead = new Color32(176, 182, 190, 255), Handle = new Color32(140, 100, 62, 255), WrenchMetal = new Color32(190, 196, 204, 255);
     static readonly Color32 IceLight = new Color32(206, 235, 248, 255), IceDark = new Color32(108, 170, 210, 255), Binding = new Color32(58, 182, 162, 255);
+    static readonly Color32 HandleLight = new Color32(178, 134, 90, 255);
     // The nook, one text row per pixel row from the top: F frame, R the rail the tools hang from, d the dark recess,
     // s the cords, M the hammer's head, h its handle, W the wrench.
     static readonly string[] NookPicture =
@@ -37,26 +38,8 @@ public class CraftingNook : MonoBehaviour
         "FddddddddddddddF",
         "FFFFFFFFFFFFFFFF",
     };
-    // The ice pickaxe: I the dark side of the ice head, i its lit side, H the handle, B the fern binding.
-    static readonly string[] PickaxePicture =
-    {
-        "................",
-        ".....IIIIII.....",
-        "...IIiiiiiiII...",
-        "..Ii....BBiiiI..",
-        ".Ii....HHB..IiI.",
-        ".I....HHB....II.",
-        ".....HHB......I.",
-        "....HHB.......I.",
-        "...HHB..........",
-        "..HHB...........",
-        ".HHB............",
-        ".HH.............",
-        "................",
-        "................",
-        "................",
-        "................",
-    };
+    // The ice pickaxe is painted at the same fine scale as the snow picture: this many pixels across.
+    const int PickaxePixels = 128;
 
     // True while the crafting menu is showing.
     public bool Open { get; private set; }
@@ -89,7 +72,7 @@ public class CraftingNook : MonoBehaviour
         this.cell = cell;
         foot = new Vector2(cell.x + 0.5f, cell.y);
 
-        Pickaxe = new Item("Ice pickaxe", PlanetOne.PaintSprite((x, y) => PickaxePixel(x, y)));
+        Pickaxe = new Item("Ice pickaxe", PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => PickaxePixel(x, y)));
 
         // The picture sits on the ship's front face, which is drawn one square up from the ground in front of it.
         var go = new GameObject("Crafting Nook");
@@ -114,16 +97,35 @@ public class CraftingNook : MonoBehaviour
         }
     }
 
+    // One pixel of the ice pickaxe picture: a wooden handle running from bottom left to top right, bound with fern
+    // near the top, with a curved ice head across the end that tapers to a point on each side.
     static Color32 PickaxePixel(int x, int y)
     {
-        switch (PickaxePicture[y][x])
+        var p = new Vector2(x + 0.5f, y + 0.5f);
+        var foot = new Vector2(26f, 112f);
+        var tip = new Vector2(86f, 44f);
+        Vector2 along = (tip - foot).normalized;
+        var across = new Vector2(-along.y, along.x);
+
+        // The head is part of a ring centred back down the handle, so it curves toward the hand.
+        const float headRadius = 64f, headSpread = 44f;
+        Vector2 fromCentre = p - (tip - along * headRadius);
+        float spread = Mathf.Abs(Vector2.SignedAngle(along, fromCentre)) / headSpread;
+        if (spread < 1f)
         {
-            case 'I': return IceDark;
-            case 'i': return IceLight;
-            case 'H': return Handle;
-            case 'B': return Binding;
-            default: return Clear;
+            float halfThick = Mathf.Lerp(8f, 1.5f, spread * spread);
+            float outward = fromCentre.magnitude - headRadius;
+            // The outer edge of the curve catches the light.
+            if (Mathf.Abs(outward) <= halfThick) return outward > 0f ? IceLight : IceDark;
         }
+
+        float distance = Vector2.Dot(p - foot, along), length = (tip - foot).magnitude;
+        float side = Vector2.Dot(p - foot, across);
+        if (distance < 0f || distance > length || Mathf.Abs(side) > 5f) return Clear;
+        // Bands of fern wrapped round the handle just below the head.
+        float share = distance / length;
+        if (share > 0.72f && share < 0.9f && (int)(distance / 4f) % 2 == 0) return Binding;
+        return side < -1f ? HandleLight : Handle;
     }
 
     bool InReach => Vector2.Distance(player.GroundPosition, foot) <= Reach && player.FeetHeight < 0.5f;
