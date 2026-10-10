@@ -111,8 +111,13 @@ public class PlanetOne : MonoBehaviour
     static readonly Color32 ShipRim = new Color32(150, 158, 170, 255);
     // Bare stone, as seen from above where the snow or ice over it has been dug away.
     static readonly Color32 StoneColor = new Color32(70, 80, 96, 255), StoneRim = new Color32(98, 110, 128, 255);
-    // A gap in a wall seen from outside, such as a doorway: see-through, with a soft line of shadow along its top.
-    static readonly Color32 SeeThrough = new Color32(0, 0, 0, 0), OpeningShadow = new Color32(22, 28, 40, 110);
+    // A hole in a wall, seen from outside, is see-through.
+    static readonly Color32 SeeThrough = new Color32(0, 0, 0, 0);
+    // Marks a block of a tile's south face that is not there. The other values are the materials above.
+    const int EmptyFaceBlock = 7;
+    // A hole in the west, east or north side of a wall is shown if the wall carries on within this many squares
+    // either side of it.
+    const int WidestHole = 3;
     static readonly Color PlayerColor =new Color32(240, 138, 46, 255);
     static readonly Color SkyColor = new Color32(11, 16, 24, 255);
 
@@ -163,7 +168,7 @@ public class PlanetOne : MonoBehaviour
     readonly HashSet<Vector2Int> roomWalls = new HashSet<Vector2Int>();
     readonly Queue<Vector2Int> roomQueue = new Queue<Vector2Int>();
     static readonly Vector2Int[] Sides = { Vector2Int.left, Vector2Int.right, Vector2Int.up, Vector2Int.down };
-    readonly Dictionary<int, Tile> terrainTiles = new Dictionary<int, Tile>();
+    readonly Dictionary<long, Tile> terrainTiles = new Dictionary<long, Tile>();
     PlayerController player;
     // Mixed into each square's position to pick which look its tile has.
     int variantSeed;
@@ -389,7 +394,7 @@ public class PlanetOne : MonoBehaviour
         underground.tileAnchor = terrain.tileAnchor;
         underground.color = UndergroundTint;
 
-        // Also beneath the land: the floor seen through a doorway in a south-facing wall.
+        // Also beneath the land: the floor seen through a hole in a wall.
         doorFloors = MakeTilemap(grid, "Door Floors", -1);
         doorFloors.tileAnchor = terrain.tileAnchor;
         doorFloors.color = UndergroundTint;
@@ -500,7 +505,7 @@ public class PlanetOne : MonoBehaviour
         {
             int level = DrawnTopAt(x, y);
             float topEdge = y + level * HeightScale;
-            float face = Mathf.Clamp(level - DrawnTopAt(x, y - 1), 0, MaxDrawnDrop) * HeightScale;
+            float face = FaceDrop(level, DrawnTopAt(x, y - 1)) * HeightScale;
             if (point.y >= topEdge - face && point.y < topEdge + 1f) return new Vector2Int(x, y);
         }
         return new Vector2Int(x, pointRow);
@@ -537,12 +542,10 @@ public class PlanetOne : MonoBehaviour
     // The tile for one square of the top-down view.
     Tile TileAt(int x, int y)
     {
-        // What shows from above is whatever block is now on top, which mining may have changed. A doorway is drawn
-        // as its floor, so the way through can be seen.
+        // What shows from above is whatever block is now on top, which mining or building may have changed.
         int level = DrawnTopAt(x, y);
         byte material = MaterialOf(SideBlockAt(x, y, level - 1));
-        int south = DrawnTopAt(x, y - 1);
-        int drop = Mathf.Clamp(level - south, 0, MaxDrawnDrop);
+        int drop = FaceDrop(level, DrawnTopAt(x, y - 1));
         int rims = (DrawnTopAt(x, y + 1) < level ? 1 : 0) | (DrawnTopAt(x - 1, y) < level ? 2 : 0) | (DrawnTopAt(x + 1, y) < level ? 4 : 0);
         // Plain tiles get one of a few looks; tiles with an edge all share one so the edges line up cleanly.
         // A tile drawn from a picture always looks exactly like the picture, so it has no other looks.
@@ -551,44 +554,67 @@ public class PlanetOne : MonoBehaviour
         int looks = material == Ice ? IceMarks.Length : 3;
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
 
-        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceGaps(x, y, level, drop));
+        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop));
     }
 
-    // Gaps in the south face of a square, such as a doorway built into a wall facing south: one bit for each block
-    // of the face, from the top down, that is empty. The face is see-through there.
-    int FaceGaps(int x, int y, int level, int drop)
+    // How many blocks tall the south face of a square is drawn: down to the ground south of it. Next to a deep hole
+    // the face stops a few blocks down, since deeper holes look the same from above.
+    static int FaceDrop(int level, int south)
     {
-        int gaps = 0;
+        return Mathf.Max(0, level - Mathf.Max(south, Mathf.Min(0, level - MaxDrawnDrop)));
+    }
+
+    // What each block of a square's south face is, from the top down, three bits a block: the block's own material,
+    // or EmptyFaceBlock where there is no block. So a stack of different blocks shows each one, and a hole in a wall
+    // shows as a hole, exactly where the blocks are missing.
+    long FaceBlocks(int x, int y, int level, int drop)
+    {
+        long blocks = 0;
         for (int i = 0; i < drop; i++)
         {
-            if (SideBlockAt(x, y, level - 1 - i) == SideBlock.Air) gaps |= 1 << i;
+            SideBlock block = SideBlockAt(x, y, level - 1 - i);
+            blocks |= (long)(block == SideBlock.Air ? EmptyFaceBlock : MaterialOf(block)) << (i * 3);
         }
-        return gaps;
+        return blocks;
     }
 
-    // What is seen through the gaps in a square's south face: the floor inside. Null if there are no gaps.
-    Tile DoorFloorAt(int x, int y)
+    // True if a spot has been mined or built on. Everywhere else is solid from its top down.
+    bool Changed(int x, int y)
     {
-        int level = DrawnTopAt(x, y);
-        int drop = Mathf.Clamp(level - DrawnTopAt(x, y - 1), 0, MaxDrawnDrop);
-        if (FaceGaps(x, y, level, drop) == 0) return null;
-        int floor = level - drop - 1;
-        while (floor > -GroundDepth && SideBlockAt(x, y, floor) == SideBlock.Air) floor--;
-        return TerrainTile(MaterialOf(SideBlockAt(x, y, floor)), 0, 0, 0, 0, 0);
+        var spot = new Vector2Int(WrapX(x), WrapY(y));
+        return mined.ContainsKey(spot) || placed.ContainsKey(spot);
     }
 
-    // The height a square is drawn at in the top-down view. That is its top, except for a doorway in a wall that
-    // opens to the west, east or north: from above the side of a wall cannot be seen, so the doorway is drawn as
-    // a gap in the wall, down to its floor. Depth is how many squares further in a passage is followed.
-    int DrawnTopAt(int x, int y, int depth = 2)
+    // What is seen through a hole in a wall: the floor of the space inside. Every square with open space under
+    // its top has one, drawn beneath the land. Null for a square that is solid all the way down.
+    Tile FloorInsideAt(int x, int y)
     {
-        int top = TopAt(x, y), drawn = top;
+        if (!Changed(x, y)) return null;
+        int level = TopAt(x, y) - 1;
+        while (level > -GroundDepth && SideBlockAt(x, y, level) != SideBlock.Air) level--;
+        if (level <= -GroundDepth) return null;
+        while (level > -GroundDepth && SideBlockAt(x, y, level) == SideBlock.Air) level--;
+        return TerrainTile(MaterialOf(SideBlockAt(x, y, level)), 0, 0, 0, 0, 0);
+    }
+
+    // The height a square is drawn at in the top-down view. That is its top, except where a wall has a hole in its
+    // west, east or north side. Those sides cannot be seen from above, so the hole is shown as a piece missing from
+    // the wall: the square is drawn down at the bottom of the hole.
+    int DrawnTopAt(int x, int y)
+    {
+        int top = TopAt(x, y);
+        if (!Changed(x, y)) return top;
+        int drawn = top;
         for (int i = 0; i < 3; i++)
         {
             int nextX = x + (i == 0 ? -1 : i == 1 ? 1 : 0), nextY = y + (i == 2 ? 1 : 0);
-            // The level someone stands at on the square next door, if they could walk in under this square's top.
-            int stand = depth > 0 ? DrawnTopAt(nextX, nextY, depth - 1) : TopAt(nextX, nextY);
-            if (stand >= top || SideBlockAt(x, y, stand) != SideBlock.Air || !IsDoorway(new Vector2Int(x, y), stand)) continue;
+            // The hole has to open onto ground under the open sky, at the level someone stands at there.
+            int stand = TopAt(nextX, nextY);
+            if (stand >= top || SideBlockAt(x, y, stand) != SideBlock.Air) continue;
+            // It only counts as a hole in a wall if the wall carries on to both sides of it. That leaves alone the
+            // edge of a roof that simply sticks out over open ground.
+            int alongX = i == 2 ? 1 : 0, alongY = 1 - alongX;
+            if (!SolidWithin(x, y, stand, alongX, alongY) || !SolidWithin(x, y, stand, -alongX, -alongY)) continue;
             int floor = stand;
             while (floor > -GroundDepth && SideBlockAt(x, y, floor - 1) == SideBlock.Air) floor--;
             drawn = Mathf.Min(drawn, floor);
@@ -596,17 +622,28 @@ public class PlanetOne : MonoBehaviour
         return drawn;
     }
 
+    // True if there is a block at a level within a few squares of a spot, going one way.
+    bool SolidWithin(int x, int y, int level, int stepX, int stepY)
+    {
+        for (int i = 1; i <= WidestHole; i++)
+        {
+            if (SideBlockAt(x + stepX * i, y + stepY * i, level) != SideBlock.Air) return true;
+        }
+        return false;
+    }
+
     // Puts the right tiles on the tilemaps for one square of the land that is being drawn.
     void SetLandTile(Vector2Int cell)
     {
         terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y));
-        doorFloors.SetTile((Vector3Int)cell, DoorFloorAt(cell.x, cell.y));
+        doorFloors.SetTile((Vector3Int)cell, FloorInsideAt(cell.x, cell.y));
     }
 
-    // One tile of the top-down view: the top of the block, plus the cliff face below it when the ground to the south is lower.
-    Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, int openings = 0)
+    // One tile of the top-down view: the top of the block, plus the cliff face below it when the ground to the south
+    // is lower. FaceBlocks says what each block of that face is; see FaceBlocks above.
+    Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, long faceBlocks = 0)
     {
-        int key = material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 15) | (variant << 18) | (openings << 22);
+        long key = material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 15) | (variant << 18) | (faceBlocks << 22);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         BlockPicture picture = PictureFor(material);
@@ -634,13 +671,11 @@ public class PlanetOne : MonoBehaviour
             int x = fineX / detail, y = fineY / detail;
             if (y >= TilePixels)
             {
-                // An empty block of the face is an opening between two thin posts, with the floor inside showing
-                // through it and a line of shadow under the top of the opening.
-                int faceY = y - TilePixels, block = faceY / FacePixels;
-                bool gap = (openings & (1 << block)) != 0 && x >= 2 && x < TilePixels - 2;
-                if (!gap) return PaintFace(material, x, faceY, facePixels);
-                bool gapAbove = block > 0 && (openings & (1 << (block - 1))) != 0;
-                return faceY % FacePixels == 0 && !gapAbove ? OpeningShadow : SeeThrough;
+                // Each block of the face is drawn as what it is. Where there is no block the face is see-through,
+                // and the floor inside shows through the hole.
+                int faceY = y - TilePixels;
+                int block = (int)((faceBlocks >> (faceY / FacePixels * 3)) & 7);
+                return block == EmptyFaceBlock ? SeeThrough : PaintFace((byte)block, x, faceY, facePixels);
             }
             bool rim =((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
