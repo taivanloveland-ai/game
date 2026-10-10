@@ -135,7 +135,7 @@ public class MiningMode : MonoBehaviour
 
         rockTopTile = PlanetOne.MakeTile(Color.white, PlanetOne.PaintSprite((x, y) => PlanetOne.PaintRockTop(x, y, 1)), true);
 
-        int columns = WindowColumns, levels = Depth + PlanetOne.MaxTop;
+        int columns = WindowColumns, levels = Depth + PlanetOne.BuildLimit;
         covered = new bool[columns, levels];
         darkPixels = new Color32[columns * DarkPixels * levels * DarkPixels];
         dark = MakeDarkness("Darkness", DarkOrder);
@@ -146,7 +146,7 @@ public class MiningMode : MonoBehaviour
 
     SpriteRenderer MakeDarkness(string name, int sortingOrder)
     {
-        var texture = new Texture2D(WindowColumns * DarkPixels, (Depth + PlanetOne.MaxTop) * DarkPixels) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        var texture = new Texture2D(WindowColumns * DarkPixels, (Depth + PlanetOne.BuildLimit) * DarkPixels) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         var go = new GameObject(name);
         go.transform.SetParent(root.transform, false);
         var renderer = go.AddComponent<SpriteRenderer>();
@@ -366,12 +366,16 @@ public class MiningMode : MonoBehaviour
         return true;
     }
 
-    // Takes a mined block out of the picture of the row and out of the solid ground, and lets light into the hole.
-    public void RemoveBlock(int x, int level)
+    // Redraws one block of the front row after it has been mined away or a block has been placed there: its picture,
+    // whether it is solid, and the light around it.
+    public void RedrawBlock(int x, int level)
     {
         var cell = new Vector3Int(x, level, 0);
-        rowMap.SetTile(cell, null);
-        solidMap.SetTile(cell, null);
+        Vector2Int square = Cell(x);
+        PlanetOne.SideBlock block = planet.SideBlockAt(square.x, square.y, level);
+        Tile tile = block != PlanetOne.SideBlock.Air ? TileFor(block, square.x, square.y, level) : null;
+        rowMap.SetTile(cell, tile);
+        solidMap.SetTile(cell, tile);
         tileCollider.ProcessTilemapChanges();
         composite.GenerateGeometry();
         PaintDarkness(dark.sprite.texture, 0);
@@ -493,7 +497,7 @@ public class MiningMode : MonoBehaviour
     {
         map.ClearAllTiles();
         // All the row's tiles are handed over in one go, which is much quicker than placing them one at a time.
-        int levels = Depth + PlanetOne.MaxTop;
+        int levels = Depth + PlanetOne.BuildLimit;
         if (fillBuffer == null) fillBuffer = new TileBase[WindowColumns * levels];
         for (int l = 0; l < levels; l++)
         {

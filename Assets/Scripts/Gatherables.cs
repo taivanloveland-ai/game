@@ -312,6 +312,18 @@ public class Gatherables : MonoBehaviour
         target = null;
     }
 
+    // True if a fern or ice shard stands on a square of the world.
+    public bool HasThing(Vector2Int cell)
+    {
+        return things.ContainsKey(planet.Wrap(cell));
+    }
+
+    // True if the picture of a fern or ice shard is under a point on screen (given in world units).
+    public bool ThingUnder(Vector2 point)
+    {
+        return FindThingAt(point, out _);
+    }
+
     // Finds the thing whose picture is under a point, in whichever view is showing.
     bool FindThingAt(Vector2 point, out Vector2Int found)
     {
