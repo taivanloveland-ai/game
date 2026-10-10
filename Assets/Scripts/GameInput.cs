@@ -105,7 +105,8 @@ public static class GameInput
 #endif
     }
 
-    // The number keys 1 to 5 pick a hotbar slot. Returns the slot counting from 0, or -1 if none was pressed this frame.
+    // The number keys pick a hotbar slot: 1 to 9 for the first nine, and 0 for the tenth. Returns the slot counting
+    // from 0, or -1 if none was pressed this frame.
     public static int HotbarSlotPressed()
     {
 #if ENABLE_INPUT_SYSTEM
@@ -116,14 +117,30 @@ public static class GameInput
         if (k.digit3Key.wasPressedThisFrame) return 2;
         if (k.digit4Key.wasPressedThisFrame) return 3;
         if (k.digit5Key.wasPressedThisFrame) return 4;
+        if (k.digit6Key.wasPressedThisFrame) return 5;
+        if (k.digit7Key.wasPressedThisFrame) return 6;
+        if (k.digit8Key.wasPressedThisFrame) return 7;
+        if (k.digit9Key.wasPressedThisFrame) return 8;
+        if (k.digit0Key.wasPressedThisFrame) return 9;
         return -1;
 #else
-        for (int slot = 0; slot < 5; slot++)
+        for (int slot = 0; slot < 9; slot++)
         {
             if (Input.GetKeyDown(KeyCode.Alpha1 + slot)) return slot;
         }
-        return -1;
+        return Input.GetKeyDown(KeyCode.Alpha0) ? 9 : -1;
 #endif
+    }
+
+    // The mouse wheel, as whole steps this frame: +1 for a notch scrolled down (toward the player), -1 for a notch up.
+    public static int ScrollSteps()
+    {
+#if ENABLE_INPUT_SYSTEM
+        float wheel = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
+#else
+        float wheel = Input.mouseScrollDelta.y;
+#endif
+        return wheel < 0f ? 1 : wheel > 0f ? -1 : 0;
     }
 
     // M opens and closes the world map.

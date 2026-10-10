@@ -22,7 +22,7 @@ public class Item
 // Everything the player is carrying. There is no limit: each new kind of item adds a stack, and stacks count up forever.
 public class Inventory
 {
-    public const int HotbarSlots = 5;
+    public const int HotbarSlots = 10;
 
     public class Stack
     {
@@ -48,7 +48,8 @@ public class Inventory
     public readonly List<Item> Tools = new List<Item>();
 
     // What is in each hotbar slot, or null for an empty slot. A slot holds a tool, or a kind of block the player
-    // dragged there from their items. A block in a slot is still counted in the stacks above.
+    // dragged there from their items. A block in a slot is still counted in the stacks above. When the player runs
+    // out of a block, its slot stays kept for it, so the next ones they pick up are in the same slot.
     public readonly Item[] Hotbar = new Item[HotbarSlots];
 
     // Which hotbar slot is equipped, counting from 0, or -1 for none. The first slot is equipped to begin with,
@@ -108,6 +109,14 @@ public class Inventory
         EquippedSlot = EquippedSlot == slot ? -1 : slot;
     }
 
+    // Moves the equipped slot along the hotbar by a number of slots, going round at the ends.
+    public void StepSlot(int steps)
+    {
+        // With nothing equipped, the first step lands on the first slot going right, or the last going left.
+        int from = EquippedSlot >= 0 ? EquippedSlot : steps > 0 ? -1 : 0;
+        EquippedSlot = ((from + steps) % Hotbar.Length + Hotbar.Length) % Hotbar.Length;
+    }
+
     // Takes a number of one kind of item away. Returns false, taking nothing, if the player has fewer than that.
     public bool Remove(Item item, int count)
     {
@@ -116,15 +125,7 @@ public class Inventory
             if (Stacks[i].Item != item) continue;
             if (Stacks[i].Count < count) return false;
             Stacks[i].Count -= count;
-            if (Stacks[i].Count == 0)
-            {
-                Stacks.RemoveAt(i);
-                // The last one is gone, so it comes off the hotbar too.
-                for (int slot = 0; slot < Hotbar.Length; slot++)
-                {
-                    if (Hotbar[slot] == item) Hotbar[slot] = null;
-                }
-            }
+            if (Stacks[i].Count == 0) Stacks.RemoveAt(i);
             return true;
         }
         return false;

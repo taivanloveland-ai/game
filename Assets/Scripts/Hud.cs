@@ -43,6 +43,9 @@ public class Hud : MonoBehaviour
         }
         int slot = GameInput.HotbarSlotPressed();
         if (slot >= 0 && slot < HotbarSlots) inventory.ToggleSlot(slot);
+        // The mouse wheel moves along the hotbar one slot at a time.
+        int scroll = GameInput.ScrollSteps();
+        if (scroll != 0) inventory.StepSlot(scroll);
     }
 
     Rect HotbarRect()
@@ -114,14 +117,19 @@ public class Hud : MonoBehaviour
             Rect slot = HotbarSlot(i);
             Item item = inventory.Hotbar[i];
             GUI.Box(slot, GUIContent.none);
-            // The equipped slot gets a light blue glow and frame.
-            if (i == inventory.EquippedSlot && item != null) DrawHighlight(slot);
+            // The equipped slot gets a light blue glow and frame, even when it is empty, so scrolling can be followed.
+            if (i == inventory.EquippedSlot) DrawHighlight(slot);
             if (item == null || (item == dragged && draggedFrom == i)) continue;
+            // Blocks show how many the player has left. A block they have run out of stays in its slot, drawn faint,
+            // waiting for more.
+            bool tool = inventory.IsTool(item);
+            int count = tool ? 1 : inventory.CountOf(item);
+            GUI.color = new Color(1f, 1f, 1f, count > 0 ? 1f : 0.3f);
             GUI.DrawTexture(new Rect(slot.x + 6f, slot.y + 6f, slot.width - 12f, slot.height - 12f), item.Icon.texture, ScaleMode.ScaleToFit);
-            // Blocks show how many the player has left.
-            if (!inventory.IsTool(item)) GUI.Label(new Rect(slot.x, slot.y, slot.width - 4f, slot.height - 1f), inventory.CountOf(item).ToString(), smallCountStyle);
+            GUI.color = Color.white;
+            if (!tool) GUI.Label(new Rect(slot.x, slot.y, slot.width - 4f, slot.height - 1f), count.ToString(), smallCountStyle);
         }
-        GUI.Label(new Rect(bar.x - 120f, bar.y - 22f, bar.width + 240f, 20f), "[1-5] equip or put away        [Tab] Items: drag blocks onto the bar to build", nameStyle);
+        GUI.Label(new Rect(bar.x - 120f, bar.y - 22f, bar.width + 240f, 20f), "[1-9, 0] or mouse wheel: equip        [Tab] Items: drag blocks onto the bar to build", nameStyle);
 
         if (Time.time < messageUntil)
         {

@@ -66,6 +66,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Building and houses (asked 2026-10-10)
 
+- **Longer hotbar** (asked later on 2026-10-10): the hotbar is 10 slots (keys 1 to 9, and 0 for the tenth), and the mouse wheel scrolls along it, going round at the ends. A block put in a slot keeps that slot when you run out: it is drawn faint with a 0, and the next ones you get are in the same slot, until you drag something else there or drag it off. His words: "if you put an item in a slot and run out then get the item again, teh item goes into that slot until it is switched with something."
 - **Doorways must show in td** (asked later on 2026-10-10): he made a doorway in sc and in td "it looks like a wall but i can walk through it. thats a problem." Now a gap under the top of a wall shows in td: a dark opening in the wall's south face, or a dark notch cut into the west, east or north edge of its top when the way in is from that side. Dug-out cave mouths show the same way.
 
 - He asked: "building. you can place the blocks if you drag them from your inventory to your hotbar. also make it so if someones building a house, when youre in it the whole roof is transparent and when youre out its opaque."
