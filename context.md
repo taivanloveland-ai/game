@@ -7,6 +7,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Taivan directs the design. Claude writes the code.
 - The game must be different from his brother's game. His brother is also building a 2D side-scroller, and Taivan does not want to copy it.
 
+## Taivan's shorthand
+
+- **sc** = the side-scroller view (mining mode on planet 1).
+- **td** = the top-down view.
+
 ## The game
 
 - **Setting:** not Earth. An alien solar system, with its own invented metals and materials (not iron, copper or gold).
@@ -22,12 +27,65 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Materials are collected by the player.**
 - **Space suit and air:** the space suit itself is warm, and the air is breathable (said 2026-10-09). Claude's reading, not confirmed: this is about the cold crash planet, so there is no oxygen to manage and the suit protects him from the cold.
 
+## Mining mode (asked 2026-10-09)
+
+- Pressing **R** on planet 1 switches the world to a 2D side-scroller. This is called **mining mode**. Pressing R again goes back to top-down.
+- The side view shows the row of blocks the player is standing on.
+- If you mine down (not possible yet), you can see the blocks behind you.
+- In mining mode you can jump **1.5 blocks**. The grey rocks are **2 blocks tall**, so you cannot jump over them.
+- Taivan wants to be given options when there are design choices to make. His picks for mining mode:
+  - **Underground:** 4 or 5 layers of snow, with stone under the snow and ice for now. Where there is ice, it should look like a river or lake that was there and froze.
+  - **Behind you:** the next few rows further back are drawn faded behind your row.
+  - **Surface:** flat ground. Snow and ice are at the same height, with rocks standing 2 tall on top.
+
+## Heights, jumping and changing rows (asked 2026-10-09)
+
+- In mining mode, **W** takes you into the row behind you, if it is available.
+- You can **jump in top-down mode** too.
+- There are **higher levels of snow and ice**, so jumping is more useful.
+- His picks from the options:
+  - **Terrain:** the ground is a block higher for a while in some places and not in others. You have to fall back down to ground level. (Two levels: ground and one block up.)
+  - **S key:** S takes you to the row in front. Jump is Space, since W is now used.
+  - **Rocks:** never climbable. A rock is always 2 blocks taller than the highest ground touching it.
+  - **Ice:** frozen steps too. Ice can be on either level and can drop a block along its length.
+
+## Sky, day and night (asked 2026-10-09)
+
+- **Story:** the planets orbit a binary star system where the other star is a black hole.
+- In the side-scroller you can see the **sun in the daytime** and the **black hole at night**.
+- His picks from the options:
+  - **Day length:** 2 minutes for a full day and night, for now, for testing purposes. Expect this to be lengthened later.
+  - **Black hole:** tilted disc. A black disc with a thin ring and a flat glowing band across its middle.
+  - **Sun:** red and dim.
+  - **Night:** everything gets darker, in both sc and top-down.
+
+## Plants and inventory (asked 2026-10-09)
+
+- An **alien plant**, 50% of the player's height.
+- **Right click** it when at most a block away and it drops; you can then pick it up into your inventory.
+- The **inventory has no limit**. It just gets bigger with more items.
+- His picks from the options:
+  - **Right click:** you click on the plant itself with the mouse.
+  - **Views:** plants show and can be harvested in both td and sc.
+  - **Pick up:** the dropped plant is pulled toward you when you are close.
+  - **Inventory on screen:** only a hotbar, and it is for tools. Press Tab to see what items you have.
+
+## Plants as rectangles, ice shards, and click-to-collect (asked 2026-10-09)
+
+- **Plants are just green rectangles.**
+- **Sharp shards of ice**, found on the ice, are picked up like the plants. (He first said thin sharp rocks, then changed it to ice shards.) They are **long, as though they are the pick on a pickaxe**, and they **look like part of the ice** (same blues as the ice, no dark outline). **After you right click one, it looks like the picture Taivan supplied** (a blue diagonal shard), stored at `Assets/Resources/Art/IceShardItem.png`. This is the first real art in the game.
+- **Right clicking** a plant or shard makes you **move until you are close enough to collect it**. If it is unavailable, right clicking does nothing.
+- For the walk he first picked "finds a way and jumps", then changed it: **just walk in a straight line**. It still jumps onto raised ground by itself (Claude kept that; not confirmed).
+- **W and S in sc get an animation**, so changing rows is not so much faster than walking in. He first asked for "like a fade"; Claude made the whole screen fade to black, and he changed it: instead of the whole screen blacking out, **the blocks shift forward, get brighter, and become the front blocks**.
+
 ## Look and feel decisions
 
 - **Engine:** Unity (decided 2026-10-09).
 - **Art for now:** the character is just a rectangle. Everything else is simple coloured shapes too.
 - **Top-down view is angled,** so you can see the edges of the cliffs (asked 2026-10-09).
 - **Ice is a little slippery** (asked 2026-10-09).
+- **Walking in snow is a little slower,** only a little (asked 2026-10-09). Currently 90% of full speed; ice is full speed.
+- **Deeper blocks are gradually shaded in the side-scroller, and after the first 1.5 blocks it turns black** (asked 2026-10-09). This is for mining mode only, not the top-down view. It took three tries: Claude first shaded the low ground in top-down, then made a gentle shade that never reached black; Taivan corrected both.
 - **No ore or crystals in the world for now.** Taivan asked for the placeholder ones to be taken away (2026-10-09). Reason not given.
 
 ## Built so far
@@ -35,8 +93,16 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Unity project at the repo root, for editor 6000.6.5f1. Open `Assets/Scenes/PlanetOne` and press Play.
 - Planet 1 is a 160 x 160 tile world that is generated when the game starts: snow, slippery ice lakes, raised rock with cliff faces on its south edges, and a rock wall around the map.
 - A grey crashed ship sits in the middle of the map. The player is an orange rectangle that starts just below it and walks with WASD or the arrow keys. The camera follows the player.
-- Checked by running the game in the background on 2026-10-09: the world builds and collisions work. The slippery ice was compiled but its feel has not been checked by Claude.
-- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `PlayerController.cs` handles movement, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
+- Every spot has a height. Ground is level 0 or, in patches (about a fifth of the walkable land), level 1. Rocks and the ship stand 2 above the highest ground next to them. In top-down, higher ground is drawn shifted up the screen with a cliff face on its south side.
+- Top-down jump: Space, 1.5 blocks high, with a shadow on the ground. You need it to get onto level 1; walking off an edge drops you back down.
+- Mining mode: R shows the player's row from the side, with three faded rows behind it, snow 4 or 5 blocks deep over stone, ice as a bowl up to 4 blocks deep, and a 1.5 block jump (Space). W or the up arrow steps to the row behind and S or the down arrow to the row in front, when nothing there is in the way. Each step takes a quarter of a second, about the time it takes to walk one block in td: stepping back, the rows behind slide forward and brighten, the nearest one becoming the front row while the old front row fades away; stepping forward is the reverse. Holding the key keeps stepping. To make the slide visible, each row further back is drawn 0.2 blocks higher than the one in front of it. Ice is slippery and snow is a little slow there too. No mining yet.
+- Mining mode darkness: the ground is lit where it touches open air and fades to black 1.5 blocks in. Shading only applies to a block if there is a block in front of it in the next row forward (asked 2026-10-09); a block with nothing in front stays fully lit and lets light into its neighbours.
+- Day and night: a 2 minute cycle starting just after sunrise. In sc the red sun arcs across a dusky purple sky by day; at night the sky goes black with stars and the black hole arcs across. At night the sc ground and player are tinted dark blue, and top-down gets a dark blue wash.
+- Things to collect: about 370 plants on the snow (2.5% of snow squares, green rectangles half the player's height, placeholder name "Plant") and about 120 ice shards on the ice (3% of ice squares, thin pale spikes, placeholder name "Ice shard"). Neither grows back.
+- Collecting: right click one. Within a block it drops at once; otherwise the player walks to it in a straight line, jumping onto raised ground, then it drops. If a rock or the ship is on that line, the click does nothing. In sc the walk is along the row only. Pressing a movement key or jump cancels the walk. A drop sits for a third of a second, then slides to the player from up to 2 blocks away and goes into the inventory.
+- Inventory: stacks per kind of item with no limits. On screen there is a 5-slot tool hotbar (empty, no tools exist yet) and an Items panel opened with Tab that grows a row at a time.
+- Checked by running the game in the background on 2026-10-09: the world builds; in top-down a ledge blocks walking but a jump gets you up, rocks stay blocked, and the jump peaks at 1.5 blocks; R switches views both ways; row stepping works and is refused when blocked. Collecting works in td and sc: a click on empty ground does nothing, and a click on a plant 7 blocks away, a plant up on raised ground, an ice shard, and a plant along the row in sc each walk the player over and end with the item in the inventory. Real key presses and mouse clicks, how the hotbar and Items panel look, the feel of the ice, and how smoothly it runs have not been checked by Claude.
+- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `MiningMode.cs` builds the side view, `PlayerController.cs` handles movement, `DayNight.cs` runs the sky and night, `Gatherables.cs` holds plants, ice shards and the walk-to-collect, `Pickups.cs` the dropped items, `Inventory.cs` and `Hud.cs` the inventory and its display, `Assets/Editor/ArtImport.cs` sets up any picture dropped into `Assets/Resources/Art` (see-through background kept, no compression), `GameInput.cs` reads the keyboard, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
 
 ## Build approach (Claude's plan)
 
@@ -56,7 +122,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - What is his brother's game like (genre, setting, main mechanic)? Needed so this one can go a different way.
 - What are the alien materials, and what does each one do?
-- How are materials collected (mining deposits, picking things up, digging the ground)?
+- Mining itself is not built yet. How does it work in mining mode: what tool, which blocks can be dug, how long it takes, and what you get from snow, ice and stone?
+- Where do the alien materials appear: inside the stone, in the ice, on the surface?
 - If the suit keeps him warm, what is the danger on the cold planet? Can the suit be too weak for the coldest areas?
 - Are there creatures or enemies?
 - What does repairing the ship need?
