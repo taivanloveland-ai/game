@@ -89,6 +89,13 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
 - Nothing is saved between plays yet, so a new world also means an empty inventory.
 
+## Bigger planet that loops (asked 2026-10-10)
+
+- **The map is 6 times larger,** and you can **walk up from your ship and make a full loop around the planet, as though it were a sphere.** On the map, if you get to the top and keep going up, you come in at the bottom.
+- As built: the planet is 960 by 960 squares (6 times wider and 6 times taller than before; Claude's reading of "6x larger", not confirmed). It has no rock wall and no edges: it joins up with itself both ways, so going far enough north, south, east or west brings you back to the ship. A full loop is about three and a half minutes of walking.
+- To make this work, only the land around the player is drawn (a little more than the screen shows), in both views, and the land's shapes are made so they meet without a seam at the join.
+- The crafting nook, the mini map's ship marker (which points the shortest way home) and the world map all follow the loop. Ferns and shards kept the same rarity per square, so the bigger planet has about 2,100 ferns and 1,600 shards.
+
 ## Maps and rarer materials (asked 2026-10-10)
 
 - **Materials are even more uncommon, especially the ferns.** Ferns are now on 0.4% of snow squares (about 50 to 80 in a world, down from about 190) and ice shards on 0.9% of ice squares (about 20 to 50, down from about 60).
@@ -138,14 +145,14 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## Built so far
 
 - Unity project at the repo root, for editor 6000.6.5f1. Open `Assets/Scenes/PlanetOne` and press Play.
-- Planet 1 is a 160 x 160 tile world that is generated when the game starts, differently each time: snow, slippery ice lakes, raised rock with cliff faces on its south edges, and a rock wall around the map.
+- Planet 1 is a 960 x 960 tile world that is generated when the game starts, differently each time: snow, slippery ice lakes, and raised rock with cliff faces on its south edges. It has no edges; it loops in every direction. Only the land near the player is drawn.
 - A grey crashed ship sits in the middle of the map, with the crafting nook in the middle of its front. The player is an orange rectangle that starts just below it and walks with WASD or the arrow keys. The camera follows the player.
 - Every spot has a height. Ground is level 0 or, in patches (about a fifth of the walkable land), level 1. Rocks and the ship stand 2 above the highest ground next to them. In top-down, higher ground is drawn shifted up the screen with a cliff face on its south side.
 - Top-down jump: Space, 1.5 blocks high, with a shadow on the ground. You need it to get onto level 1; walking off an edge drops you back down.
 - Mining mode: R shows the player's row from the side, with three faded rows behind it, snow 4 or 5 blocks deep over stone, ice as a bowl up to 4 blocks deep, and a 1.5 block jump (Space). W or the up arrow steps to the row behind and S or the down arrow to the row in front, when nothing there is in the way. Each step takes a quarter of a second, about the time it takes to walk one block in td: stepping back, the rows behind slide forward and brighten, the nearest one becoming the front row while the old front row fades away; stepping forward is the reverse. Holding the key keeps stepping. To make the slide visible, each row further back is drawn 0.2 blocks higher than the one in front of it. Ice is slippery and snow is a little slow there too. No mining yet.
 - Mining mode darkness: the ground is lit where it touches open air and fades to black 1.5 blocks in. Shading only applies to a block if there is a block in front of it in the next row forward (asked 2026-10-09); a block with nothing in front stays fully lit and lets light into its neighbours.
 - Day and night: a 2 minute cycle starting just after sunrise. In sc the red sun arcs across a dusky purple sky by day; at night the sky goes black with stars and the black hole arcs across. At night the sc ground and player are tinted dark blue, and top-down gets a dark blue wash.
-- Things to collect: about 50 to 80 fiddlehead ferns on the snow (0.4% of snow squares, bluish green, the tall frond about the player's height) and about 20 to 50 ice shards on the ice (0.9% of ice squares, curved pale spikes about three quarters of a block tall). The numbers vary from world to world. Neither grows back.
+- Things to collect: fiddlehead ferns on 0.4% of snow squares (about 2,100 on the planet; bluish green, the tall frond about the player's height) and ice shards on 0.9% of ice squares (about 1,600; curved pale spikes about three quarters of a block tall). Neither grows back.
 - Maps: a mini map in the top right shows 40 squares around the player with markers for the player and the ship; M opens a world map of everything the mini map has shown (`WorldMap.cs`).
 - Collecting: right click one. Within a block it drops at once; otherwise the player walks to it in a straight line, jumping onto raised ground, then it drops. If a rock or the ship is on that line, the click does nothing. In sc the walk is along the row only. Pressing a movement key or jump cancels the walk. A drop sits for a third of a second, then slides to the player from up to 2 blocks away and goes into the inventory.
 - Inventory: stacks per kind of item with no limits. On screen there is a 5-slot tool hotbar, which shows crafted tools, and an Items panel opened with Tab that grows a row at a time.

@@ -11,6 +11,10 @@ public class MiningMode : MonoBehaviour
     // How many blocks of ground are shown below the surface, and how much sky the camera may show above it.
     const int Depth = 14;
     const int SkyHeight = 12;
+    // Only this many columns of the row are drawn at a time, centred on the player. The row is redrawn further along
+    // when the player gets within the margin of either end. A whole row of the planet is far too long to draw at once.
+    public const int WindowColumns = 96;
+    const int WindowMargin = 26;
     // How long stepping to the next row takes. Walking one block top-down takes about this long.
     const float RowStepSeconds = 0.25f;
     // Each row further back is drawn this much higher, in blocks, so rows read as being behind one another.
@@ -40,6 +44,8 @@ public class MiningMode : MonoBehaviour
     public bool Active { get; private set; }
     // The row of the world the side view is showing.
     public int Row => row;
+    // The first column of the stretch of row being drawn.
+    public int WindowStart => windowStart;
     // Everything that belongs to the side view hangs under this.
     public Transform Root => root.transform;
     // Raised each time the side view is redrawn for a row.
@@ -70,6 +76,7 @@ public class MiningMode : MonoBehaviour
     // Which blocks of a row have a block in front of them in the next row forward. Only these can be dark.
     bool[,] covered;
     int row;
+    int windowStart;
     float blockedUntil;
     // A step between rows in progress: +1 toward the row behind, -1 toward the row in front, 0 for none.
     int stepDirection;
@@ -109,7 +116,7 @@ public class MiningMode : MonoBehaviour
 
         rockTopTile = PlanetOne.MakeTile(Color.white, PlanetOne.PaintSprite((x, y) => PlanetOne.PaintRockTop(x, y, 1)), true);
 
-        int columns = planet.width, levels = Depth + PlanetOne.MaxTop;
+        int columns = WindowColumns, levels = Depth + PlanetOne.MaxTop;
         covered = new bool[columns, levels];
         darkPixels = new Color32[columns * DarkPixels * levels * DarkPixels];
         dark = MakeDarkness("Darkness", DarkOrder);
@@ -120,7 +127,7 @@ public class MiningMode : MonoBehaviour
 
     SpriteRenderer MakeDarkness(string name, int sortingOrder)
     {
-        var texture = new Texture2D(planet.width * DarkPixels, (Depth + PlanetOne.MaxTop) * DarkPixels) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        var texture = new Texture2D(WindowColumns * DarkPixels, (Depth + PlanetOne.MaxTop) * DarkPixels) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         var go = new GameObject(name);
         go.transform.SetParent(root.transform, false);
         var renderer = go.AddComponent<SpriteRenderer>();
@@ -136,7 +143,25 @@ public class MiningMode : MonoBehaviour
         if (stepDirection != 0) UpdateRowStep();
         else if (GameInput.RowBehindHeld()) BeginRowStep(1);
         else if (GameInput.RowInFrontHeld()) BeginRowStep(-1);
+        else if (NearWindowEnd())
+        {
+            CentreWindow();
+            Build();
+            PoseRows(0f);
+        }
         ApplyLight();
+    }
+
+    // Puts the player in the middle of the stretch of row that is drawn.
+    void CentreWindow()
+    {
+        windowStart = Mathf.FloorToInt(player.transform.position.x) - WindowColumns / 2;
+    }
+
+    bool NearWindowEnd()
+    {
+        float x = player.transform.position.x;
+        return x < windowStart + WindowMargin || x > windowStart + WindowColumns - WindowMargin;
     }
 
     // Starts sliding the rows one place forward (stepping back, +1) or one place back (stepping forward, -1).
@@ -189,9 +214,9 @@ public class MiningMode : MonoBehaviour
         // and the darkness of the row becoming the front fades in.
         // Both stay nearly solid through the middle of the step, so the hidden underground never flashes into view.
         float amount = Mathf.Abs(shift), left = 1f - amount;
-        dark.transform.localPosition = new Vector3(0f, -Depth - shift * RowOffset, 0f);
+        dark.transform.localPosition = new Vector3(windowStart, -Depth - shift * RowOffset, 0f);
         dark.color = new Color(1f, 1f, 1f, 1f - amount * amount * amount);
-        incomingDark.transform.localPosition = new Vector3(0f, -Depth + (stepDirection - shift) * RowOffset, 0f);
+        incomingDark.transform.localPosition = new Vector3(windowStart, -Depth + (stepDirection - shift) * RowOffset, 0f);
         incomingDark.color = new Color(1f, 1f, 1f, stepDirection != 0 ? 1f - left * left * left : 0f);
         player.SetTint(tint);
     }
@@ -238,9 +263,10 @@ public class MiningMode : MonoBehaviour
             topDownSky = cam.backgroundColor;
             planet.SetTopDownVisible(false);
             root.SetActive(true);
+            CentreWindow();
             Build();
             player.EnterSideView(row);
-            follow.bounds = new Rect(0f, -Depth, planet.width, Depth + SkyHeight);
+            follow.bounds = new Rect(PlanetOne.Unbounded.x, -Depth, PlanetOne.Unbounded.width, Depth + SkyHeight);
             PoseRows(0f);
             ApplyLight();
         }
@@ -251,7 +277,7 @@ public class MiningMode : MonoBehaviour
             player.ExitSideView();
             // Top-down night is a wash over the whole screen, so the player goes back to their own colour.
             player.SetTint(Color.white);
-            follow.bounds = new Rect(0f, 0f, planet.width, planet.height);
+            follow.bounds = PlanetOne.Unbounded;
             cam.backgroundColor = topDownSky;
         }
     }
@@ -308,8 +334,8 @@ public class MiningMode : MonoBehaviour
             {
                 // A block can only be shaded if the row in front has a block covering it. With nothing in front it is
                 // in the open, so it stays fully lit and lets light into its neighbours just like air does.
-                covered[x, l] = planet.SideBlockAt(x, forRow, l - Depth) != PlanetOne.SideBlock.Air &&
-                    planet.SideBlockAt(x, forRow - 1, l - Depth) != PlanetOne.SideBlock.Air;
+                covered[x, l] = planet.SideBlockAt(windowStart + x, forRow, l - Depth) != PlanetOne.SideBlock.Air &&
+                    planet.SideBlockAt(windowStart + x, forRow - 1, l - Depth) != PlanetOne.SideBlock.Air;
             }
         }
 
@@ -381,7 +407,7 @@ public class MiningMode : MonoBehaviour
     void FillRow(Tilemap map, int worldRow)
     {
         map.ClearAllTiles();
-        for (int x = 0; x < planet.width; x++)
+        for (int x = windowStart; x < windowStart + WindowColumns; x++)
         {
             for (int level = -Depth; level < PlanetOne.MaxTop; level++)
             {
@@ -409,7 +435,7 @@ public class MiningMode : MonoBehaviour
             default: color = Stone; break;
         }
         // Slight block-to-block variation so large areas are not one flat colour.
-        int hash = (x * 73856093) ^ (level * 19349663) ^ (worldRow * 83492791);
+        int hash = (planet.WrapX(x) * 73856093) ^ (level * 19349663) ^ (planet.WrapY(worldRow) * 83492791);
         hash = (hash ^ (hash >> 13)) * 0x5bd1e995;
         bool darker = ((hash >> 15) & 1) == 1;
         if (darker && block != PlanetOne.SideBlock.Ship) color *= 0.965f;
