@@ -68,6 +68,18 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **Chunkier black hole, Terraria-style path** (asked later on 2026-10-10): "the black hole needs to be a bit more pixelated and the curve of its path needs to be like terraria." The black hole is now painted at 24 pixels per block with hard-edged pixels (it was 128 and smooth; 24 was Claude's pick for "a bit"). The sun and black hole both now cross the sky the way Terraria's sun and moon do: steadily from just past the left edge to just past the right, along a low, wide parabola that peaks mid-screen. The black hole still tips with its path and is level at midnight.
 
+## Health, spider damage and reflective ice (asked 2026-10-10)
+
+- He asked: "make ice reflective and make spiders do damage and render correctly. they glitch behind some blocks."
+- **Health.** His picks:
+  - **Display:** a health bar (top left, under the line of text), 100 health.
+  - **Bite:** his own answer: "8 damage per bite". A spider bites every 0.8 seconds, and several can bite at once.
+  - **Death:** his own answer: "wake up at the ship, drop 1/2 a random stack of items on the ground where you died". The screen fades to black, you wake beside the ship with full health, and half of one randomly picked stack (rounded up) is left as one pile where you fell; walking back to it picks it all up. Tools are never dropped.
+  - **Healing:** his own answer: "after a while you gain 5 health every second". "A while" is 5 seconds without being hurt (Claude's number).
+  - Claude's additions: a brief red flash when hurt, the bar turns orange under 30 health, nothing can hurt you for 3 seconds after waking, and spiders lose interest once you have fallen.
+- **Spiders drawn behind blocks (fixed).** In td a spider lies flat and reaches over the squares south of it, and those squares of flat ground were being drawn over its lower half. It now counts as being at its own southern edge when things are put in order, so the ground it lies on never covers it; only ground to the south that stands higher than it still does.
+- **Reflective ice (td only).** The top of the ice is slightly see-through with a solid copy of the ice beneath, and reflections are drawn between the two, so they show on ice and nowhere else. The player, ferns, ice shards and thornam bushes are reflected upside down beneath their feet, squashed to 70% for the slanted view; a jumping player's reflection drops away below them. Spiders lie flat, so they have no reflection. Nothing changes in sc. (How the reflection works and looks was Claude's choice; he only said "make ice reflective".)
+
 ## Thornam bushes (asked 2026-10-10)
 
 - He drew a bush (a tangle of teal vines with small olive thorns on a short brown trunk) and asked: "add these as thornam bushes that drop 3 thorns and 3 thornam bush vines and 1 thornam stick." His picture is used exactly as drawn, as `Assets/Resources/Art/ThornamBush.png`.

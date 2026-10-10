@@ -22,6 +22,8 @@ public class Pickups : MonoBehaviour
         public float Level;
         public float PullRadius;
         public float BornAt;
+        // How many of the item this one loose thing stands for.
+        public int Count = 1;
         public SpriteRenderer Renderer;
     }
 
@@ -50,14 +52,14 @@ public class Pickups : MonoBehaviour
 
     // Drops something at a chosen height, such as a block mined out of a wall. It slides to the player from up to
     // pullRadius blocks away, in any direction.
-    public void Drop(Item item, Vector2 position, float level, float pullRadius, float scale)
+    public void Drop(Item item, Vector2 position, float level, float pullRadius, float scale, int count = 1)
     {
         var go = new GameObject("Dropped " + item.Name);
         go.transform.SetParent(transform, false);
         go.transform.localScale = new Vector3(scale, scale, 1f);
         var renderer = go.AddComponent<SpriteRenderer>();
         renderer.sprite = item.Icon;
-        drops.Add(new Dropped { Item = item, Position = position, Level = level, PullRadius = pullRadius, BornAt = Time.time, Renderer = renderer });
+        drops.Add(new Dropped { Item = item, Position = position, Level = level, PullRadius = pullRadius, BornAt = Time.time, Renderer = renderer, Count = count });
     }
 
     void Update()
@@ -93,7 +95,7 @@ public class Pickups : MonoBehaviour
             if (Mathf.Sqrt(across * across + up * up) > drop.PullRadius) continue;
             if (across <= TakeDistance && Mathf.Abs(up) <= PlayerController.Height)
             {
-                inventory.Add(drop.Item);
+                inventory.Add(drop.Item, drop.Count);
                 Destroy(drop.Renderer.gameObject);
                 drops.RemoveAt(i);
                 continue;
