@@ -99,7 +99,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Reach:** 3 blocks.
 - As built: mining is done in sc only, and needs an ice pickaxe in your tools. Cracks spread across a block as you hit it; hitting a different block starts the count again. Mined blocks stay gone for the rest of the play, in every row and both views. The ship and the very bottom layer of the ground cannot be mined.
 - Through a hole you see the dimmer blocks of the row behind, and light reaches 1.5 blocks into the ground around it, as he asked on 2026-10-09.
-- In td, a spot whose top block was mined is drawn lower, with a cliff face on the square north of it, and you can fall in. You can jump out of a hole 1 deep. From the bottom of a deeper hole, pressing R twice puts you back up on the surface.
+- In td, a spot whose top block was mined is drawn lower, with a cliff face on the square north of it, and you can fall in. You can jump out of a hole 1 deep.
+- **Switching to td keeps you in the hole** (asked 2026-10-10: "if you dig a hole then switch to td, it teleports you to the surface. fix it"). The top-down view now moves the player through the same blocks as the side-scroller, so you stay at your own height in a hole or in a tunnel with ground overhead, can walk along dug-out tunnels, bump your head on their roofs, and fall into holes. Down a hole the player is drawn at most one block below the ground and darker the deeper they are, so they stay visible.
 - If you mine the block a fern or ice shard stands on, it comes loose as if you had collected it.
 - W and S row stepping now checks the actual blocks, so underground you can only step into a row that has been dug out where you are.
 
