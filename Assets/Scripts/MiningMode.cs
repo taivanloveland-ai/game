@@ -17,29 +17,41 @@ public class MiningMode : MonoBehaviour
     const int WindowMargin = 26;
     // How long stepping to the next row takes. Walking one block top-down takes about this long.
     const float RowStepSeconds = 0.25f;
+    // How many rows behind the front one are drawn. Many rows, each only a sliver higher and a touch dimmer than the
+    // one in front of it, blend into a soft gradient going back into the distance, where a few would show as hard bands.
+    const int BehindRows = 10;
     // Each row further back is drawn this much higher, in blocks, so rows read as being behind one another.
-    const float RowOffset = 0.2f;
+    const float RowOffset = 0.06f;
     // Light reaches this many blocks into the ground from open air, fading as it goes. Past that everything is black.
     const float LightDepth = 1.5f;
     // The darkness is painted at this many pixels per block.
     const int DarkPixels = 8;
 
-    // How much dimmer each row behind the front one is, nearest first.
-    static readonly Color[] BehindTints = { new Color(0.62f, 0.68f, 0.78f), new Color(0.45f, 0.5f, 0.6f), new Color(0.32f, 0.36f, 0.46f) };
+    // How much dimmer each row behind the front one is, nearest first: an even fade from just under full brightness
+    // to a dim blue at the furthest row.
+    static readonly Color NearestTint = new Color(0.9f, 0.92f, 0.95f), FurthestTint = new Color(0.3f, 0.34f, 0.44f);
+    static readonly Color[] BehindTints = MakeBehindTints();
+
+    static Color[] MakeBehindTints()
+    {
+        var tints = new Color[BehindRows];
+        for (int i = 0; i < tints.Length; i++) tints[i] = Color.Lerp(NearestTint, FurthestTint, i / (float)(tints.Length - 1));
+        return tints;
+    }
     static readonly Color SnowTop = new Color32(234, 241, 247, 255), SnowDeep = new Color32(188, 205, 223, 255);
     static readonly Color IceTop = new Color32(146, 202, 232, 255), IceDeep = new Color32(92, 150, 198, 255);
     // What the game's own ice blocks are multiplied by at their deepest, taking the surface blue down to the deep blue.
     static readonly Color IceDepthTint = new Color(0.63f, 0.74f, 0.85f);
     static readonly Color Stone = new Color32(70, 80, 96, 255);
 
-    // Drawing order, back to front: the rows behind (1 to 3, with 0 for one sliding in at the back), the front row (4),
-    // its darkness (5), a row sliding in at the front (6) and its darkness (7), then things standing in the row.
-    const int FrontOrder = 4;
-    const int DarkOrder = 5;
-    const int IncomingFrontOrder = 6;
-    const int IncomingDarkOrder = 7;
+    // Drawing order, back to front: the rows behind (furthest first, with 0 for one sliding in at the back), the front
+    // row, its darkness, a row sliding in at the front and its darkness, then things standing in the row.
+    const int FrontOrder = BehindRows + 1;
+    const int DarkOrder = FrontOrder + 1;
+    const int IncomingFrontOrder = FrontOrder + 2;
+    const int IncomingDarkOrder = FrontOrder + 3;
     // Things standing in the row (plants, dropped items) are drawn over the ground and its darkness, under the player.
-    public const int ObjectSortingOrder = 8;
+    public const int ObjectSortingOrder = FrontOrder + 4;
 
     public bool Active { get; private set; }
     // The row of the world the side view is showing.
@@ -79,6 +91,7 @@ public class MiningMode : MonoBehaviour
     bool[,] covered;
     int row;
     int windowStart;
+    TileBase[] fillBuffer;
     float blockedUntil;
     // A step between rows in progress: +1 toward the row behind, -1 toward the row in front, 0 for none.
     int stepDirection;
@@ -426,14 +439,19 @@ public class MiningMode : MonoBehaviour
     void FillRow(Tilemap map, int worldRow)
     {
         map.ClearAllTiles();
-        for (int x = windowStart; x < windowStart + WindowColumns; x++)
+        // All the row's tiles are handed over in one go, which is much quicker than placing them one at a time.
+        int levels = Depth + PlanetOne.MaxTop;
+        if (fillBuffer == null) fillBuffer = new TileBase[WindowColumns * levels];
+        for (int l = 0; l < levels; l++)
         {
-            for (int level = -Depth; level < PlanetOne.MaxTop; level++)
+            for (int i = 0; i < WindowColumns; i++)
             {
+                int x = windowStart + i, level = l - Depth;
                 PlanetOne.SideBlock block = planet.SideBlockAt(x, worldRow, level);
-                if (block != PlanetOne.SideBlock.Air) map.SetTile(new Vector3Int(x, level, 0), TileFor(block, x, worldRow, level));
+                fillBuffer[l * WindowColumns + i] = block != PlanetOne.SideBlock.Air ? TileFor(block, x, worldRow, level) : null;
             }
         }
+        map.SetTilesBlock(new BoundsInt(windowStart, -Depth, 0, WindowColumns, levels, 1), fillBuffer);
     }
 
     Tile TileFor(PlanetOne.SideBlock block, int x, int worldRow, int level)

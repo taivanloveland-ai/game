@@ -41,6 +41,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Taivan wants to be given options when there are design choices to make. His picks for mining mode:
   - **Underground:** 4 or 5 layers of snow, with stone under the snow and ice for now. Where there is ice, it should look like a river or lake that was there and froze.
   - **Behind you:** the next few rows further back are drawn faded behind your row.
+    - On 2026-10-10 he asked that in sc the back blocks not be "stark lines" but a gradient, so it looks aesthetically pleasing. Built as 10 rows behind (was 3), each only a sliver higher than the one in front and a little dimmer and bluer, so they blend into a smooth fade from near-white to slate blue. The exact colours and the number of rows were Claude's choice.
   - **Surface:** flat ground. Snow and ice are at the same height, with rocks standing 2 tall on top.
 
 ## Heights, jumping and changing rows (asked 2026-10-09)
