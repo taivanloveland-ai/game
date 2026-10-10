@@ -46,7 +46,9 @@ public class PlayerController : MonoBehaviour
     Vector2 steerMove;
     bool steerJump;
     bool sideView;
-    int sideRow;
+    // The row of the world the side view shows, or the column if it is looking along a column.
+    int sideSlice;
+    bool sideColumn;
     // Top-down only: walking speed, height of the player's feet in blocks, and how fast that height is changing.
     Vector2 velocity;
     float altitude;
@@ -60,10 +62,11 @@ public class PlayerController : MonoBehaviour
     // The player's feet height in blocks, in either view.
     public float FeetHeight => sideView ? body.position.y - Height / 2f : altitude;
 
-    // Where the player stands in the world as seen from above. In the side view that is their place along the row on screen.
-    public Vector2 GroundPosition => sideView
-        ? new Vector2(transform.position.x, sideRow + 0.5f)
-        : new Vector2(transform.position.x, transform.position.y - Height / 2f + FeetDepth / 2f);
+    // Where the player stands in the world as seen from above. In the side view that is their place along the row
+    // or column on screen: left to right is west to east along a row, and south to north along a column.
+    public Vector2 GroundPosition => !sideView
+        ? new Vector2(transform.position.x, transform.position.y - Height / 2f + FeetDepth / 2f)
+        : sideColumn ? new Vector2(sideSlice + 0.5f, transform.position.x) : new Vector2(transform.position.x, sideSlice + 0.5f);
 
     public void Setup(PlanetOne planet, Transform bodyVisual, Transform shadow, SortingGroup sorting)
     {
@@ -235,7 +238,7 @@ public class PlayerController : MonoBehaviour
     void MoveSideView()
     {
         bool grounded = IsGrounded();
-        bool onIce = grounded && planet.IsIce(new Vector2(body.position.x, sideRow + 0.5f));
+        bool onIce = grounded && planet.IsIce(GroundPosition);
         float wanted = move.x * (onIce ? speed : speed * snowSpeedFactor);
 
         Vector2 v = body.linearVelocity;
@@ -264,17 +267,38 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    // Switches to the side view of one row of the world, keeping the player's place along the row and their height.
-    public void EnterSideView(int row)
+    // Switches to the side view of one row or column of the world, keeping the player's place along it and their height.
+    public void EnterSideView(int slice, bool column)
     {
         float feet = altitude;
+        float along = column ? GroundPosition.y : body.position.x;
+        if (column)
+        {
+            // Seen along a column the player's body is wider than their feet were from above. If that would put an
+            // edge of it inside a block, they shift over just enough to stand clear.
+            int square = Mathf.FloorToInt(along);
+            if (Mathf.FloorToInt(along - Width / 2f) < square && !Fits(slice, square - 1, feet)) along = square + Width / 2f + 0.001f;
+            else if (Mathf.FloorToInt(along + Width / 2f) > square && !Fits(slice, square + 1, feet)) along = square + 1 - Width / 2f - 0.001f;
+        }
         sideView = true;
-        sideRow = row;
+        sideSlice = slice;
+        sideColumn = column;
         // In the side view the player is drawn over everything, and real physics does the falling and bumping.
         sorting.sortingOrder = 20;
         body.bodyType = RigidbodyType2D.Dynamic;
         body.gravityScale = gravityScale;
-        Teleport(new Vector2(body.position.x, feet + Height / 2f + 0.02f));
+        Teleport(new Vector2(along, feet + Height / 2f + 0.02f));
+    }
+
+    // True if the player's body, with its feet at a height, would fit in one square of the world.
+    bool Fits(int x, int y, float feet)
+    {
+        int bottom = Mathf.FloorToInt(feet + 0.01f), top = Mathf.FloorToInt(feet + Height - 0.01f);
+        for (int level = bottom; level <= top; level++)
+        {
+            if (planet.SideBlockAt(x, y, level) != PlanetOne.SideBlock.Air) return false;
+        }
+        return true;
     }
 
     // Darkens or restores the player's colour; white means their normal colour.
@@ -283,10 +307,10 @@ public class PlayerController : MonoBehaviour
         this.tint = tint;
     }
 
-    // Moves the side view to a different row without moving the player.
-    public void SetSideRow(int row)
+    // Moves the side view to a different row or column without moving the player.
+    public void SetSideRow(int slice)
     {
-        sideRow = row;
+        sideSlice = slice;
     }
 
     public void ExitSideView()
@@ -296,8 +320,10 @@ public class PlayerController : MonoBehaviour
         sorting.sortingOrder = 0;
         body.bodyType = RigidbodyType2D.Kinematic;
         body.gravityScale = 0f;
-        // Stand in the middle of the row so the feet are not poking into the rows on either side.
-        var position = new Vector2(body.position.x, sideRow + Height / 2f + (1f - FeetDepth) / 2f);
+        // Stand in the middle of the row or column so the feet are not poking into the ones on either side.
+        var position = sideColumn
+            ? new Vector2(sideSlice + 0.5f, body.position.x + Height / 2f - FeetDepth / 2f)
+            : new Vector2(body.position.x, sideSlice + Height / 2f + (1f - FeetDepth) / 2f);
         Teleport(position);
         velocity = Vector2.zero;
         verticalSpeed = 0f;

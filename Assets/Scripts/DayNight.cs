@@ -2,6 +2,7 @@ using UnityEngine;
 
 // The day and night cycle. The planets orbit a binary system: a dim red sun and a black hole.
 // In the side-scroller view the sun crosses the sky by day and the black hole by night, with stars.
+// Looking along a column instead of a row, the sun and black hole are out of sight and only the stars show.
 // At night the world also gets darker, in both views.
 public class DayNight : MonoBehaviour
 {
@@ -93,8 +94,9 @@ public class DayNight : MonoBehaviour
         // Fade in and out near the horizon instead of popping.
         float fade = Mathf.Clamp01(Mathf.Sin(angle) * 5f);
 
-        sun.enabled = day;
-        blackHole.enabled = !day;
+        // Looking along a column the player faces away from both, so neither is in view. The day carries on all the same.
+        sun.enabled = day && !mining.Column;
+        blackHole.enabled = !day && !mining.Column;
         SpriteRenderer up = day ? sun : blackHole;
         up.transform.localPosition = position;
         up.color = new Color(1f, 1f, 1f, fade);

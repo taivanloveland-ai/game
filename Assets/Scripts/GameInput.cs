@@ -143,4 +143,15 @@ public static class GameInput
         return Input.GetKeyDown(KeyCode.R);
 #endif
     }
+
+    // G switches to mining mode looking along a column of the world instead of a row.
+    public static bool ToggleColumnPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        return k != null && k.gKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.G);
+#endif
+    }
 }

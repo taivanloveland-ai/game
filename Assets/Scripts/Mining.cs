@@ -42,7 +42,8 @@ public class Mining : MonoBehaviour
     CraftingNook nook;
     Camera cam;
 
-    // The block being worked on and how many times it has been hit. Hitting a different block starts again.
+    // The block being worked on (its square of the world, then its level) and how many times it has been hit.
+    // Hitting a different block starts again.
     Vector3Int damaged;
     int hits;
     SpriteRenderer cracks;
@@ -101,8 +102,10 @@ public class Mining : MonoBehaviour
 
     void Update()
     {
-        // Cracks only show on the block being worked on, in the row it belongs to.
-        cracks.enabled = hits > 0 && view.Active && view.Row == damaged.z;
+        // Cracks only show on the block being worked on, when the row or column it belongs to is on screen.
+        var square = new Vector2Int(damaged.x, damaged.y);
+        cracks.enabled = hits > 0 && view.Active && view.Shows(square);
+        if (cracks.enabled) cracks.transform.position = new Vector2(view.Along(square) + 0.5f, damaged.z + 0.5f);
         if (GameInput.LeftClickPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
     }
 
@@ -120,8 +123,10 @@ public class Mining : MonoBehaviour
     public Result ClickAt(Vector2 point)
     {
         if (!view.Active || view.Stepping) return Result.NotMining;
-        int x = Mathf.FloorToInt(point.x), level = Mathf.FloorToInt(point.y), row = view.Row;
-        PlanetOne.SideBlock block = planet.SideBlockAt(x, row, level);
+        int x = Mathf.FloorToInt(point.x), level = Mathf.FloorToInt(point.y);
+        // The square of the world the clicked block is in.
+        Vector2Int square = view.Cell(x);
+        PlanetOne.SideBlock block = planet.SideBlockAt(square.x, square.y, level);
         if (block == PlanetOne.SideBlock.Air) return Result.Nothing;
         if (inventory.Equipped != nook.Pickaxe)
         {
@@ -136,7 +141,7 @@ public class Mining : MonoBehaviour
             return Result.CannotBreak;
         }
 
-        var target = new Vector3Int(x, level, row);
+        var target = new Vector3Int(square.x, square.y, level);
         if (hits == 0 || target != damaged) hits = 0;
         damaged = target;
         hits++;
@@ -149,9 +154,9 @@ public class Mining : MonoBehaviour
         }
 
         hits = 0;
-        planet.Mine(x, row, level);
+        planet.Mine(square.x, square.y, level);
         view.RemoveBlock(x, level);
-        pickups.Drop(ItemFor(block), new Vector2(x + 0.5f, row + 0.5f), level + 0.3f, DropPullRadius, DropScale);
+        pickups.Drop(ItemFor(block), new Vector2(square.x + 0.5f, square.y + 0.5f), level + 0.3f, DropPullRadius, DropScale);
         return Result.Broke;
     }
 }
