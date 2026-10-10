@@ -108,7 +108,9 @@ public class PlanetOne : MonoBehaviour
     static readonly Color32 ShipRim = new Color32(150, 158, 170, 255);
     // Bare stone, as seen from above where the snow or ice over it has been dug away.
     static readonly Color32 StoneColor = new Color32(70, 80, 96, 255), StoneRim = new Color32(98, 110, 128, 255);
-    static readonly Color PlayerColor = new Color32(240, 138, 46, 255);
+    // A gap in a wall seen from outside, such as a doorway: dark inside, with a slightly lighter line along its top.
+    static readonly Color32 OpeningDark = new Color32(22, 28, 40, 255), OpeningEdge = new Color32(52, 62, 80, 255);
+    static readonly Color PlayerColor =new Color32(240, 138, 46, 255);
     static readonly Color SkyColor = new Color32(11, 16, 24, 255);
 
     // A plain white one-tile sprite; tint it to get a coloured block.
@@ -524,13 +526,32 @@ public class PlanetOne : MonoBehaviour
         bool pictured = PictureFor(material) != null;
         int looks = material == Ice ? IceMarks.Length : 3;
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
-        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant);
+
+        // Gaps under the top of this square that can be seen or walked into from outside, such as a doorway built
+        // into a wall. The first four bits are the blocks of the south face, from the top down, that are empty.
+        // The next three are a way in from the west, east and north: empty space level with the ground on that side.
+        int openings = 0;
+        for (int i = 0; i < drop; i++)
+        {
+            if (SideBlockAt(x, y, level - 1 - i) == SideBlock.Air) openings |= 1 << i;
+        }
+        if (OpenToward(x, y, x - 1, y)) openings |= 16;
+        if (OpenToward(x, y, x + 1, y)) openings |= 32;
+        if (OpenToward(x, y, x, y + 1)) openings |= 64;
+        return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, openings);
+    }
+
+    // True if someone standing on the lower square next door could walk in under the top of this square.
+    bool OpenToward(int x, int y, int nextX, int nextY)
+    {
+        int floor = TopAt(nextX, nextY);
+        return floor < TopAt(x, y) && SideBlockAt(x, y, floor) == SideBlock.Air;
     }
 
     // One tile of the top-down view: the top of the block, plus the cliff face below it when the ground to the south is lower.
-    Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant)
+    Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, int openings = 0)
     {
-        int key = material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 15) | (variant << 18);
+        int key = material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 15) | (variant << 18) | (openings << 22);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         BlockPicture picture = PictureFor(material);
@@ -556,8 +577,20 @@ public class PlanetOne : MonoBehaviour
         Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) =>
         {
             int x = fineX / detail, y = fineY / detail;
-            if (y >= TilePixels) return PaintFace(material, x, y - TilePixels, facePixels);
-            bool rim = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
+            if (y >= TilePixels)
+            {
+                // An empty block of the face is a dark opening between two thin posts.
+                int faceY = y - TilePixels, block = faceY / FacePixels;
+                bool gap = (openings & (1 << block)) != 0 && x >= 2 && x < TilePixels - 2;
+                if (!gap) return PaintFace(material, x, faceY, facePixels);
+                bool gapAbove = block > 0 && (openings & (1 << (block - 1))) != 0;
+                return faceY % FacePixels == 0 && !gapAbove ? OpeningEdge : OpeningDark;
+            }
+            // A way in from the west, east or north shows as a dark doorway cut into that edge of the top.
+            bool middle = x >= 3 && x < TilePixels - 3, across = y >= 3 && y < TilePixels - 3;
+            bool doorway = ((openings & 16) != 0 && x < 4 && across) || ((openings & 32) != 0 && x >= TilePixels - 4 && across) || ((openings & 64) != 0 && y < 4 && middle);
+            if (doorway) return OpeningDark;
+            bool rim =((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
             if (pictured) return PicturePixel(picture, fineX, fineY);
             return material == Ice ? IcePixel(groundLevel, variant, fineX, fineY) : topColor;
