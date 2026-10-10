@@ -36,25 +36,46 @@ public static class GameInput
 #endif
     }
 
-    // Mining mode: W or the up arrow steps to the row behind.
-    public static bool RowBehindPressed()
+    // Mining mode: holding W or the up arrow steps to the row behind, one row after another.
+    public static bool RowBehindHeld()
+    {
+        return Move().y > 0f;
+    }
+
+    // Mining mode: holding S or the down arrow steps to the row in front, one row after another.
+    public static bool RowInFrontHeld()
+    {
+        return Move().y < 0f;
+    }
+
+    // Right mouse button, on the frame it is pressed: harvest what the mouse is pointing at.
+    public static bool HarvestPressed()
     {
 #if ENABLE_INPUT_SYSTEM
-        Keyboard k = Keyboard.current;
-        return k != null && (k.wKey.wasPressedThisFrame || k.upArrowKey.wasPressedThisFrame);
+        return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
 #else
-        return Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow);
+        return Input.GetMouseButtonDown(1);
 #endif
     }
 
-    // Mining mode: S or the down arrow steps to the row in front.
-    public static bool RowInFrontPressed()
+    // Where the mouse is on screen, in pixels.
+    public static Vector2 PointerPosition()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
+#else
+        return Input.mousePosition;
+#endif
+    }
+
+    // Tab opens and closes the list of carried items.
+    public static bool ItemsPressed()
     {
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
-        return k != null && (k.sKey.wasPressedThisFrame || k.downArrowKey.wasPressedThisFrame);
+        return k != null && k.tabKey.wasPressedThisFrame;
 #else
-        return Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow);
+        return Input.GetKeyDown(KeyCode.Tab);
 #endif
     }
 

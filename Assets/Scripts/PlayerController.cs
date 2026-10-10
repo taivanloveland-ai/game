@@ -23,6 +23,8 @@ public class PlayerController : MonoBehaviour
 
     PlanetOne planet;
     Transform bodyVisual;
+    SpriteRenderer bodyRenderer;
+    Color baseColor;
     Transform shadow;
     SortingGroup sorting;
     Rigidbody2D body;
@@ -31,6 +33,10 @@ public class PlayerController : MonoBehaviour
 
     Vector2 move;
     bool jumpQueued;
+    // Movement asked for by the game itself (walking to something the player clicked) instead of by the keyboard.
+    bool steering;
+    Vector2 steerMove;
+    bool steerJump;
     bool sideView;
     int sideRow;
     // Top-down only: walking speed, height of the player's feet in blocks, and how fast that height is changing.
@@ -40,8 +46,16 @@ public class PlayerController : MonoBehaviour
 
     float Gravity => -Physics2D.gravity.y * gravityScale;
 
+    // True on any frame the player is pressing a movement key or jump.
+    public bool HasManualInput { get; private set; }
+
     // The player's feet height in blocks, in either view.
     public float FeetHeight => sideView ? body.position.y - Height / 2f : altitude;
+
+    // Where the player stands in the world as seen from above. In the side view that is their place along the row on screen.
+    public Vector2 GroundPosition => sideView
+        ? new Vector2(transform.position.x, sideRow + 0.5f)
+        : new Vector2(transform.position.x, transform.position.y - Height / 2f + FeetDepth / 2f);
 
     public void Setup(PlanetOne planet, Transform bodyVisual, Transform shadow, SortingGroup sorting)
     {
@@ -58,12 +72,27 @@ public class PlayerController : MonoBehaviour
         box = GetComponent<Collider2D>();
     }
 
+    // Walks the player by itself for one frame, as if these keys were held. Call it every frame while auto-walking.
+    // Any real key press takes over straight away.
+    public void Steer(Vector2 direction, bool jump)
+    {
+        steerMove = direction;
+        steerJump = jump;
+        steering = true;
+    }
+
     void Update()
     {
-        move = GameInput.Move();
+        Vector2 keys = GameInput.Move();
+        bool jumpKey = GameInput.JumpPressed();
+        HasManualInput = keys != Vector2.zero || jumpKey;
+
+        bool useSteering = steering && !HasManualInput;
+        move = useSteering ? steerMove : keys;
         // Keep diagonal movement the same speed as straight movement.
         if (move.sqrMagnitude > 1f) move.Normalize();
-        if (GameInput.JumpPressed()) jumpQueued = true;
+        if (useSteering ? steerJump : jumpKey) jumpQueued = true;
+        steering = false;
     }
 
     void FixedUpdate()
@@ -185,6 +214,17 @@ public class PlayerController : MonoBehaviour
         body.bodyType = RigidbodyType2D.Dynamic;
         body.gravityScale = gravityScale;
         Teleport(new Vector2(body.position.x, feet + Height / 2f + 0.02f));
+    }
+
+    // Darkens or restores the player's colour; white means their normal colour.
+    public void SetTint(Color tint)
+    {
+        if (bodyRenderer == null)
+        {
+            bodyRenderer = bodyVisual.GetComponent<SpriteRenderer>();
+            baseColor = bodyRenderer.color;
+        }
+        bodyRenderer.color = new Color(baseColor.r * tint.r, baseColor.g * tint.g, baseColor.b * tint.b, baseColor.a);
     }
 
     // Moves the side view to a different row without moving the player.

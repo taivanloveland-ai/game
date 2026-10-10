@@ -92,7 +92,17 @@ public class PlanetOne : MonoBehaviour
         follow.target = controller.transform;
         follow.bounds = new Rect(0f, 0f, width, height);
 
-        gameObject.AddComponent<MiningMode>().Setup(this, controller, follow, cam);
+        var mining = gameObject.AddComponent<MiningMode>();
+        var dayNight = gameObject.AddComponent<DayNight>();
+        mining.Setup(this, controller, follow, cam, dayNight);
+        dayNight.Setup(cam, mining, Square);
+
+        var inventory = new Inventory();
+        var hud = gameObject.AddComponent<Hud>();
+        hud.Setup(inventory);
+        var pickups = gameObject.AddComponent<Pickups>();
+        pickups.Setup(this, controller, mining, dayNight, inventory);
+        gameObject.AddComponent<Gatherables>().Setup(this, controller, mining, dayNight, pickups, cam);
     }
 
     PlayerController BuildPlayer(Vector2 position)
@@ -295,6 +305,14 @@ public class PlanetOne : MonoBehaviour
         return x >= 0 && y >= 0 && x < width && y < height;
     }
 
+    // Everything that belongs to the top-down view hangs under this.
+    public Transform TopDownRoot => topDownRoot.transform;
+
+    public bool IsSnow(int x, int y)
+    {
+        return InBounds(x, y) && kind[x, y] == Snow;
+    }
+
     public bool IsIce(Vector2 position)
     {
         int x = Mathf.FloorToInt(position.x), y = Mathf.FloorToInt(position.y);
@@ -372,7 +390,13 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Makes a sprite of any size. The paint function gets pixel positions with (0, 0) at the top left.
-    static Sprite PaintSprite(int pixelWidth, int pixelHeight, Vector2 pivot, System.Func<int, int, Color32> paint)
+    public static Sprite PaintSprite(int pixelWidth, int pixelHeight, Vector2 pivot, System.Func<int, int, Color32> paint)
+    {
+        return PaintSprite(pixelWidth, pixelHeight, pivot, TilePixels, paint);
+    }
+
+    // As above, with a chosen number of pixels per block instead of the usual 16.
+    public static Sprite PaintSprite(int pixelWidth, int pixelHeight, Vector2 pivot, float pixelsPerUnit, System.Func<int, int, Color32> paint)
     {
         var texture = new Texture2D(pixelWidth, pixelHeight) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         var pixels = new Color32[pixelWidth * pixelHeight];
@@ -382,7 +406,7 @@ public class PlanetOne : MonoBehaviour
         }
         texture.SetPixels32(pixels);
         texture.Apply();
-        return Sprite.Create(texture, new Rect(0, 0, pixelWidth, pixelHeight), pivot, TilePixels);
+        return Sprite.Create(texture, new Rect(0, 0, pixelWidth, pixelHeight), pivot, pixelsPerUnit);
     }
 
     public static Tile MakeTile(Color color, Sprite sprite, bool isSolid)
