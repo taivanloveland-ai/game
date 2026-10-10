@@ -68,15 +68,15 @@ public class Pickups : MonoBehaviour
         for (int i = drops.Count - 1; i >= 0; i--)
         {
             Dropped drop = drops[i];
-            // In the side-scroller only the drops lying in the row on screen are shown.
-            bool visible = !side || Mathf.FloorToInt(drop.Position.y) == mining.Row;
+            // In the side-scroller only the drops lying in the row or column on screen are shown.
+            bool visible = !side || mining.Shows(Vector2Int.FloorToInt(drop.Position));
             drop.Renderer.enabled = visible;
             if (!visible) continue;
 
             float bob = 0.06f + Mathf.Sin((Time.time - drop.BornAt) * 5f) * 0.05f;
             if (side)
             {
-                drop.Renderer.transform.position = new Vector3(drop.Position.x, drop.Level + bob, 0f);
+                drop.Renderer.transform.position = new Vector3(mining.Along(drop.Position), drop.Level + bob, 0f);
                 drop.Renderer.sortingOrder = MiningMode.ObjectSortingOrder;
                 drop.Renderer.color = dayNight.WorldTint;
             }

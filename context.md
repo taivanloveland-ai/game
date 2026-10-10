@@ -44,6 +44,14 @@ Running record of what Taivan wants for the game, what has been built, and what 
     - On 2026-10-10 he asked that in sc the back blocks not be "stark lines" but a gradient, so it looks aesthetically pleasing. Built as 10 rows behind (was 3), each only a sliver higher than the one in front and a little dimmer and bluer, so they blend into a smooth fade from near-white to slate blue. The exact colours and the number of rows were Claude's choice.
   - **Surface:** flat ground. Snow and ice are at the same height, with rocks standing 2 tall on top.
 
+## Column view with G (asked 2026-10-10)
+
+- He asked: "if you press g, instead of switching to sc row, its sc column that looks the same but is directionally different." So **G** opens the side-scroller along the **column** of blocks the player is on (north to south), where **R** opens it along the row (west to east). It looks and plays the same: walking, jumping, W and S, mining, collecting.
+- His picks:
+  - **Facing:** north is on the right. You look west, so D walks north and A walks south. W steps into the column behind (one square west), S into the column in front (one square east).
+  - **Switching:** R always means the row view and G the column view. Pressing the other key while in sc turns the view 90 degrees on the spot. Pressing the key of the view you are in goes back to td.
+  - **Sky:** his own answer: in the column view "you cannot see the sun or black hole and the day continues". Stars still show at night and the sky still changes colour; keeping the stars was Claude's reading, not confirmed.
+
 ## Heights, jumping and changing rows (asked 2026-10-09)
 
 - In mining mode, **W** takes you into the row behind you, if it is available.

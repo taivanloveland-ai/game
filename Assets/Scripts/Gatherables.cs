@@ -112,10 +112,11 @@ public class Gatherables : MonoBehaviour
     RectInt shownWindow;
     readonly List<SpriteRenderer> sideView = new List<SpriteRenderer>();
 
-    // The thing being walked to, and the view and row the walk started in.
+    // The thing being walked to, and the view and row or column the walk started in.
     Vector2Int? target;
     bool walkInSideView;
-    int walkRow;
+    bool walkColumn;
+    int walkSlice;
     Vector2 lastSpot;
     float lastMovedAt;
 
@@ -244,17 +245,18 @@ public class Gatherables : MonoBehaviour
         return new Vector2(cell.x + 0.5f, cell.y + BaseOffset);
     }
 
-    // Shows the things that stand in the row on screen in the side-scroller.
+    // Shows the things that stand in the row or column on screen in the side-scroller.
     void BuildSideView()
     {
         foreach (SpriteRenderer renderer in sideView) Destroy(renderer.gameObject);
         sideView.Clear();
-        for (int x = mining.WindowStart; x < mining.WindowStart + MiningMode.WindowColumns; x++)
+        for (int along = mining.WindowStart; along < mining.WindowStart + MiningMode.WindowColumns; along++)
         {
-            if (!things.TryGetValue(planet.Wrap(new Vector2Int(x, mining.Row)), out Kind kind)) continue;
+            Vector2Int cell = mining.Cell(along);
+            if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
             var go = new GameObject(kind.Item.Name);
             go.transform.SetParent(mining.Root, false);
-            go.transform.position = new Vector3(x + 0.5f, planet.GroundAt(x, mining.Row), 0f);
+            go.transform.position = new Vector3(along + 0.5f, planet.GroundAt(cell.x, cell.y), 0f);
             var renderer = go.AddComponent<SpriteRenderer>();
             renderer.sprite = kind.Sprites[0];
             renderer.sortingOrder = MiningMode.ObjectSortingOrder;
@@ -316,14 +318,15 @@ public class Gatherables : MonoBehaviour
         bool side = mining.Active;
         int px = Mathf.FloorToInt(point.x), py = Mathf.FloorToInt(point.y);
         // Top-down, a thing can be drawn up to a square above where it stands, so look at the squares below the point too.
-        int firstRow = side ? mining.Row : py - 2, lastRow = side ? mining.Row : py + 1;
+        // In the side-scroller only the row or column on screen is looked at.
+        int firstRow = side ? 0 : py - 2, lastRow = side ? 0 : py + 1;
         for (int y = firstRow; y <= lastRow; y++)
         {
             for (int x = px - 1; x <= px + 1; x++)
             {
-                var cell = new Vector2Int(x, y);
+                Vector2Int cell = side ? mining.Cell(x) : new Vector2Int(x, y);
                 if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
-                float ground = planet.GroundAt(x, y);
+                float ground = planet.GroundAt(cell.x, cell.y);
                 float bottom = side ? ground : y + BaseOffset + ground * PlanetOne.HeightScale;
                 if (Mathf.Abs(point.x - (x + 0.5f)) > kind.Width / 2f + ClickPadding) continue;
                 if (point.y < bottom - ClickPadding || point.y > bottom + kind.Height + ClickPadding) continue;
@@ -364,14 +367,15 @@ public class Gatherables : MonoBehaviour
         return Walkable(Mathf.FloorToInt(point.x), Mathf.FloorToInt(point.y));
     }
 
-    // Side-scroller: the walk is straight along the row, so it works as long as no rock or ship is in between.
+    // Side-scroller: the walk is straight along the row or column, so it works as long as no rock or ship is in between.
     bool PlanSideWalk(Vector2Int goal)
     {
-        int from = Mathf.FloorToInt(player.GroundPosition.x);
-        int direction = goal.x > from ? 1 : -1;
-        for (int x = from; x != goal.x; x += direction)
+        int from = Mathf.FloorToInt(mining.Along(player.GroundPosition)), to = Mathf.FloorToInt(mining.Along(goal));
+        int direction = to > from ? 1 : -1;
+        for (int along = from; along != to; along += direction)
         {
-            if (!Walkable(x, goal.y)) return false;
+            Vector2Int cell = mining.Cell(along);
+            if (!Walkable(cell.x, cell.y)) return false;
         }
         StartWalk(goal, true);
         return true;
@@ -381,7 +385,8 @@ public class Gatherables : MonoBehaviour
     {
         target = goal;
         walkInSideView = inSideView;
-        walkRow = mining.Row;
+        walkColumn = mining.Column;
+        walkSlice = mining.Slice;
         lastSpot = player.transform.position;
         lastMovedAt = Time.time;
     }
@@ -390,8 +395,8 @@ public class Gatherables : MonoBehaviour
     void Walk()
     {
         Vector2Int goal = target.Value;
-        // Give up if the thing is gone, the view or row changed, or the player took over the controls.
-        bool sameView = mining.Active == walkInSideView && (!walkInSideView || mining.Row == walkRow);
+        // Give up if the thing is gone, the view or the row or column changed, or the player took over the controls.
+        bool sameView = mining.Active == walkInSideView && (!walkInSideView || (mining.Column == walkColumn && mining.Slice == walkSlice));
         if (!things.ContainsKey(planet.Wrap(goal)) || !sameView || player.HasManualInput)
         {
             target = null;
@@ -417,10 +422,10 @@ public class Gatherables : MonoBehaviour
 
         if (walkInSideView)
         {
-            float direction = Mathf.Sign(goal.x + 0.5f - spot.x);
+            float direction = Mathf.Sign(mining.Along(goal) + 0.5f - spot.x);
             // Jump when the next block along is higher than the player's feet.
-            int ahead = Mathf.FloorToInt(spot.x + direction * (PlayerController.Width / 2f + 0.15f));
-            player.Steer(new Vector2(direction, 0f), planet.TopAt(ahead, goal.y) > player.FeetHeight + 0.05f);
+            Vector2Int ahead = mining.Cell(Mathf.FloorToInt(spot.x + direction * (PlayerController.Width / 2f + 0.15f)));
+            player.Steer(new Vector2(direction, 0f), planet.TopAt(ahead.x, ahead.y) > player.FeetHeight + 0.05f);
             return;
         }
 

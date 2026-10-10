@@ -6,6 +6,8 @@ using UnityEngine.Tilemaps;
 // The next few rows further back are drawn dimmer and a little higher behind it. W and S step between rows:
 // the rows slide forward or back, and the one arriving at the front brightens into the new front row.
 // Press R again to go back to the top-down view.
+// G does the same along a column of the world instead of a row: the player looks west, with north on the right.
+// Pressing the other key while in mining mode turns the view on the spot.
 public class MiningMode : MonoBehaviour
 {
     // How many blocks of ground are shown below the surface, and how much sky the camera may show above it.
@@ -54,9 +56,11 @@ public class MiningMode : MonoBehaviour
     public const int ObjectSortingOrder = FrontOrder + 4;
 
     public bool Active { get; private set; }
-    // The row of the world the side view is showing.
-    public int Row => row;
-    // The first column of the stretch of row being drawn.
+    // False when the side view shows a row of the world (looking north), true when it shows a column (looking west).
+    public bool Column { get; private set; }
+    // The row or column of the world the side view is showing.
+    public int Slice => slice;
+    // The first block along the screen of the stretch being drawn.
     public int WindowStart => windowStart;
     // True while the rows are sliding from one row to the next.
     public bool Stepping => stepDirection != 0;
@@ -89,7 +93,7 @@ public class MiningMode : MonoBehaviour
     Color32[] darkPixels;
     // Which blocks of a row have a block in front of them in the next row forward. Only these can be dark.
     bool[,] covered;
-    int row;
+    int slice;
     int windowStart;
     TileBase[] fillBuffer;
     float blockedUntil;
@@ -153,7 +157,8 @@ public class MiningMode : MonoBehaviour
 
     void Update()
     {
-        if (GameInput.ToggleViewPressed()) Toggle();
+        if (GameInput.ToggleViewPressed()) Show(false);
+        else if (GameInput.ToggleColumnPressed()) Show(true);
         if (!Active) return;
         if (stepDirection != 0) UpdateRowStep();
         else if (GameInput.RowBehindHeld()) BeginRowStep(1);
@@ -165,6 +170,31 @@ public class MiningMode : MonoBehaviour
             PoseRows(0f);
         }
         ApplyLight();
+    }
+
+    // The square of the world, as seen from above, that is `along` blocks along the screen and `back` rows behind the
+    // front one. A row runs east; the rows behind it are to the north. A column runs north; behind it is west.
+    public Vector2Int Cell(int along, int back = 0)
+    {
+        return Column ? new Vector2Int(slice - back, along) : new Vector2Int(along, slice + back);
+    }
+
+    // True if a square of the world is in the row or column on screen.
+    public bool Shows(Vector2Int cell)
+    {
+        return Column ? cell.x == slice : cell.y == slice;
+    }
+
+    // How far along the screen a place in the world is.
+    public float Along(Vector2 ground)
+    {
+        return Column ? ground.y : ground.x;
+    }
+
+    PlanetOne.SideBlock BlockAt(int along, int back, int level)
+    {
+        Vector2Int cell = Cell(along, back);
+        return planet.SideBlockAt(cell.x, cell.y, level);
     }
 
     // Puts the player in the middle of the stretch of row that is drawn.
@@ -191,9 +221,9 @@ public class MiningMode : MonoBehaviour
         stepDirection = direction;
         stepStartedAt = Time.time;
         // Stepping back, a new row comes into view at the very back. Stepping forward, a new row arrives in front.
-        FillRow(spareMap, direction > 0 ? row + behindMaps.Length + 1 : row - 1);
+        FillRow(spareMap, direction > 0 ? behindMaps.Length + 1 : -1);
         spareMap.GetComponent<TilemapRenderer>().sortingOrder = direction > 0 ? 0 : IncomingFrontOrder;
-        PaintDarkness(incomingDark.sprite.texture, row + direction);
+        PaintDarkness(incomingDark.sprite.texture, direction);
         PoseRows(0f);
     }
 
@@ -266,35 +296,55 @@ public class MiningMode : MonoBehaviour
         if (stepDirection == 0 && dayNight.WorldTint != appliedTint) PoseRows(0f);
     }
 
+    // Leaves mining mode, or enters it showing the row the player is on.
     public void Toggle()
     {
-        Active = !Active;
+        Show(Active && Column);
+    }
+
+    // Shows the row (false) or column (true) the player is on. Asking for the view already showing goes back to
+    // top-down; asking for the other one turns the view on the spot.
+    public void Show(bool column)
+    {
+        bool leaving = Active && Column == column;
+        if (Active) Leave();
+        if (leaving) return;
+        Column = column;
+        Enter();
+    }
+
+    void Enter()
+    {
+        Active = true;
         stepDirection = 0;
         spareMap.ClearAllTiles();
-        if (Active)
-        {
-            // The row is the one the player's feet are in.
-            row = Mathf.FloorToInt(player.transform.position.y - PlayerController.Height / 2f + 0.2f);
-            topDownSky = cam.backgroundColor;
-            planet.SetTopDownVisible(false);
-            root.SetActive(true);
-            CentreWindow();
-            Build();
-            player.EnterSideView(row);
-            follow.bounds = new Rect(PlanetOne.Unbounded.x, -Depth, PlanetOne.Unbounded.width, Depth + SkyHeight);
-            PoseRows(0f);
-            ApplyLight();
-        }
-        else
-        {
-            root.SetActive(false);
-            planet.SetTopDownVisible(true);
-            player.ExitSideView();
-            // Top-down night is a wash over the whole screen, so the player goes back to their own colour.
-            player.SetTint(Color.white);
-            follow.bounds = PlanetOne.Unbounded;
-            cam.backgroundColor = topDownSky;
-        }
+        // The row or column is the one the player's feet are in.
+        Vector2 position = player.transform.position;
+        slice = Column ? Mathf.FloorToInt(position.x) : Mathf.FloorToInt(position.y - PlayerController.Height / 2f + 0.2f);
+        topDownSky = cam.backgroundColor;
+        planet.SetTopDownVisible(false);
+        root.SetActive(true);
+        // The player goes to their place along the screen first, so the right stretch of ground is drawn round them.
+        player.EnterSideView(slice, Column);
+        CentreWindow();
+        Build();
+        follow.bounds = new Rect(PlanetOne.Unbounded.x, -Depth, PlanetOne.Unbounded.width, Depth + SkyHeight);
+        PoseRows(0f);
+        ApplyLight();
+    }
+
+    void Leave()
+    {
+        Active = false;
+        stepDirection = 0;
+        spareMap.ClearAllTiles();
+        root.SetActive(false);
+        planet.SetTopDownVisible(true);
+        player.ExitSideView();
+        // Top-down night is a wash over the whole screen, so the player goes back to their own colour.
+        player.SetTint(Color.white);
+        follow.bounds = PlanetOne.Unbounded;
+        cam.backgroundColor = topDownSky;
     }
 
     // True if nothing in the row behind (+1) or in front (-1) is in the way where the player is.
@@ -310,7 +360,7 @@ public class MiningMode : MonoBehaviour
         {
             for (int level = l0; level <= l1; level++)
             {
-                if (planet.SideBlockAt(x, row + direction, level) != PlanetOne.SideBlock.Air) return false;
+                if (BlockAt(x, direction, level) != PlanetOne.SideBlock.Air) return false;
             }
         }
         return true;
@@ -324,7 +374,7 @@ public class MiningMode : MonoBehaviour
         solidMap.SetTile(cell, null);
         tileCollider.ProcessTilemapChanges();
         composite.GenerateGeometry();
-        PaintDarkness(dark.sprite.texture, row);
+        PaintDarkness(dark.sprite.texture, 0);
     }
 
     // Steps the player one row back (+1) or forward (-1) at once, with no slide.
@@ -337,27 +387,29 @@ public class MiningMode : MonoBehaviour
             return false;
         }
 
-        row += direction;
+        // The row behind is one to the north. The column behind is one to the west.
+        slice += Column ? -direction : direction;
         Build();
-        player.SetSideRow(row);
+        player.SetSideRow(slice);
         return true;
     }
 
     void Build()
     {
-        FillRow(rowMap, row);
-        FillRow(solidMap, row);
-        for (int i = 0; i < behindMaps.Length; i++) FillRow(behindMaps[i], row + 1 + i);
+        FillRow(rowMap, 0);
+        FillRow(solidMap, 0);
+        for (int i = 0; i < behindMaps.Length; i++) FillRow(behindMaps[i], 1 + i);
         // Make the new ground solid right away instead of waiting for the end of the frame.
         tileCollider.ProcessTilemapChanges();
         composite.GenerateGeometry();
-        PaintDarkness(dark.sprite.texture, row);
+        PaintDarkness(dark.sprite.texture, 0);
         RowBuilt?.Invoke();
     }
 
-    // Paints the darkness for one row: its ground is blacked out except near open air, fully lit at the surface
-    // and fading to black LightDepth blocks in. Any side of a block that touches air lets light in.
-    void PaintDarkness(Texture2D texture, int forRow)
+    // Paints the darkness for one row, given as how many rows behind the front one it is: its ground is blacked out
+    // except near open air, fully lit at the surface and fading to black LightDepth blocks in. Any side of a block
+    // that touches air lets light in.
+    void PaintDarkness(Texture2D texture, int back)
     {
         int columns = covered.GetLength(0), levels = covered.GetLength(1);
         for (int x = 0; x < columns; x++)
@@ -366,8 +418,8 @@ public class MiningMode : MonoBehaviour
             {
                 // A block can only be shaded if the row in front has a block covering it. With nothing in front it is
                 // in the open, so it stays fully lit and lets light into its neighbours just like air does.
-                covered[x, l] = planet.SideBlockAt(windowStart + x, forRow, l - Depth) != PlanetOne.SideBlock.Air &&
-                    planet.SideBlockAt(windowStart + x, forRow - 1, l - Depth) != PlanetOne.SideBlock.Air;
+                covered[x, l] = BlockAt(windowStart + x, back, l - Depth) != PlanetOne.SideBlock.Air &&
+                    BlockAt(windowStart + x, back - 1, l - Depth) != PlanetOne.SideBlock.Air;
             }
         }
 
@@ -436,7 +488,8 @@ public class MiningMode : MonoBehaviour
         return best;
     }
 
-    void FillRow(Tilemap map, int worldRow)
+    // Draws one row into a tilemap, given as how many rows behind the front one it is.
+    void FillRow(Tilemap map, int back)
     {
         map.ClearAllTiles();
         // All the row's tiles are handed over in one go, which is much quicker than placing them one at a time.
@@ -446,9 +499,10 @@ public class MiningMode : MonoBehaviour
         {
             for (int i = 0; i < WindowColumns; i++)
             {
-                int x = windowStart + i, level = l - Depth;
-                PlanetOne.SideBlock block = planet.SideBlockAt(x, worldRow, level);
-                fillBuffer[l * WindowColumns + i] = block != PlanetOne.SideBlock.Air ? TileFor(block, x, worldRow, level) : null;
+                int level = l - Depth;
+                Vector2Int cell = Cell(windowStart + i, back);
+                PlanetOne.SideBlock block = planet.SideBlockAt(cell.x, cell.y, level);
+                fillBuffer[l * WindowColumns + i] = block != PlanetOne.SideBlock.Air ? TileFor(block, cell.x, cell.y, level) : null;
             }
         }
         map.SetTilesBlock(new BoundsInt(windowStart, -Depth, 0, WindowColumns, levels, 1), fillBuffer);
@@ -508,9 +562,10 @@ public class MiningMode : MonoBehaviour
     void OnGUI()
     {
         if (labelStyle == null) labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
-        string text = "[R] Mining mode    [Space] jump";
-        if (Active) text = "MINING MODE    [R] back to top-down    [Space] jump    [W] row behind    [S] row in front    [Left click] mine";
-        if (Active && Time.time < blockedUntil) text = "MINING MODE    Something is in the way in that row";
+        string text = "[R] Mining mode, along the row    [G] Mining mode, along the column    [Space] jump";
+        if (Active && !Column) text = "MINING MODE, ROW    [R] back to top-down    [G] turn to the column    [Space] jump    [W] row behind    [S] row in front    [Left click] mine";
+        if (Active && Column) text = "MINING MODE, COLUMN    [G] back to top-down    [R] turn to the row    [Space] jump    [W] column behind    [S] column in front    [Left click] mine";
+        if (Active && Time.time < blockedUntil) text = "MINING MODE    Something is in the way there";
         labelStyle.normal.textColor = Color.black;
         GUI.Label(new Rect(18, 14, 1400, 32), text, labelStyle);
         labelStyle.normal.textColor = Color.white;
