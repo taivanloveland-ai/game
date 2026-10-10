@@ -22,12 +22,35 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Materials are collected by the player.**
 - **Space suit and air:** the space suit itself is warm, and the air is breathable (said 2026-10-09). Claude's reading, not confirmed: this is about the cold crash planet, so there is no oxygen to manage and the suit protects him from the cold.
 
+## Mining mode (asked 2026-10-09)
+
+- Pressing **R** on planet 1 switches the world to a 2D side-scroller. This is called **mining mode**. Pressing R again goes back to top-down.
+- The side view shows the row of blocks the player is standing on.
+- If you mine down (not possible yet), you can see the blocks behind you.
+- In mining mode you can jump **1.5 blocks**. The grey rocks are **2 blocks tall**, so you cannot jump over them.
+- Taivan wants to be given options when there are design choices to make. His picks for mining mode:
+  - **Underground:** 4 or 5 layers of snow, with stone under the snow and ice for now. Where there is ice, it should look like a river or lake that was there and froze.
+  - **Behind you:** the next few rows further back are drawn faded behind your row.
+  - **Surface:** flat ground. Snow and ice are at the same height, with rocks standing 2 tall on top.
+
+## Heights, jumping and changing rows (asked 2026-10-09)
+
+- In mining mode, **W** takes you into the row behind you, if it is available.
+- You can **jump in top-down mode** too.
+- There are **higher levels of snow and ice**, so jumping is more useful.
+- His picks from the options:
+  - **Terrain:** the ground is a block higher for a while in some places and not in others. You have to fall back down to ground level. (Two levels: ground and one block up.)
+  - **S key:** S takes you to the row in front. Jump is Space, since W is now used.
+  - **Rocks:** never climbable. A rock is always 2 blocks taller than the highest ground touching it.
+  - **Ice:** frozen steps too. Ice can be on either level and can drop a block along its length.
+
 ## Look and feel decisions
 
 - **Engine:** Unity (decided 2026-10-09).
 - **Art for now:** the character is just a rectangle. Everything else is simple coloured shapes too.
 - **Top-down view is angled,** so you can see the edges of the cliffs (asked 2026-10-09).
 - **Ice is a little slippery** (asked 2026-10-09).
+- **Walking in snow is a little slower,** only a little (asked 2026-10-09). Currently 90% of full speed; ice is full speed.
 - **No ore or crystals in the world for now.** Taivan asked for the placeholder ones to be taken away (2026-10-09). Reason not given.
 
 ## Built so far
@@ -35,8 +58,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Unity project at the repo root, for editor 6000.6.5f1. Open `Assets/Scenes/PlanetOne` and press Play.
 - Planet 1 is a 160 x 160 tile world that is generated when the game starts: snow, slippery ice lakes, raised rock with cliff faces on its south edges, and a rock wall around the map.
 - A grey crashed ship sits in the middle of the map. The player is an orange rectangle that starts just below it and walks with WASD or the arrow keys. The camera follows the player.
-- Checked by running the game in the background on 2026-10-09: the world builds and collisions work. The slippery ice was compiled but its feel has not been checked by Claude.
-- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `PlayerController.cs` handles movement, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
+- Every spot has a height. Ground is level 0 or, in patches (about a fifth of the walkable land), level 1. Rocks and the ship stand 2 above the highest ground next to them. In top-down, higher ground is drawn shifted up the screen with a cliff face on its south side.
+- Top-down jump: Space, 1.5 blocks high, with a shadow on the ground. You need it to get onto level 1; walking off an edge drops you back down.
+- Mining mode: R shows the player's row from the side, with three faded rows behind it, snow 4 or 5 blocks deep over stone, ice as a bowl up to 4 blocks deep, and a 1.5 block jump (Space). W or the up arrow steps to the row behind and S or the down arrow to the row in front, when nothing there is in the way. Ice is slippery and snow is a little slow there too. No mining yet.
+- Checked by running the game in the background on 2026-10-09: the world builds; in top-down a ledge blocks walking but a jump gets you up, rocks stay blocked, and the jump peaks at 1.5 blocks; R switches views both ways; row stepping works and is refused when blocked. Real key presses, the feel of the ice, and how smoothly it runs have not been checked by Claude.
+- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `MiningMode.cs` builds the side view, `PlayerController.cs` handles movement, `GameInput.cs` reads the keyboard, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
 
 ## Build approach (Claude's plan)
 
@@ -56,7 +82,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - What is his brother's game like (genre, setting, main mechanic)? Needed so this one can go a different way.
 - What are the alien materials, and what does each one do?
-- How are materials collected (mining deposits, picking things up, digging the ground)?
+- Mining itself is not built yet. How does it work in mining mode: what tool, which blocks can be dug, how long it takes, and what you get from snow, ice and stone?
+- Where do the alien materials appear: inside the stone, in the ice, on the surface?
 - If the suit keeps him warm, what is the danger on the cold planet? Can the suit be too weak for the coldest areas?
 - Are there creatures or enemies?
 - What does repairing the ship need?
