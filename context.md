@@ -60,7 +60,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Ferns and ice spikes are not walkable.** Each one blocks its whole square, one block tall, in td and sc. You walk round it or jump onto or over it (Claude's choice that jumping works). Nothing grows on the squares right round the start, so the player cannot begin stuck.
 - **Hold the mouse to mine**, "but make sure its not too quick": holding the left button hits once every 0.4 seconds (Claude's number), so snow takes 0.4 s a block, ice 0.8 s and stone 2 s. Single clicks still hit as fast as you click.
 
+- **Black hole turns through the night** (asked later on 2026-10-10): "make the black hole rotate throuout the night realistically so its level at midnight." Its disc now stays lined up with its path across the sky: tipped steeply up as it rises, level at midnight, tipped down as it sets.
+
 ## Building and houses (asked 2026-10-10)
+
+- **Doorways must show in td** (asked later on 2026-10-10): he made a doorway in sc and in td "it looks like a wall but i can walk through it. thats a problem." Now a gap under the top of a wall shows in td: a dark opening in the wall's south face, or a dark notch cut into the west, east or north edge of its top when the way in is from that side. Dug-out cave mouths show the same way.
 
 - He asked: "building. you can place the blocks if you drag them from your inventory to your hotbar. also make it so if someones building a house, when youre in it the whole roof is transparent and when youre out its opaque."
 - **Hotbar:** blocks (snow, ice, stone) are dragged from the Items panel (Tab) onto a hotbar slot. The slot shows how many are left and empties when they run out. Slots can be dragged onto each other to swap; dragging a block off the bar takes it off (you still carry it). Tools cannot be pushed off the bar. Only blocks can go on the bar (Claude's choice).

@@ -16,8 +16,8 @@ public class DayNight : MonoBehaviour
     // The black hole is painted at the same fine scale as the snow picture: this many pixels to a block.
     const int FinePixels = 128;
     const int BlackHoleWidth = 8 * FinePixels, BlackHoleHeight = 9 * FinePixels / 2;
-    // How far the black hole's disc of hot matter is tipped, in degrees: its right end is the higher one.
-    const float DiscTilt = 8f;
+    // The black hole's disc of hot matter is painted level. It is turned as the black hole crosses the sky.
+    const float DiscTilt = 0f;
     // How much of the cycle each sunrise and sunset takes to fade, on either side of the moment itself.
     const float Twilight = 0.05f;
     // The world's darkness changes in this many steps so it is not recoloured every single frame.
@@ -106,6 +106,10 @@ public class DayNight : MonoBehaviour
         blackHole.enabled = !day && mining.Column;
         SpriteRenderer up = day ? sun : blackHole;
         up.transform.localPosition = position;
+        // The black hole keeps its disc lined up with its path across the sky, as a real one would: tipped up as it
+        // rises, level at midnight when it is highest, and tipped down as it sets.
+        float turn = Mathf.Atan2(Mathf.Cos(angle) * cam.orthographicSize * 0.72f, Mathf.Sin(angle) * halfWidth * 0.85f) * Mathf.Rad2Deg;
+        blackHole.transform.localRotation = Quaternion.Euler(0f, 0f, turn);
         up.color = new Color(1f, 1f, 1f, fade);
         stars.color = new Color(1f, 1f, 1f, Night);
     }
