@@ -11,6 +11,8 @@ public class Gatherables : MonoBehaviour
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.004;
     const double ShardDensity = 0.009;
+    // Across the whole planet there are this many ice shards for every this many ferns.
+    const int FernsPerSet = 8, ShardsPerSet = 5;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
     const float FernFootAcross = 0.472f;
     // How far up the picture the ground line is, from the bottom edge, as a share of its height.
@@ -173,11 +175,39 @@ public class Gatherables : MonoBehaviour
                 else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) things[new Vector2Int(x, y)] = shard;
             }
         }
+        KeepRatio(plant, shard, rand);
         mining.RowBuilt += BuildSideView;
         planet.BlockMined += OnBlockMined;
         // Ferns and ice shards are in the way: the player walks round them, or jumps onto them.
         planet.Obstacle = (x, y) => things.ContainsKey(new Vector2Int(x, y));
         ShowNearby();
+    }
+
+    // Makes the planet hold 5 ice shards for every 8 ferns, the amounts the pickaxe is made from. How many of each
+    // a world starts with depends on how much snow and ice it has, so whichever there is too much of is thinned out,
+    // picked at random from all over the planet.
+    void KeepRatio(Kind plant, Kind shard, System.Random rand)
+    {
+        var plants = new List<Vector2Int>();
+        var shards = new List<Vector2Int>();
+        foreach (KeyValuePair<Vector2Int, Kind> thing in things) (thing.Value == plant ? plants : shards).Add(thing.Key);
+
+        // The most whole sets of 8 ferns and 5 shards that both can make up.
+        int sets = Mathf.Min(plants.Count / FernsPerSet, shards.Count / ShardsPerSet);
+        Thin(plants, sets * FernsPerSet, rand);
+        Thin(shards, sets * ShardsPerSet, rand);
+    }
+
+    // Takes things away at random until only so many are left.
+    void Thin(List<Vector2Int> cells, int keep, System.Random rand)
+    {
+        while (cells.Count > keep)
+        {
+            int pick = rand.Next(cells.Count);
+            things.Remove(cells[pick]);
+            cells[pick] = cells[cells.Count - 1];
+            cells.RemoveAt(cells.Count - 1);
+        }
     }
 
     // When the block a thing is standing on is mined out from under it, the thing comes loose as if it had been collected.
