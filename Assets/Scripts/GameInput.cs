@@ -58,6 +58,16 @@ public static class GameInput
 #endif
     }
 
+    // Left mouse button, on the frame it is pressed: one hit with the pickaxe on what the mouse is pointing at.
+    public static bool MinePressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+#else
+        return Input.GetMouseButtonDown(0);
+#endif
+    }
+
     // Where the mouse is on screen, in pixels.
     public static Vector2 PointerPosition()
     {

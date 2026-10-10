@@ -89,6 +89,20 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
 - Nothing is saved between plays yet, so a new world also means an empty inventory.
 
+## Mining (asked 2026-10-10)
+
+- **Mining!** The pickaxe can mine **snow, ice or stone**.
+- His picks from the options:
+  - **How:** left click to mine. Snow takes 1 hit, ice takes 2, stone takes 5.
+  - **What you get:** a block item. Each mined block drops as a snow, ice or stone item that slides to you and stacks in the Items panel.
+  - **Grey rocks:** yes, they are stone. The pickaxe mines them (5 hits) and they give stone.
+  - **Reach:** 3 blocks.
+- As built: mining is done in sc only, and needs an ice pickaxe in your tools. Cracks spread across a block as you hit it; hitting a different block starts the count again. Mined blocks stay gone for the rest of the play, in every row and both views. The ship and the very bottom layer of the ground cannot be mined.
+- Through a hole you see the dimmer blocks of the row behind, and light reaches 1.5 blocks into the ground around it, as he asked on 2026-10-09.
+- In td, a spot whose top block was mined is drawn lower, with a cliff face on the square north of it, and you can fall in. You can jump out of a hole 1 deep. From the bottom of a deeper hole, pressing R twice puts you back up on the surface.
+- If you mine the block a fern or ice shard stands on, it comes loose as if you had collected it.
+- W and S row stepping now checks the actual blocks, so underground you can only step into a row that has been dug out where you are.
+
 ## Bigger planet that loops (asked 2026-10-10)
 
 - **The map is 6 times larger,** and you can **walk up from your ship and make a full loop around the planet, as though it were a sphere.** On the map, if you get to the top and keep going up, you come in at the bottom.
@@ -112,7 +126,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - His picks from the options:
   - **What it makes:** an ice pickaxe, the first tool. It goes in the tool hotbar.
   - **Using it:** right click opens a menu. Right clicking the nook walks you over and opens a small crafting panel with the recipe, what you have, and a Craft button.
-- As built: the nook is a framed dark recess in the middle of the ship's front, top-down only (it is not shown or usable in sc). The panel is titled "Ship workbench". It closes with its X, with Escape, or when you walk away. Crafting can be repeated; each pickaxe takes the next hotbar slot. The pickaxe does nothing yet because mining is not built.
+- As built: the nook is a framed dark recess in the middle of the ship's front, top-down only (it is not shown or usable in sc). The panel is titled "Ship workbench". It closes with its X, with Escape, or when you walk away. Crafting can be repeated; each pickaxe takes the next hotbar slot. The pickaxe is needed for mining.
 
 ## Taivan's own art (in `Assets/Resources/Art`)
 
@@ -157,11 +171,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Maps: a mini map in the top right shows 40 squares around the player with markers for the player and the ship; M opens a world map of everything the mini map has shown (`WorldMap.cs`).
 - Collecting: right click one. Within a block it drops at once; otherwise the player walks to it in a straight line, jumping onto raised ground, then it drops. If a rock or the ship is on that line, the click does nothing. In sc the walk is along the row only. Pressing a movement key or jump cancels the walk. A drop sits for a third of a second, then slides to the player from up to 2 blocks away and goes into the inventory.
 - Inventory: stacks per kind of item with no limits. On screen there is a 5-slot tool hotbar, which shows crafted tools, and an Items panel opened with Tab that grows a row at a time.
-- Crafting: right clicking the nook on the ship's front (top-down only) walks the player over and opens the "Ship workbench" panel. 8 ferns and 5 ice shards make an ice pickaxe, which goes into the hotbar. The pickaxe has no use yet.
+- Crafting: right clicking the nook on the ship's front (top-down only) walks the player over and opens the "Ship workbench" panel. 8 ferns and 5 ice shards make an ice pickaxe, which goes into the hotbar. The pickaxe is what you mine with.
 - Nothing is saved between plays: each play is a new world with an empty inventory.
 - Checked by running the game in the background on 2026-10-10: three random worlds each built fully walkable; clicking the nook from 7 blocks away walked over and opened it; crafting was refused without enough items and worked with 9 ferns and 5 shards, leaving 1 fern and one pickaxe. How the crafting panel looks and whether its Craft button responds to a real click have not been checked by Claude.
 - Checked by running the game in the background on 2026-10-09: the world builds; in top-down a ledge blocks walking but a jump gets you up, rocks stay blocked, and the jump peaks at 1.5 blocks; R switches views both ways; row stepping works and is refused when blocked. Collecting works in td and sc: a click on empty ground does nothing, and a click on a plant 7 blocks away, a plant up on raised ground, an ice shard, and a plant along the row in sc each walk the player over and end with the item in the inventory. Real key presses and mouse clicks, how the hotbar and Items panel look, the feel of the ice, and how smoothly it runs have not been checked by Claude.
-- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `MiningMode.cs` builds the side view, `PlayerController.cs` handles movement, `DayNight.cs` runs the sky and night, `Gatherables.cs` holds plants, ice shards and the walk-to-collect, `Pickups.cs` the dropped items, `Inventory.cs` and `Hud.cs` the inventory and its display, `CraftingNook.cs` the nook, its menu and the pickaxe, `Assets/Editor/ArtImport.cs` sets up any picture dropped into `Assets/Resources/Art` (see-through background kept, no compression), `Assets/Editor/ExternalRefresh.cs` lets Claude load finished work into the open editor, `GameInput.cs` reads the keyboard, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
+- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `MiningMode.cs` builds the side view, `PlayerController.cs` handles movement, `DayNight.cs` runs the sky and night, `Gatherables.cs` holds plants, ice shards and the walk-to-collect, `Pickups.cs` the dropped items, `Inventory.cs` and `Hud.cs` the inventory and its display, `CraftingNook.cs` the nook, its menu and the pickaxe, `Mining.cs` hitting and breaking blocks, `WorldMap.cs` the mini map and world map, `Assets/Editor/ArtImport.cs` sets up any picture dropped into `Assets/Resources/Art` (see-through background kept, no compression), `Assets/Editor/ExternalRefresh.cs` lets Claude load finished work into the open editor, `GameInput.cs` reads the keyboard, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
 
 ## Build approach (Claude's plan)
 
@@ -181,7 +195,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - What is his brother's game like (genre, setting, main mechanic)? Needed so this one can go a different way.
 - What are the alien materials, and what does each one do?
-- Mining itself is not built yet. How does it work in mining mode: what tool, which blocks can be dug, how long it takes, and what you get from snow, ice and stone?
+- What are the mined snow, ice and stone blocks used for (building, crafting)? Can blocks be placed back?
 - Where do the alien materials appear: inside the stone, in the ice, on the surface?
 - If the suit keeps him warm, what is the danger on the cold planet? Can the suit be too weak for the coldest areas?
 - Are there creatures or enemies?

@@ -164,7 +164,8 @@ public class PlayerController : MonoBehaviour
         int x0 = Mathf.FloorToInt(position.x - Width / 2f + 0.001f), x1 = Mathf.FloorToInt(position.x + Width / 2f - 0.001f);
         float feetBottom = position.y - Height / 2f;
         int y0 = Mathf.FloorToInt(feetBottom + 0.001f), y1 = Mathf.FloorToInt(feetBottom + FeetDepth - 0.001f);
-        int tallest = 0;
+        // Mined-out ground can be below zero, so start from the lowest number there is.
+        int tallest = int.MinValue;
         for (int y = y0; y <= y1; y++)
         {
             for (int x = x0; x <= x1; x++) tallest = Mathf.Max(tallest, planet.TopAt(x, y));

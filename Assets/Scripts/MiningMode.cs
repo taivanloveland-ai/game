@@ -9,7 +9,7 @@ using UnityEngine.Tilemaps;
 public class MiningMode : MonoBehaviour
 {
     // How many blocks of ground are shown below the surface, and how much sky the camera may show above it.
-    const int Depth = 14;
+    const int Depth = PlanetOne.GroundDepth;
     const int SkyHeight = 12;
     // Only this many columns of the row are drawn at a time, centred on the player. The row is redrawn further along
     // when the player gets within the margin of either end. A whole row of the planet is far too long to draw at once.
@@ -46,6 +46,8 @@ public class MiningMode : MonoBehaviour
     public int Row => row;
     // The first column of the stretch of row being drawn.
     public int WindowStart => windowStart;
+    // True while the rows are sliding from one row to the next.
+    public bool Stepping => stepDirection != 0;
     // Everything that belongs to the side view hangs under this.
     public Transform Root => root.transform;
     // Raised each time the side view is redrawn for a row.
@@ -288,11 +290,28 @@ public class MiningMode : MonoBehaviour
         Vector2 position = player.transform.position;
         int x0 = Mathf.FloorToInt(position.x - PlayerController.Width / 2f + 0.001f);
         int x1 = Mathf.FloorToInt(position.x + PlayerController.Width / 2f - 0.001f);
+        // The player can step across if every block their body would take up in that row is empty. Underground,
+        // that means the row has been dug out there.
+        int l0 = Mathf.FloorToInt(player.FeetHeight + 0.05f), l1 = Mathf.FloorToInt(player.FeetHeight + PlayerController.Height - 0.05f);
         for (int x = x0; x <= x1; x++)
         {
-            if (planet.TopAt(x, row + direction) > player.FeetHeight + 0.05f) return false;
+            for (int level = l0; level <= l1; level++)
+            {
+                if (planet.SideBlockAt(x, row + direction, level) != PlanetOne.SideBlock.Air) return false;
+            }
         }
         return true;
+    }
+
+    // Takes a mined block out of the picture of the row and out of the solid ground, and lets light into the hole.
+    public void RemoveBlock(int x, int level)
+    {
+        var cell = new Vector3Int(x, level, 0);
+        rowMap.SetTile(cell, null);
+        solidMap.SetTile(cell, null);
+        tileCollider.ProcessTilemapChanges();
+        composite.GenerateGeometry();
+        PaintDarkness(dark.sprite.texture, row);
     }
 
     // Steps the player one row back (+1) or forward (-1) at once, with no slide.
@@ -472,7 +491,7 @@ public class MiningMode : MonoBehaviour
     {
         if (labelStyle == null) labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
         string text = "[R] Mining mode    [Space] jump";
-        if (Active) text = "MINING MODE    [R] back to top-down    [Space] jump    [W] row behind    [S] row in front";
+        if (Active) text = "MINING MODE    [R] back to top-down    [Space] jump    [W] row behind    [S] row in front    [Left click] mine";
         if (Active && Time.time < blockedUntil) text = "MINING MODE    Something is in the way in that row";
         labelStyle.normal.textColor = Color.black;
         GUI.Label(new Rect(18, 14, 1400, 32), text, labelStyle);
