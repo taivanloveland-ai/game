@@ -14,7 +14,7 @@ public class Gatherables : MonoBehaviour
     const double PlantDensity = 0.025;
     const double ShardDensity = 0.03;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
-    const float FernFootAcross = 0.557f;
+    const float FernFootAcross = 0.551f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
     // Where in its square a thing stands, measured up from the near edge.
