@@ -90,6 +90,27 @@ public static class GameInput
 #endif
     }
 
+    // The number keys 1 to 5 pick a hotbar slot. Returns the slot counting from 0, or -1 if none was pressed this frame.
+    public static int HotbarSlotPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        if (k == null) return -1;
+        if (k.digit1Key.wasPressedThisFrame) return 0;
+        if (k.digit2Key.wasPressedThisFrame) return 1;
+        if (k.digit3Key.wasPressedThisFrame) return 2;
+        if (k.digit4Key.wasPressedThisFrame) return 3;
+        if (k.digit5Key.wasPressedThisFrame) return 4;
+        return -1;
+#else
+        for (int slot = 0; slot < 5; slot++)
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha1 + slot)) return slot;
+        }
+        return -1;
+#endif
+    }
+
     // M opens and closes the world map.
     public static bool MapPressed()
     {

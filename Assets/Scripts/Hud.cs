@@ -9,6 +9,7 @@ public class Hud : MonoBehaviour
     const float Gap = 6f;
     const int ItemsPerRow = 5;
     const float ItemSlotSize = 84f;
+    static readonly Color HighlightColor = new Color32(150, 215, 255, 255);
 
     Inventory inventory;
     bool itemsOpen;
@@ -31,6 +32,8 @@ public class Hud : MonoBehaviour
     void Update()
     {
         if (GameInput.ItemsPressed()) itemsOpen = !itemsOpen;
+        int slot = GameInput.HotbarSlotPressed();
+        if (slot >= 0 && slot < HotbarSlots) inventory.ToggleSlot(slot);
     }
 
     void OnGUI()
@@ -50,12 +53,14 @@ public class Hud : MonoBehaviour
         {
             var slot = new Rect(hotbarLeft + i * (SlotSize + Gap), hotbarTop, SlotSize, SlotSize);
             GUI.Box(slot, GUIContent.none);
+            // The equipped tool's slot gets a light blue glow and frame.
+            if (i == inventory.EquippedSlot && i < inventory.Tools.Count) DrawHighlight(slot);
             if (i < inventory.Tools.Count)
             {
                 GUI.DrawTexture(new Rect(slot.x + 6f, slot.y + 6f, slot.width - 12f, slot.height - 12f), inventory.Tools[i].Icon.texture, ScaleMode.ScaleToFit);
             }
         }
-        GUI.Label(new Rect(hotbarLeft, hotbarTop - 22f, hotbarWidth, 20f), "Tools        [Tab] Items", nameStyle);
+        GUI.Label(new Rect(hotbarLeft - 60f, hotbarTop - 22f, hotbarWidth + 120f, 20f), "Tools    [1-5] equip or put away        [Tab] Items", nameStyle);
 
         if (Time.time < messageUntil)
         {
@@ -63,6 +68,20 @@ public class Hud : MonoBehaviour
         }
 
         if (itemsOpen) DrawItems();
+    }
+
+    // A soft light blue fill with a brighter frame round it.
+    static void DrawHighlight(Rect slot)
+    {
+        const float edge = 3f;
+        GUI.color = new Color(HighlightColor.r, HighlightColor.g, HighlightColor.b, 0.28f);
+        GUI.DrawTexture(slot, Texture2D.whiteTexture);
+        GUI.color = HighlightColor;
+        GUI.DrawTexture(new Rect(slot.x, slot.y, slot.width, edge), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(slot.x, slot.yMax - edge, slot.width, edge), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(slot.x, slot.y, edge, slot.height), Texture2D.whiteTexture);
+        GUI.DrawTexture(new Rect(slot.xMax - edge, slot.y, edge, slot.height), Texture2D.whiteTexture);
+        GUI.color = Color.white;
     }
 
     // The panel grows a row at a time as the player finds more kinds of item.
