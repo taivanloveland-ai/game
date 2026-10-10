@@ -89,6 +89,10 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
 - Nothing is saved between plays yet, so a new world also means an empty inventory.
 
+## Temporary settings to undo later
+
+- **The player starts with an ice pickaxe, for testing purposes** (asked 2026-10-10). `startWithPickaxe` on the Planet One object, in `PlanetOne.cs`. Turn it off when the first pickaxe should have to be crafted again.
+
 ## Mining (asked 2026-10-10)
 
 - **Mining!** The pickaxe can mine **snow, ice or stone**.
