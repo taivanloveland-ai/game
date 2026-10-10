@@ -8,7 +8,8 @@ public class Gatherables : MonoBehaviour
 {
     // A plant is half as tall as the player.
     const float PlantHeight = PlayerController.Height * 0.5f;
-    const float PixelsPerUnit = 8f / PlantHeight;
+    // How many picture pixels make one block for the ice shard. Its picture is 13 pixels tall, so it stands about 0.73 blocks.
+    const float ShardPixelsPerUnit = 8f / PlantHeight;
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.025;
     const double ShardDensity = 0.03;
@@ -26,7 +27,28 @@ public class Gatherables : MonoBehaviour
     const float StuckSeconds = 1.5f;
 
     static readonly Color32 Clear = new Color32(0, 0, 0, 0);
-    static readonly Color32 PlantGreen = new Color32(70, 170, 80, 255);
+    static readonly Color32 FernDark = new Color32(22, 104, 112, 255), FernLight = new Color32(72, 188, 170, 255);
+    // The plant, one text row per pixel row from the top: a bluish green fiddlehead fern, a stalk whose tip is
+    // still curled into a spiral. D is the darker outer side, L the lighter inner side.
+    static readonly string[] FernPicture =
+    {
+        "..DDDD....",
+        ".DLLLLD...",
+        "DL....LD..",
+        "DL.DD..LD.",
+        "DL.DLD.LD.",
+        "DL..LD.LD.",
+        ".DL...LLD.",
+        "..DDLLLD..",
+        "....DLLD..",
+        "....DLD...",
+        "....DLD...",
+        "....DLD...",
+        "...DLLD...",
+        "...DLD....",
+        "...DLD....",
+        "...DLD....",
+    };
     // The same blues as the ice it grows from, so a shard reads as part of the ice: a lit side a little paler than
     // the ice, a middle that matches it, and a far side a little deeper.
     static readonly Color32 ShardLight = new Color32(204, 231, 244, 255), ShardShade = new Color32(159, 201, 224, 255), ShardDark = new Color32(122, 170, 201, 255);
@@ -94,9 +116,13 @@ public class Gatherables : MonoBehaviour
         this.pickups = pickups;
         this.cam = cam;
 
-        // Placeholder names until these get real ones.
-        Kind plant = MakeKind("Plant", 5, 8, (x, y) => PlantGreen);
-        Kind shard = MakeKind("Ice shard", ShardPicture[0].Length, ShardPicture.Length, (x, y) =>
+        // The fern's picture is scaled so it stands exactly half the player's height.
+        Kind plant = MakeKind("Fiddlehead fern", FernPicture[0].Length, FernPicture.Length, FernPicture.Length / PlantHeight, (x, y) =>
+        {
+            char c = FernPicture[y][x];
+            return c == 'D' ? FernDark : c == 'L' ? FernLight : Clear;
+        });
+        Kind shard = MakeKind("Ice shard", ShardPicture[0].Length, ShardPicture.Length, ShardPixelsPerUnit, (x, y) =>
         {
             char c = ShardPicture[y][x];
             return c == 'L' ? ShardLight : c == 'S' ? ShardShade : c == 'D' ? ShardDark : Clear;
@@ -126,21 +152,21 @@ public class Gatherables : MonoBehaviour
 
     // Makes a kind of thing from a small picture. The pivot is at its foot. For raised ground, empty space is added
     // underneath so it is drawn that much higher while still being sorted by where it actually stands.
-    static Kind MakeKind(string name, int pixelsWide, int pixelsTall, System.Func<int, int, Color32> paint)
+    static Kind MakeKind(string name, int pixelsWide, int pixelsTall, float pixelsPerUnit, System.Func<int, int, Color32> paint)
     {
         var sprites = new Sprite[2];
         for (int level = 0; level < sprites.Length; level++)
         {
-            int lift = Mathf.RoundToInt(level * PlanetOne.HeightScale * PixelsPerUnit);
-            sprites[level] = PlanetOne.PaintSprite(pixelsWide, pixelsTall + lift, new Vector2(0.5f, 0f), PixelsPerUnit,
+            int lift = Mathf.RoundToInt(level * PlanetOne.HeightScale * pixelsPerUnit);
+            sprites[level] = PlanetOne.PaintSprite(pixelsWide, pixelsTall + lift, new Vector2(0.5f, 0f), pixelsPerUnit,
                 (x, y) => y < pixelsTall ? paint(x, y) : Clear);
         }
         return new Kind
         {
             Item = new Item(name, sprites[0]),
             Sprites = sprites,
-            Width = pixelsWide / PixelsPerUnit,
-            Height = pixelsTall / PixelsPerUnit,
+            Width = pixelsWide / pixelsPerUnit,
+            Height = pixelsTall / pixelsPerUnit,
         };
     }
 
