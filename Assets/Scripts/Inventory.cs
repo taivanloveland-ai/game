@@ -33,15 +33,15 @@ public class Inventory
     // In the order the player first picked each kind up.
     public readonly List<Stack> Stacks = new List<Stack>();
 
-    public void Add(Item item)
+    public void Add(Item item, int count = 1)
     {
         foreach (Stack stack in Stacks)
         {
             if (stack.Item != item) continue;
-            stack.Count++;
+            stack.Count += count;
             return;
         }
-        Stacks.Add(new Stack { Item = item, Count = 1 });
+        Stacks.Add(new Stack { Item = item, Count = count });
     }
 
     // Tools the player has made, in the order they made them.

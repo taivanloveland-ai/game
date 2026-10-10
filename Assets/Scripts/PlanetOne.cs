@@ -22,6 +22,9 @@ public class PlanetOne : MonoBehaviour
     // TEMPORARY, for testing: the player begins with an ice pickaxe already made, so mining can be tried straight away.
     // Untick this (or remove it) when the game should make the player craft their first pickaxe again.
     public bool startWithPickaxe = true;
+    // TEMPORARY, for testing: the player begins with this many of each block (snow, ice and stone), already on the
+    // hotbar, so building can be tried straight away. Set it to 0 (or remove it) for the real game.
+    public int startWithBlocks = 999;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship }
@@ -235,7 +238,18 @@ public class PlanetOne : MonoBehaviour
         var nook = gameObject.AddComponent<CraftingNook>();
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
         if (startWithPickaxe) inventory.AddTool(nook.Pickaxe);
-        gameObject.AddComponent<Mining>().Setup(this, controller, mining, inventory, hud, pickups, nook, gatherables, cam);
+        var pickaxeWork = gameObject.AddComponent<Mining>();
+        pickaxeWork.Setup(this, controller, mining, inventory, hud, pickups, nook, gatherables, cam);
+        if (startWithBlocks > 0)
+        {
+            var blocks = new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem };
+            foreach (Item block in blocks)
+            {
+                inventory.Add(block, startWithBlocks);
+                int slot = System.Array.IndexOf(inventory.Hotbar, null);
+                if (slot >= 0) inventory.SetSlot(slot, block);
+            }
+        }
         gameObject.AddComponent<Building>().Setup(this, controller, mining, inventory, hud, gatherables, cam);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
