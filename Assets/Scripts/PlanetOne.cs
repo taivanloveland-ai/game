@@ -13,8 +13,8 @@ using UnityEngine.Tilemaps;
 public class PlanetOne : MonoBehaviour
 {
     // The size of the planet in squares. Not saved in the scene, so these numbers are always the ones used.
-    [System.NonSerialized] public int width = 960;
-    [System.NonSerialized] public int height = 960;
+    [System.NonSerialized] public int width = 1440;
+    [System.NonSerialized] public int height = 1440;
     // The world is different every time the game starts. Untick this to always build the world from the seed below.
     public bool randomWorld = true;
     // The number the world is built from. The same seed always gives the same world.
