@@ -51,7 +51,11 @@ public class PlanetOne : MonoBehaviour
     const int MountainHalfDepth = 140, MountainEdge = 50;
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
-    const float MountainBlobSize = 44f, MountainAbove = 0.42f, MountainRise = 0.36f;
+    const float MountainBlobSize = 64f, MountainAbove = 0.4f, MountainRise = 0.4f;
+    // Mountains get gradually steeper toward the top. This is how many squares wide each step of a slope is, from
+    // the first block up to the last: broad and gentle at the foot, a block for every square near the peak.
+    // No step is ever more than one block high, so every mountain can still be climbed.
+    static readonly int[] StepWidths = { 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1 };
     // Mountains this tall or taller have snow on top.
     const int SnowCapFrom = 9;
     const int TilePixels = 16;
@@ -386,11 +390,13 @@ public class PlanetOne : MonoBehaviour
             for (int x = 0; x < width; x++)
             {
                 float rise = (LoopingNoise(x, y, MountainBlobSize, mountainSeed, 2) - MountainAbove) / MountainRise * strength;
-                mountain[x, y] = (byte)Mathf.Clamp(Mathf.RoundToInt(rise * MountainHeight), 0, MountainHeight);
+                int tall = Mathf.Clamp(Mathf.RoundToInt(rise * MountainHeight), 0, MountainHeight);
+                // Kept for now as how far in from the foot of the mountain a spot this tall has to be.
+                mountain[x, y] = (byte)RunTo(tall);
             }
         }
 
-        // Wear down anything steeper than one block a square: no spot may stand more than a block above the lowest
+        // Wear the mountains into shape: no spot may be more than one square further in from the foot than the
         // spot next to it. Sweeping forwards and then backwards a few times settles the whole range.
         bool changed = true;
         for (int pass = 0; pass < 8 && changed; pass++)
@@ -408,17 +414,29 @@ public class PlanetOne : MonoBehaviour
             }
         }
 
+        // Turn how far in each spot is into how tall it is, and the land under the mountains into rock.
         for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
         {
             int y = WrapY(middle + dy);
             for (int x = 0; x < width; x++)
             {
-                if (mountain[x, y] > 0) kind[x, y] = Rock;
+                int tall = 0;
+                while (tall < MountainHeight && RunTo(tall + 1) <= mountain[x, y]) tall++;
+                mountain[x, y] = (byte)tall;
+                if (tall > 0) kind[x, y] = Rock;
             }
         }
     }
 
-    // Lowers a spot of mountain to one block above its lower neighbour to the side or above or below, if it is higher.
+    // How many squares in from the foot of a mountain its slope has to go to be a number of blocks tall.
+    static int RunTo(int tall)
+    {
+        int run = 0;
+        for (int i = 0; i < tall; i++) run += StepWidths[i];
+        return run;
+    }
+
+    // Lowers a spot of mountain to one more than its lower neighbour to the side or above or below, if it is higher.
     bool WearDown(int x, int y, int sideX, int nextY)
     {
         int limit = Mathf.Min(mountain[sideX, y], mountain[x, nextY]) + 1;
