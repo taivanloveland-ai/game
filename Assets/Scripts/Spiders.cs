@@ -19,6 +19,9 @@ public class Spiders : MonoBehaviour
     const float ChaseSpeed = 2.4f, WanderSpeed = 0.9f;
     // It bites when it is this close, and one bite takes this long.
     const float BiteDistance = 0.85f, BiteSeconds = 0.5f;
+    // Seen from above, it bites when its middle is this far from the edge of the player, which puts its fangs
+    // just short of them. The players picture starts this far below the spot they stand on.
+    const float TopBiteGap = 0.4f, FeetBelow = 0.2f;
     // How far a spider walks in one full cycle of its legs.
     const float StrideDistance = 0.55f;
 
@@ -144,11 +147,33 @@ public class Spiders : MonoBehaviour
             bool sameHeight = Mathf.Abs(playerFeet - level) < 1.6f;
             spider.Chasing = sameHeight && distance < (spider.Chasing ? GiveUpRadius : NoticeRadius);
 
+            // What the spider goes for is the edge of the player, not the spot under their feet, so that it stops
+            // beside them instead of underneath. Seen from above the player stands up the screen from their feet.
+            Vector2 body = playerAt, toBody = toPlayer;
+            float reach = distance, biteAt = BiteDistance;
+            if (!mining.Active)
+            {
+                float bottom = playerAt.y - FeetBelow, halfWidth = PlayerController.Width / 2f;
+                body = new Vector2(playerAt.x, bottom + PlayerController.Height / 2f);
+                var nearest = new Vector2(Mathf.Clamp(at.x, playerAt.x - halfWidth, playerAt.x + halfWidth), Mathf.Clamp(at.y, bottom, bottom + PlayerController.Height));
+                toBody = nearest - at;
+                reach = toBody.magnitude;
+                biteAt = TopBiteGap;
+            }
+
             float moved = 0f;
-            if (spider.Chasing && distance <= BiteDistance)
+            if (spider.Chasing && reach < biteAt * 0.6f)
+            {
+                // Too close, as when the player walks into it: back away so it is never underneath them.
+                Vector2 away = at - body;
+                Vector2 before = at;
+                at = Step(at, (away.sqrMagnitude > 0.0001f ? away.normalized : spider.Heading * -1f) * (ChaseSpeed * Time.deltaTime), level);
+                moved = Vector2.Distance(before, at);
+            }
+            else if (spider.Chasing && reach <= biteAt)
             {
                 // Close enough: face the player and bite, over and over.
-                if (distance > 0.01f) spider.Heading = toPlayer / distance;
+                if (reach > 0.01f) spider.Heading = toBody / reach;
                 spider.Bite = spider.Bite < 0f ? 0f : (spider.Bite + Time.deltaTime) % (BiteSeconds * 1.6f);
             }
             else
@@ -161,7 +186,7 @@ public class Spiders : MonoBehaviour
                 }
                 if (spider.Bite < 0f)
                 {
-                    Vector2 direction = spider.Chasing ? toPlayer / distance : Wander(spider);
+                    Vector2 direction = !spider.Chasing ? Wander(spider) : reach > 0.001f ? toBody / reach : Vector2.zero;
                     if (direction != Vector2.zero)
                     {
                         Vector2 before = at;
