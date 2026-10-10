@@ -360,7 +360,8 @@ public class MiningMode : MonoBehaviour
         {
             for (int level = l0; level <= l1; level++)
             {
-                if (BlockAt(x, direction, level) != PlanetOne.SideBlock.Air) return false;
+                Vector2Int cell = Cell(x, direction);
+                if (planet.SolidAt(cell.x, cell.y, level)) return false;
             }
         }
         return true;

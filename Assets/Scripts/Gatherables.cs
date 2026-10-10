@@ -167,12 +167,16 @@ public class Gatherables : MonoBehaviour
             for (int x = 0; x < planet.width; x++)
             {
                 double roll = rand.NextDouble();
+                // Nothing grows right where the player starts, since things on the ground cannot be walked through.
+                if (Mathf.Abs(x - planet.width / 2) <= 1 && Mathf.Abs(y - (planet.height / 2 - 1)) <= 1) continue;
                 if (planet.IsSnow(x, y) && roll < PlantDensity) things[new Vector2Int(x, y)] = plant;
                 else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) things[new Vector2Int(x, y)] = shard;
             }
         }
         mining.RowBuilt += BuildSideView;
         planet.BlockMined += OnBlockMined;
+        // Ferns and ice shards are in the way: the player walks round them, or jumps onto them.
+        planet.Obstacle = (x, y) => things.ContainsKey(new Vector2Int(x, y));
         ShowNearby();
     }
 
@@ -260,6 +264,10 @@ public class Gatherables : MonoBehaviour
             var renderer = go.AddComponent<SpriteRenderer>();
             renderer.sprite = kind.Sprites[0];
             renderer.sortingOrder = MiningMode.ObjectSortingOrder;
+            // It fills its block of space as far as walking goes, the same as it does in the top-down view.
+            var solid = go.AddComponent<BoxCollider2D>();
+            solid.size = Vector2.one;
+            solid.offset = new Vector2(0f, 0.5f);
             sideView.Add(renderer);
         }
     }
@@ -350,10 +358,11 @@ public class Gatherables : MonoBehaviour
         return false;
     }
 
-    // The player can stand on snow and ice at either height, but not on grey rock or the ship.
+    // The player can stand on snow and ice at either height, but not on grey rock or the ship, and cannot walk
+    // through another fern or ice shard.
     bool Walkable(int x, int y)
     {
-        return planet.TopAt(x, y) <= 1;
+        return planet.TopAt(x, y) <= 1 && !planet.ObstacleAt(x, y);
     }
 
     // Top-down: the walk is a straight line to the thing, so it works as long as no rock or ship is on that line.
