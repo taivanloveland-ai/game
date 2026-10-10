@@ -48,23 +48,24 @@ public static class GameInput
         return Move().y < 0f;
     }
 
-    // Right mouse button, on the frame it is pressed: harvest what the mouse is pointing at.
-    public static bool HarvestPressed()
-    {
-#if ENABLE_INPUT_SYSTEM
-        return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
-#else
-        return Input.GetMouseButtonDown(1);
-#endif
-    }
-
-    // Left mouse button, on the frame it is pressed: one hit with the pickaxe on what the mouse is pointing at.
-    public static bool MinePressed()
+    // Left mouse button, on the frame it is pressed. Pointing at a fern or ice shard, it collects it; pointing at a
+    // block in the side-scroller, it is one hit with the pickaxe.
+    public static bool LeftClickPressed()
     {
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
 #else
         return Input.GetMouseButtonDown(0);
+#endif
+    }
+
+    // Right mouse button, on the frame it is pressed: use what the mouse is pointing at, such as the crafting nook.
+    public static bool RightClickPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
+#else
+        return Input.GetMouseButtonDown(1);
 #endif
     }
 

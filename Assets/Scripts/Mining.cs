@@ -103,7 +103,7 @@ public class Mining : MonoBehaviour
     {
         // Cracks only show on the block being worked on, in the row it belongs to.
         cracks.enabled = hits > 0 && view.Active && view.Row == damaged.z;
-        if (GameInput.MinePressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
+        if (GameInput.LeftClickPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
     }
 
     static int HitsFor(PlanetOne.SideBlock block)
