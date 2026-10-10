@@ -1,6 +1,7 @@
 using UnityEngine;
 
-// Mining with the pickaxe, in the side-scroller. Left clicking a block within reach hits it: snow breaks in 1 hit,
+// Mining with the pickaxe. Left clicking a block within reach hits it: in the side-scroller the block clicked, and
+// top-down the top block of the square clicked. Snow breaks in 1 hit,
 // ice in 2 and stone in 5. A broken block drops as an item that slides to the player. Grey rocks count as stone.
 public class Mining : MonoBehaviour
 {
@@ -42,6 +43,7 @@ public class Mining : MonoBehaviour
     Hud hud;
     Pickups pickups;
     CraftingNook nook;
+    Gatherables gatherables;
     Camera cam;
 
     // The block being worked on (its square of the world, then its level) and how many times it has been hit.
@@ -52,7 +54,7 @@ public class Mining : MonoBehaviour
     SpriteRenderer cracks;
     Sprite[] crackSprites;
 
-    public void Setup(PlanetOne planet, PlayerController player, MiningMode view, Inventory inventory, Hud hud, Pickups pickups, CraftingNook nook, Camera cam)
+    public void Setup(PlanetOne planet, PlayerController player, MiningMode view, Inventory inventory, Hud hud, Pickups pickups, CraftingNook nook, Gatherables gatherables, Camera cam)
     {
         this.planet = planet;
         this.player = player;
@@ -61,6 +63,7 @@ public class Mining : MonoBehaviour
         this.hud = hud;
         this.pickups = pickups;
         this.nook = nook;
+        this.gatherables = gatherables;
         this.cam = cam;
 
         SnowItem = new Item("Snow", planet.SnowSprite != null ? planet.SnowSprite : planet.Square, PlanetOne.SideBlock.Snow);
@@ -74,7 +77,7 @@ public class Mining : MonoBehaviour
             crackSprites[stage] = PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, (x, y) => CrackPixel(x, y, lines));
         }
         var go = new GameObject("Cracks");
-        go.transform.SetParent(view.Root, false);
+        go.transform.SetParent(transform, false);
         cracks = go.AddComponent<SpriteRenderer>();
         cracks.sortingOrder = MiningMode.ObjectSortingOrder;
         cracks.enabled = false;
@@ -105,10 +108,16 @@ public class Mining : MonoBehaviour
 
     void Update()
     {
-        // Cracks only show on the block being worked on, when the row or column it belongs to is on screen.
+        // Cracks only show on the block being worked on. In the side-scroller that is when the row or column it
+        // belongs to is on screen. Top-down they are drawn on the top of its square, which is where it was clicked.
         var square = new Vector2Int(damaged.x, damaged.y);
-        cracks.enabled = hits > 0 && view.Active && view.Shows(square);
-        if (cracks.enabled) cracks.transform.position = new Vector2(view.Along(square) + 0.5f, damaged.z + 0.5f);
+        cracks.enabled = hits > 0 && (!view.Active || view.Shows(square));
+        if (cracks.enabled)
+        {
+            cracks.transform.position = view.Active
+                ? new Vector2(view.Along(square) + 0.5f, damaged.z + 0.5f)
+                : new Vector2(square.x + 0.5f, square.y + 0.5f + (damaged.z + 1) * PlanetOne.HeightScale);
+        }
         // A click is one hit. Holding the button down keeps hitting whatever the mouse is over, at a steady pace.
         bool pressed = GameInput.LeftClickPressed();
         bool held = !pressed && GameInput.LeftClickHeld() && Time.time >= nextHeldHit && inventory.Equipped == nook.Pickaxe;
@@ -130,21 +139,42 @@ public class Mining : MonoBehaviour
     // Handles a left click at a point on screen (given in world units): one hit with the pickaxe on the block there.
     public Result ClickAt(Vector2 point)
     {
-        if (!view.Active || view.Stepping) return Result.NotMining;
-        int x = Mathf.FloorToInt(point.x), level = Mathf.FloorToInt(point.y);
-        // The square of the world the clicked block is in.
-        Vector2Int square = view.Cell(x);
+        if (view.Stepping) return Result.NotMining;
+        bool side = view.Active;
+        // The square of the world the clicked block is in, and its level. Top-down it is the top block of the square.
+        int x = Mathf.FloorToInt(point.x), level;
+        Vector2Int square;
+        if (side)
+        {
+            level = Mathf.FloorToInt(point.y);
+            square = view.Cell(x);
+        }
+        else
+        {
+            // A click on a fern or ice shard collects it instead.
+            if (gatherables.ThingUnder(point)) return Result.Nothing;
+            square = planet.SquareAt(point);
+            level = planet.TopAt(square.x, square.y) - 1;
+        }
         PlanetOne.SideBlock block = planet.SideBlockAt(square.x, square.y, level);
         if (block == PlanetOne.SideBlock.Air) return Result.Nothing;
         if (inventory.Equipped != nook.Pickaxe)
         {
-            // With a block in hand the click is for building, so there is nothing to say about mining.
-            if (inventory.Equipped == null || !inventory.Equipped.Placeable) hud.Say(inventory.Tools.Contains(nook.Pickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
+            // With a block in hand the click is for building, so there is nothing to say about mining. Top-down,
+            // clicks on the ground are too common to comment on each one.
+            if (side && (inventory.Equipped == null || !inventory.Equipped.Placeable)) hud.Say(inventory.Tools.Contains(nook.Pickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
             return Result.NoPickaxe;
         }
-        var centre = new Vector2(x + 0.5f, level + 0.5f);
-        if (Vector2.Distance(player.transform.position, centre) > Reach + 0.5f) return Result.TooFar;
-        if (block == PlanetOne.SideBlock.Ship || level <= -PlanetOne.GroundDepth)
+        if (side)
+        {
+            if (Vector2.Distance(player.transform.position, new Vector2(x + 0.5f, level + 0.5f)) > Reach + 0.5f) return Result.TooFar;
+        }
+        else
+        {
+            bool near = Vector2.Distance(player.GroundPosition, new Vector2(square.x + 0.5f, square.y + 0.5f)) <= Reach + 0.5f;
+            if (!near || Mathf.Abs(level + 0.5f - (player.FeetHeight + PlayerController.Height / 2f)) > Reach + 0.5f) return Result.TooFar;
+        }
+        if (block ==PlanetOne.SideBlock.Ship || level <= -PlanetOne.GroundDepth)
         {
             hud.Say("That can't be mined");
             return Result.CannotBreak;
@@ -157,14 +187,13 @@ public class Mining : MonoBehaviour
         int needed = HitsFor(block);
         if (hits < needed)
         {
-            cracks.transform.position = centre;
             cracks.sprite = crackSprites[Mathf.Clamp(Mathf.CeilToInt(hits * CrackStages / (float)needed) - 1, 0, CrackStages - 1)];
             return Result.Hit;
         }
 
         hits = 0;
         planet.Mine(square.x, square.y, level);
-        view.RedrawBlock(x, level);
+        if (side) view.RedrawBlock(x, level);
         pickups.Drop(ItemFor(block), new Vector2(square.x + 0.5f, square.y + 0.5f), level + 0.3f, DropPullRadius, DropScale);
         return Result.Broke;
     }
