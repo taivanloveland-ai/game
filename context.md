@@ -76,6 +76,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Where:** on the ice. They stay on the ice and will not follow you onto snow.
   - **Size:** about a block wide, legs and all.
 - As built: about 400 to 450 on the planet (0.12% of ice squares; Claude's number), none within 14 squares of the start. They move at 2.4 squares a second chasing and 0.9 wandering (the player's normal speed is 3). In td they are seen from above and turn to face where they are going; in sc they are seen from the side and only the ones in the row or column on screen show. You can walk through them for now (Claude's choice). 8 walking pictures and 5 biting pictures for each view.
+- **Spider hidden behind the player** (he sent a screenshot on 2026-10-10: "fix this problem"). In td a spider coming from the north walked up to the spot under the player's feet, so the player's picture, which stands up the screen from there, covered half of it. Now in td the spider goes for the edge of the player's picture and stops with its fangs just short of it, on whichever side it comes from, and it backs away if the player walks into it. (Claude read the screenshot this way; he did not say what the problem was.)
 
 ## Building and houses (asked 2026-10-10)
 
