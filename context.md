@@ -78,6 +78,12 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - For the walk he first picked "finds a way and jumps", then changed it: **just walk in a straight line**. It still jumps onto raised ground by itself (Claude kept that; not confirmed).
 - **W and S in sc get an animation**, so changing rows is not so much faster than walking in. He first asked for "like a fade"; Claude made the whole screen fade to black, and he changed it: instead of the whole screen blacking out, **the blocks shift forward, get brighter, and become the front blocks**.
 
+## Randomized world (asked 2026-10-10)
+
+- **The world is randomized:** planet 1 is built from a new random seed every time the game starts, so the snow, ice, rocks, raised ground, ferns and shards are in different places each play. The ship and the open crash site are always in the middle.
+- As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
+- Nothing is saved between plays yet, so a new world also means an empty inventory.
+
 ## Crafting nook (asked 2026-10-10)
 
 - A **little nook in the spaceship with a hanging hammer and wrench**, where you can craft with **8 ferns and 5 ice shards**.
