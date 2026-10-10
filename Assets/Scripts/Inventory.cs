@@ -40,9 +40,22 @@ public class Inventory
     // Tools the player has made, in the order they made them. These fill the hotbar.
     public readonly List<Item> Tools = new List<Item>();
 
+    // Which hotbar slot is equipped, counting from 0, or -1 for none. The first slot is equipped to begin with,
+    // so the first tool the player gets is ready to use.
+    public int EquippedSlot;
+
+    // The tool in the equipped slot, or null if that slot is empty or nothing is equipped.
+    public Item Equipped => EquippedSlot >= 0 && EquippedSlot < Tools.Count ? Tools[EquippedSlot] : null;
+
     public void AddTool(Item tool)
     {
         Tools.Add(tool);
+    }
+
+    // Equips a hotbar slot. Choosing the slot that is already equipped puts the tool away.
+    public void ToggleSlot(int slot)
+    {
+        EquippedSlot = EquippedSlot == slot ? -1 : slot;
     }
 
     // Takes a number of one kind of item away. Returns false, taking nothing, if the player has fewer than that.

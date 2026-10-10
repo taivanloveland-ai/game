@@ -123,9 +123,9 @@ public class Mining : MonoBehaviour
         int x = Mathf.FloorToInt(point.x), level = Mathf.FloorToInt(point.y), row = view.Row;
         PlanetOne.SideBlock block = planet.SideBlockAt(x, row, level);
         if (block == PlanetOne.SideBlock.Air) return Result.Nothing;
-        if (!inventory.Tools.Contains(nook.Pickaxe))
+        if (inventory.Equipped != nook.Pickaxe)
         {
-            hud.Say("You need a pickaxe to mine");
+            hud.Say(inventory.Tools.Contains(nook.Pickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
             return Result.NoPickaxe;
         }
         var centre = new Vector2(x + 0.5f, level + 0.5f);
