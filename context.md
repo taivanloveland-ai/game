@@ -78,6 +78,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - For the walk he first picked "finds a way and jumps", then changed it: **just walk in a straight line**. It still jumps onto raised ground by itself (Claude kept that; not confirmed).
 - **W and S in sc get an animation**, so changing rows is not so much faster than walking in. He first asked for "like a fade"; Claude made the whole screen fade to black, and he changed it: instead of the whole screen blacking out, **the blocks shift forward, get brighter, and become the front blocks**.
 
+## Crafting nook (asked 2026-10-10)
+
+- A **little nook in the spaceship with a hanging hammer and wrench**, where you can craft with **8 ferns and 5 ice shards**.
+- **Ice shards and ferns are each half as common** as before (now about 190 ferns and 60 shards).
+- His picks from the options:
+  - **What it makes:** an ice pickaxe, the first tool. It goes in the tool hotbar.
+  - **Using it:** right click opens a menu. Right clicking the nook walks you over and opens a small crafting panel with the recipe, what you have, and a Craft button.
+- As built: the nook is a framed dark recess in the middle of the ship's front, top-down only (it is not shown or usable in sc). The panel is titled "Ship workbench". It closes with its X, with Escape, or when you walk away. Crafting can be repeated; each pickaxe takes the next hotbar slot. The pickaxe does nothing yet because mining is not built.
+
 ## Taivan's own art (in `Assets/Resources/Art`)
 
 - `IceShardItem.png`: the loose ice shard (see above).

@@ -11,8 +11,8 @@ public class Gatherables : MonoBehaviour
     // How many picture pixels make one block for the ice shard. Its picture is 13 pixels tall, so it stands about 0.73 blocks.
     const float ShardPixelsPerUnit = 8f / (PlayerController.Height * 0.5f);
     // How much of the snow has a plant on it, and how much of the ice has a shard.
-    const double PlantDensity = 0.025;
-    const double ShardDensity = 0.03;
+    const double PlantDensity = 0.0125;
+    const double ShardDensity = 0.015;
     // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
     const float FernFootAcross = 0.472f;
     // How far up the picture the ground line is, from the bottom edge, as a share of its height.
@@ -96,6 +96,12 @@ public class Gatherables : MonoBehaviour
     public Item ShardItem { get; private set; }
     // True while the player is walking toward something they clicked.
     public bool Walking => target.HasValue;
+
+    // Drops any walk in progress, for when the player has clicked on something else.
+    public void CancelWalk()
+    {
+        target = null;
+    }
 
     PlanetOne planet;
     PlayerController player;
