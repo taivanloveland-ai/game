@@ -2,7 +2,8 @@ using UnityEngine;
 
 // The day and night cycle. The planets orbit a binary system: a dim red sun and a black hole.
 // In the side-scroller view the sun crosses the sky by day and the black hole by night, with stars.
-// Looking along a column instead of a row, the sun and black hole are out of sight and only the stars show.
+// That is in the column view (G), which looks west. In the row view (R), which looks north, the sun and black
+// hole are out of sight and only the stars show.
 // At night the world also gets darker, in both views.
 public class DayNight : MonoBehaviour
 {
@@ -12,6 +13,11 @@ public class DayNight : MonoBehaviour
     [Range(0f, 1f)] public float time = 0.1f;
 
     const int Pixels = 16;
+    // The black hole is painted at the same fine scale as the snow picture: this many pixels to a block.
+    const int FinePixels = 128;
+    const int BlackHoleWidth = 8 * FinePixels, BlackHoleHeight = 9 * FinePixels / 2;
+    // How far the black hole's disc of hot matter is tipped, in degrees: its right end is the higher one.
+    const float DiscTilt = 8f;
     // How much of the cycle each sunrise and sunset takes to fade, on either side of the moment itself.
     const float Twilight = 0.05f;
     // The world's darkness changes in this many steps so it is not recoloured every single frame.
@@ -44,7 +50,7 @@ public class DayNight : MonoBehaviour
         sky.transform.localPosition = new Vector3(0f, 0f, 10f);
         stars = MakeSkySprite("Stars", PlanetOne.PaintSprite(448, 256, new Vector2(0.5f, 0.5f), PaintStars), -30);
         sun = MakeSkySprite("Sun", PlanetOne.PaintSprite(64, 64, new Vector2(0.5f, 0.5f), PaintSun), -20);
-        blackHole = MakeSkySprite("Black Hole", PlanetOne.PaintSprite(112, 64, new Vector2(0.5f, 0.5f), PaintBlackHole), -20);
+        blackHole = MakeSkySprite("Black Hole", PlanetOne.PaintSprite(BlackHoleWidth, BlackHoleHeight, new Vector2(0.5f, 0.5f), FinePixels, true, PaintBlackHole), -20);
 
         // Top-down has no sky, so night there is a dark blue wash over the whole screen.
         var overlayObject = new GameObject("Night Overlay");
@@ -94,9 +100,10 @@ public class DayNight : MonoBehaviour
         // Fade in and out near the horizon instead of popping.
         float fade = Mathf.Clamp01(Mathf.Sin(angle) * 5f);
 
-        // Looking along a column the player faces away from both, so neither is in view. The day carries on all the same.
-        sun.enabled = day && !mining.Column;
-        blackHole.enabled = !day && !mining.Column;
+        // The sun and the black hole cross the sky from east to west. They are in view looking along a column (west),
+        // and out of sight looking along a row (north). The day carries on all the same.
+        sun.enabled = day && mining.Column;
+        blackHole.enabled = !day && mining.Column;
         SpriteRenderer up = day ? sun : blackHole;
         up.transform.localPosition = position;
         up.color = new Color(1f, 1f, 1f, fade);
@@ -115,27 +122,58 @@ public class DayNight : MonoBehaviour
         return new Color32(186, 52, 40, (byte)(glow * glow * 110f));
     }
 
-    // A black disc with a thin bright ring, and a flat glowing band of hot matter crossing in front of it.
+    // A black disc wrapped in light, after the picture Taivan gave: a long, tipped streak of hot matter crossing in
+    // front of it, the far side of that disc bent up and over the top as a thick bright arc, a thinner ring beneath,
+    // and a dim glow round it all. Distances here are in blocks from the middle of the hole, which is 1 block in radius.
     static Color32 PaintBlackHole(int x, int y)
     {
-        float dx = (x + 0.5f - 56f) / Pixels, dy = (y + 0.5f - 32f) / Pixels;
+        float dx = (x + 0.5f - BlackHoleWidth / 2f) / FinePixels, dy = (BlackHoleHeight / 2f - (y + 0.5f)) / FinePixels;
+        // Along the tipped disc, and up from it.
+        float tilt = DiscTilt * Mathf.Deg2Rad;
+        float along = dx * Mathf.Cos(tilt) + dy * Mathf.Sin(tilt), up = -dx * Mathf.Sin(tilt) + dy * Mathf.Cos(tilt);
         float r = Mathf.Sqrt(dx * dx + dy * dy);
 
-        float band = Squared(dx / 3.2f) + Squared(dy / 0.2f);
-        if (band < 1f)
+        // The streak: brightest and thickest by the hole, tapering to a point far out on either side.
+        float reach = Mathf.Clamp01(1f - Mathf.Abs(along) / 3.8f);
+        float streak = Mathf.Pow(reach, 1.3f) * 1.25f * Bump((up + 0.14f) / (0.05f + 0.15f * reach));
+        // Light bent round the hole. The arc over the top is thick and brightest toward the right, the ring
+        // underneath is thin and faint, and a fine bright line hugs the edge of the hole all the way round.
+        float over = up > -0.14f ? Bump((r - 1.2f) / 0.14f) * Mathf.Lerp(0.75f, 1.15f, Mathf.InverseLerp(-1.2f, 1.2f, along)) : 0f;
+        float under = up <= -0.14f ? Bump((r - 1.27f) / 0.045f) * 0.5f : 0f;
+        float edge = Bump((r - 1.04f) / 0.035f) * (up > -0.14f ? 0.9f : 0.45f);
+        float glow = r > 1f ? Bump((r - 1f) / 1.1f) * 0.16f : 0f;
+        // A wide, dim haze along the disc.
+        float haze = reach * 0.22f * Bump((up + 0.14f) / (0.2f + 0.45f * reach));
+
+        if (r < 1f)
         {
-            float heat = (1f - Mathf.Abs(dx) / 3.2f) * (1f - band);
-            return Color32.Lerp(new Color32(255, 140, 50, 255), new Color32(255, 240, 200, 255), heat);
+            // Inside the hole only the streak passing in front shows; the rest is black.
+            Color lit = Heat(streak);
+            float cover = Mathf.Clamp01(streak * 1.6f);
+            return new Color(lit.r * cover, lit.g * cover, lit.b * cover, 1f);
         }
-        if (r < 0.95f) return new Color32(0, 0, 0, 255);
-        if (r < 1.08f) return new Color32(255, 190, 110, 255);
-        if (r < 1.7f)
-        {
-            float glow = 1f - Mathf.InverseLerp(1.08f, 1.7f, r);
-            return new Color32(255, 140, 50, (byte)(glow * glow * 110f));
-        }
-        float halo = Squared(dx / 3.4f) + Squared(dy / 0.45f);
-        return new Color32(255, 140, 50, (byte)(halo < 1f ? (1f - halo) * 90f : 0f));
+        float light = streak + over + under + edge + glow + haze;
+        Color color = Heat(light);
+        color.a = Mathf.Clamp01(light * 1.5f);
+        return color;
+    }
+
+    // 1 at the middle, falling smoothly away to nothing either side.
+    static float Bump(float distance)
+    {
+        return Mathf.Exp(-distance * distance);
+    }
+
+    // The colour of light of a given strength: deep red when faint, through orange and yellow to near white.
+    static Color Heat(float light)
+    {
+        var faint = new Color(0.55f, 0.16f, 0.03f);
+        var orange = new Color(1f, 0.52f, 0.14f);
+        var yellow = new Color(1f, 0.84f, 0.48f);
+        var white = new Color(1f, 0.98f, 0.92f);
+        if (light < 0.35f) return Color.Lerp(faint, orange, light / 0.35f);
+        if (light < 0.75f) return Color.Lerp(orange, yellow, (light - 0.35f) / 0.4f);
+        return Color.Lerp(yellow, white, Mathf.Clamp01((light - 0.75f) / 0.45f));
     }
 
     // Mostly empty, with the odd star of varying brightness.

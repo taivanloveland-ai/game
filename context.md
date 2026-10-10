@@ -52,6 +52,14 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Switching:** R always means the row view and G the column view. Pressing the other key while in sc turns the view 90 degrees on the spot. Pressing the key of the view you are in goes back to td.
   - **Sky:** his own answer: in the column view "you cannot see the sun or black hole and the day continues". Stars still show at night and the sky still changes colour; keeping the stars was Claude's reading, not confirmed.
 
+    - **Changed later on 2026-10-10:** "in the sc mode instead of seeing the sun and black hole on the north/south, see them on the east/west." Claude read this as swapping the two views: the sun and black hole now show in the column view (G, looking west) and are out of sight in the row view (R, looking north). Not confirmed; it could also have meant something about where they rise and set.
+
+## Black hole picture, obstacles, held mining (asked 2026-10-10)
+
+- **Black hole:** he gave a reference picture (a black disc with a bright ring, a long tilted streak of glowing matter across the front, a thick bright arc over the top and a thinner ring below, in oranges and yellows) and asked for it to be "as pixelated as the snow". The game now paints its own black hole after that picture at 128 pixels per block. The reference picture itself is not in the game.
+- **Ferns and ice spikes are not walkable.** Each one blocks its whole square, one block tall, in td and sc. You walk round it or jump onto or over it (Claude's choice that jumping works). Nothing grows on the squares right round the start, so the player cannot begin stuck.
+- **Hold the mouse to mine**, "but make sure its not too quick": holding the left button hits once every 0.4 seconds (Claude's number), so snow takes 0.4 s a block, ice 0.8 s and stone 2 s. Single clicks still hit as fast as you click.
+
 ## Building and houses (asked 2026-10-10)
 
 - He asked: "building. you can place the blocks if you drag them from your inventory to your hotbar. also make it so if someones building a house, when youre in it the whole roof is transparent and when youre out its opaque."

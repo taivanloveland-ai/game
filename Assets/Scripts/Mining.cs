@@ -7,6 +7,8 @@ public class Mining : MonoBehaviour
     // A block can be mined if it is within this many blocks of the player.
     const float Reach = 3f;
     const int SnowHits = 1, IceHits = 2, StoneHits = 5;
+    // With the mouse button held down, the pickaxe hits once every this many seconds.
+    const float HeldHitSeconds = 0.4f;
     // A mined block slides to the player from anywhere within reach, and is drawn small as a loose item.
     const float DropPullRadius = Reach + 1.5f;
     const float DropScale = 0.35f;
@@ -46,6 +48,7 @@ public class Mining : MonoBehaviour
     // Hitting a different block starts again.
     Vector3Int damaged;
     int hits;
+    float nextHeldHit;
     SpriteRenderer cracks;
     Sprite[] crackSprites;
 
@@ -106,7 +109,12 @@ public class Mining : MonoBehaviour
         var square = new Vector2Int(damaged.x, damaged.y);
         cracks.enabled = hits > 0 && view.Active && view.Shows(square);
         if (cracks.enabled) cracks.transform.position = new Vector2(view.Along(square) + 0.5f, damaged.z + 0.5f);
-        if (GameInput.LeftClickPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
+        // A click is one hit. Holding the button down keeps hitting whatever the mouse is over, at a steady pace.
+        bool pressed = GameInput.LeftClickPressed();
+        bool held = !pressed && GameInput.LeftClickHeld() && Time.time >= nextHeldHit && inventory.Equipped == nook.Pickaxe;
+        if (!pressed && !held) return;
+        nextHeldHit = Time.time + HeldHitSeconds;
+        ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
     }
 
     static int HitsFor(PlanetOne.SideBlock block)

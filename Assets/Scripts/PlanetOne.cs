@@ -799,6 +799,23 @@ public class PlanetOne : MonoBehaviour
         return depth <= snowDepth[x, row] ? SideBlock.Snow : SideBlock.Stone;
     }
 
+    // Set by whatever stands on the ground and gets in the way, such as ferns and ice shards: true for a spot that
+    // has one. It is given the spot's position within the planet.
+    public System.Func<int, int, bool> Obstacle;
+
+    // True if something stands on the ground at a spot and blocks the way.
+    public bool ObstacleAt(int x, int y)
+    {
+        return Obstacle != null && Obstacle(WrapX(x), WrapY(y));
+    }
+
+    // True if the player cannot be in a space: there is a block there, or something standing on the ground there.
+    // A thing on the ground fills the one block of space above the ground it stands on.
+    public bool SolidAt(int x, int y, int level)
+    {
+        return SideBlockAt(x, y, level) != SideBlock.Air || (level == GroundAt(x, y) && ObstacleAt(x, y));
+    }
+
     // The material showing on top of a spot, as the top-down view draws it.
     byte SurfaceMaterial(int x, int y)
     {

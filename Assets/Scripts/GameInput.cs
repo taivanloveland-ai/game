@@ -63,6 +63,17 @@ public static class GameInput
 #endif
     }
 
+    // Left mouse button, for as long as it is held down: keeps the pickaxe swinging.
+    public static bool LeftClickHeld()
+    {
+        if (PointerOverInventory != null && PointerOverInventory()) return false;
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null && Mouse.current.leftButton.isPressed;
+#else
+        return Input.GetMouseButton(0);
+#endif
+    }
+
     // Right mouse button, on the frame it is pressed: use what the mouse is pointing at, such as the crafting nook.
     public static bool RightClickPressed()
     {

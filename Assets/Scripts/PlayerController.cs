@@ -208,7 +208,7 @@ public class PlayerController : MonoBehaviour
         {
             for (int level = bottom; level <= top; level++)
             {
-                if (planet.SideBlockAt(square.x, square.y, level) != PlanetOne.SideBlock.Air) return false;
+                if (planet.SolidAt(square.x, square.y, level)) return false;
             }
         }
         return true;
@@ -221,7 +221,7 @@ public class PlayerController : MonoBehaviour
         foreach (Vector2Int square in FeetSquares(position).allPositionsWithin)
         {
             int level = Mathf.FloorToInt(feet + 0.01f) - 1;
-            while (level >= -PlanetOne.GroundDepth && planet.SideBlockAt(square.x, square.y, level) == PlanetOne.SideBlock.Air) level--;
+            while (level >= -PlanetOne.GroundDepth && !planet.SolidAt(square.x, square.y, level)) level--;
             highest = Mathf.Max(highest, level + 1);
         }
         return highest;
@@ -231,7 +231,13 @@ public class PlayerController : MonoBehaviour
     int SurfaceUnder(Vector2 position)
     {
         int tallest = int.MinValue;
-        foreach (Vector2Int square in FeetSquares(position).allPositionsWithin) tallest = Mathf.Max(tallest, planet.TopAt(square.x, square.y));
+        foreach (Vector2Int square in FeetSquares(position).allPositionsWithin)
+        {
+            int surface = planet.TopAt(square.x, square.y);
+            // A fern or ice shard standing there is stood on, not in.
+            if (planet.SolidAt(square.x, square.y, surface)) surface++;
+            tallest = Mathf.Max(tallest, surface);
+        }
         return tallest;
     }
 
@@ -296,7 +302,7 @@ public class PlayerController : MonoBehaviour
         int bottom = Mathf.FloorToInt(feet + 0.01f), top = Mathf.FloorToInt(feet + Height - 0.01f);
         for (int level = bottom; level <= top; level++)
         {
-            if (planet.SideBlockAt(x, y, level) != PlanetOne.SideBlock.Air) return false;
+            if (planet.SolidAt(x, y, level)) return false;
         }
         return true;
     }
