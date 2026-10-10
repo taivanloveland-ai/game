@@ -64,6 +64,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **Mining in td** (asked later on 2026-10-10: "make it so you can mine in td"): with the pickaxe equipped, left clicking a square in td hits the top block of that square. Same reach (3 blocks), same hits (snow 1, ice 2, stone 5), and holding the button works too. Mining the top block of the square was Claude's choice, to mirror how building in td stacks on top.
 
+- **Chunkier black hole, Terraria-style path** (asked later on 2026-10-10): "the black hole needs to be a bit more pixelated and the curve of its path needs to be like terraria." The black hole is now painted at 24 pixels per block with hard-edged pixels (it was 128 and smooth; 24 was Claude's pick for "a bit"). The sun and black hole both now cross the sky the way Terraria's sun and moon do: steadily from just past the left edge to just past the right, along a low, wide parabola that peaks mid-screen. The black hole still tips with its path and is level at midnight.
+
 ## Building and houses (asked 2026-10-10)
 
 - **Longer hotbar** (asked later on 2026-10-10): the hotbar is 10 slots (keys 1 to 9, and 0 for the tenth), and the mouse wheel scrolls along it, going round at the ends. A block put in a slot keeps that slot when you run out: it is drawn faint with a 0, and the next ones you get are in the same slot, until you drag something else there or drag it off. His words: "if you put an item in a slot and run out then get the item again, teh item goes into that slot until it is switched with something."
