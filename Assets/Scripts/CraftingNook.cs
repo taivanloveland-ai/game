@@ -2,14 +2,14 @@ using UnityEngine;
 
 // A little nook in the side of the crashed ship, with a hammer and a wrench hanging in it. Right clicking it walks
 // the player over and opens a small crafting menu. It makes two tools: 8 ferns and 5 ice shards make an ice pickaxe,
-// and 10 ferns and 15 ice shards make an ice axe.
+// and 15 ferns and 10 ice shards make an ice axe.
 // The nook is on the ship's front, so it is used from the top-down view.
 public class CraftingNook : MonoBehaviour
 {
     const int FernsNeeded = 8;
     const int ShardsNeeded = 5;
-    // The ice axe takes 10 ferns and 15 ice shards.
-    const int AxeFernsNeeded = 10, AxeShardsNeeded = 15;
+    // The ice axe takes 15 ferns and 10 ice shards.
+    const int AxeFernsNeeded = 15, AxeShardsNeeded = 10;
     // The player has to be within a block of the nook to use it.
     const float Reach = 1.6f;
     // The walk to the nook is given up if the player stops making progress for this long.
