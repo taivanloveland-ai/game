@@ -79,6 +79,17 @@ public static class GameInput
 #endif
     }
 
+    // M opens and closes the world map.
+    public static bool MapPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        return k != null && k.mKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.M);
+#endif
+    }
+
     // Escape closes whatever menu is open.
     public static bool CancelPressed()
     {
