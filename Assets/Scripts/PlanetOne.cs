@@ -19,6 +19,9 @@ public class PlanetOne : MonoBehaviour
     public bool randomWorld = true;
     // The number the world is built from. The same seed always gives the same world.
     public int seed = 1;
+    // TEMPORARY, for testing: the player begins with an ice pickaxe already made, so mining can be tried straight away.
+    // Untick this (or remove it) when the game should make the player craft their first pickaxe again.
+    public bool startWithPickaxe = true;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship }
@@ -205,6 +208,7 @@ public class PlanetOne : MonoBehaviour
         // The crafting nook is set into the middle of the ship's front.
         var nook = gameObject.AddComponent<CraftingNook>();
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
+        if (startWithPickaxe) inventory.AddTool(nook.Pickaxe);
         gameObject.AddComponent<Mining>().Setup(this, controller, mining, inventory, hud, pickups, nook, cam);
         // The maps mark the ship at the middle of its hull.
         gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
