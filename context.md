@@ -89,6 +89,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - As built: a random world is re-picked (up to 20 times) if less than 80% of its snow and ice can be walked to from the crash site. The seed is printed in Unity's Console. On the Planet One object, unticking **Random World** and typing a **Seed** rebuilds that exact world.
 - Nothing is saved between plays yet, so a new world also means an empty inventory.
 
+## Temporary settings to undo later
+
+- **Player speed is 5 times normal, temporarily** (asked 2026-10-10). `speed` in `PlayerController.cs` is 25 and should go back to 5.
+- **A full day and night takes 2 minutes,** for testing (asked 2026-10-09). To be lengthened later.
+
 ## Bigger planet that loops (asked 2026-10-10)
 
 - **The map is 6 times larger,** and you can **walk up from your ship and make a full loop around the planet, as though it were a sphere.** On the map, if you get to the top and keep going up, you come in at the bottom.
