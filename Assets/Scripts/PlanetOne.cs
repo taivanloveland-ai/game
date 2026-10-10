@@ -80,12 +80,9 @@ public class PlanetOne : MonoBehaviour
         if (snowPicture != null)
         {
             SnowSprite = Sprite.Create(snowPicture, new Rect(0, 0, snowPicture.width, snowPicture.height), new Vector2(0.5f, 0.5f), snowPicture.width);
-            if (snowPicture.isReadable)
-            {
-                snowPixels = snowPicture.GetPixels32();
-                snowWidth = snowPicture.width;
-                snowHeight = snowPicture.height;
-            }
+            snowPixels = ReadPixels(snowPicture);
+            snowWidth = snowPicture.width;
+            snowHeight = snowPicture.height;
         }
 
         int cx = width / 2, cy = height / 2;
@@ -225,9 +222,9 @@ public class PlanetOne : MonoBehaviour
                 int drop = Mathf.Max(0, level - TopAt(x, y - 1, level));
                 int rims = (TopAt(x, y + 1, level) < level ? 1 : 0) | (TopAt(x - 1, y, level) < level ? 2 : 0) | (TopAt(x + 1, y, level) < level ? 4 : 0);
                 // Plain tiles get one of a few shades; tiles with an edge all share one so the edges line up cleanly.
-                // Snow drawn from the picture has four versions instead of three: the picture flipped each way.
+                // Snow drawn from the picture always looks exactly like the picture, so it has no shades.
                 bool pictured = kind[x, y] == Snow && snowPixels != null;
-                int variant = rims == 0 && drop == 0 ? rand.Next(pictured ? 4 : 3) : 0;
+                int variant = !pictured && rims == 0 && drop == 0 ? rand.Next(3) : 0;
                 terrain.SetTile(new Vector3Int(x, y, 0), TerrainTile(kind[x, y], ground[x, y], level, drop, rims, variant));
             }
         }
@@ -261,23 +258,39 @@ public class PlanetOne : MonoBehaviour
             if (y >= TilePixels) return PaintFace(material, x, y - TilePixels, facePixels);
             bool rim = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
-            return pictured ? SnowPicturePixel(fineX, fineY, variant, topColor) : topColor;
+            return pictured ? SnowPicturePixel(fineX, fineY) : topColor;
         });
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
     }
 
-    // One pixel of the top of a snow tile, taken from the snow picture and tinted for its height.
-    // The variant flips the picture left-right and top-bottom so neighbouring tiles do not all look alike.
-    Color32 SnowPicturePixel(int x, int y, int variant, Color32 tint)
+    // One pixel of the top of a snow tile, taken straight from the snow picture: one picture fills one tile,
+    // the same way up and in the same colours as it was drawn.
+    Color32 SnowPicturePixel(int x, int y)
     {
         int size = TilePixels * SnowPictureDetail;
-        if ((variant & 1) != 0) x = size - 1 - x;
-        if ((variant & 2) != 0) y = size - 1 - y;
         int pictureX = x * snowWidth / size, pictureY = y * snowHeight / size;
         Color32 c = snowPixels[(snowHeight - 1 - pictureY) * snowWidth + pictureX];
-        return new Color32((byte)(c.r * tint.r / 255), (byte)(c.g * tint.g / 255), (byte)(c.b * tint.b / 255), 255);
+        c.a = 255;
+        return c;
+    }
+
+    // Reads the pixels of a picture whether or not Unity imported it as readable, by drawing it and reading the drawing back.
+    static Color32[] ReadPixels(Texture2D picture)
+    {
+        RenderTexture previous = RenderTexture.active;
+        RenderTexture target = RenderTexture.GetTemporary(picture.width, picture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        Graphics.Blit(picture, target);
+        RenderTexture.active = target;
+        var copy = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false);
+        copy.ReadPixels(new Rect(0, 0, picture.width, picture.height), 0, 0);
+        copy.Apply();
+        RenderTexture.active = previous;
+        RenderTexture.ReleaseTemporary(target);
+        Color32[] pixels = copy.GetPixels32();
+        Destroy(copy);
+        return pixels;
     }
 
     // The south-facing side of a raised block. y counts down from the top of the face.
