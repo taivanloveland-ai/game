@@ -14,9 +14,17 @@ public class DayNight : MonoBehaviour
     [Range(0f, 1f)] public float time = 0.1f;
 
     const int Pixels = 16;
-    // The black hole is painted at the same fine scale as the snow picture: this many pixels to a block.
-    const int FinePixels = 128;
+    // The black hole is painted with this many pixels to a block, and shown with hard-edged pixels: chunky enough
+    // for the pixels to be seen, fine enough to keep its thin rings.
+    const int FinePixels = 24;
     const int BlackHoleWidth = 8 * FinePixels, BlackHoleHeight = 9 * FinePixels / 2;
+    // Each pixel of the black hole is the average of this many points across and down, so thin lines stay unbroken.
+    const int BlackHoleSamples = 4;
+    // The sun and black hole follow a low, wide arc like the sun and moon in Terraria: steadily across the screen
+    // from just past one edge to just past the other, rising and falling along a parabola. These are how far past
+    // the edge they start (as a share of half the screen's width), and how high the arc starts and peaks (as a
+    // share of half the screen's height, measured from the middle of the screen).
+    const float ArcOverhang = 1.12f, ArcStart = -0.2f, ArcPeak = 0.72f;
     // The black hole's disc of hot matter is painted level. It is turned as the black hole crosses the sky.
     const float DiscTilt = 0f;
     // How much of the cycle each sunrise and sunset takes to fade, on either side of the moment itself.
@@ -51,7 +59,7 @@ public class DayNight : MonoBehaviour
         sky.transform.localPosition = new Vector3(0f, 0f, 10f);
         stars = MakeSkySprite("Stars", PlanetOne.PaintSprite(448, 256, new Vector2(0.5f, 0.5f), PaintStars), -30);
         sun = MakeSkySprite("Sun", PlanetOne.PaintSprite(64, 64, new Vector2(0.5f, 0.5f), PaintSun), -20);
-        blackHole = MakeSkySprite("Black Hole", PlanetOne.PaintSprite(BlackHoleWidth, BlackHoleHeight, new Vector2(0.5f, 0.5f), FinePixels, true, PaintBlackHole), -20);
+        blackHole = MakeSkySprite("Black Hole", PlanetOne.PaintSprite(BlackHoleWidth, BlackHoleHeight, new Vector2(0.5f, 0.5f), FinePixels, false, PaintBlackHole), -20);
 
         // Top-down has no sky, so night there is a dark blue wash over the whole screen.
         var overlayObject = new GameObject("Night Overlay");
@@ -93,13 +101,15 @@ public class DayNight : MonoBehaviour
         overlay.color = new Color(NightOverlay.r, NightOverlay.g, NightOverlay.b, NightOverlay.a * Night);
         if (!sideView) return;
 
-        // Whichever of the two is up rises on the left, arcs over, and sets on the right.
+        // Whichever of the two is up comes in from the left, arcs over, and leaves on the right. It moves across at
+        // a steady pace, and its height follows a parabola that peaks in the middle of the screen.
         bool day = time < 0.5f;
-        float angle = (day ? time : time - 0.5f) * 2f * Mathf.PI;
-        float halfWidth = cam.orthographicSize * cam.aspect;
-        var position = new Vector3(-Mathf.Cos(angle) * halfWidth * 0.85f, 0.3f + Mathf.Sin(angle) * cam.orthographicSize * 0.72f, 0f);
+        float progress = (day ? time : time - 0.5f) * 2f;
+        float across = progress * 2f - 1f, lift = 1f - across * across;
+        float halfWidth = cam.orthographicSize * cam.aspect, halfHeight = cam.orthographicSize;
+        var position = new Vector3(across * halfWidth * ArcOverhang, Mathf.Lerp(ArcStart, ArcPeak, lift) * halfHeight, 0f);
         // Fade in and out near the horizon instead of popping.
-        float fade = Mathf.Clamp01(Mathf.Sin(angle) * 5f);
+        float fade = Mathf.Clamp01(lift * 6f);
 
         // The sun and the black hole cross the sky from east to west. They are in view looking along a column (west),
         // and out of sight looking along a row (north). The day carries on all the same.
@@ -109,7 +119,8 @@ public class DayNight : MonoBehaviour
         up.transform.localPosition = position;
         // The black hole keeps its disc lined up with its path across the sky, as a real one would: tipped up as it
         // rises, level at midnight when it is highest, and tipped down as it sets.
-        float turn = Mathf.Atan2(Mathf.Cos(angle) * cam.orthographicSize * 0.72f, Mathf.Sin(angle) * halfWidth * 0.85f) * Mathf.Rad2Deg;
+        float climbing = -2f * across * (ArcPeak - ArcStart) * halfHeight;
+        float turn = Mathf.Atan2(climbing, halfWidth * ArcOverhang) * Mathf.Rad2Deg;
         blackHole.transform.localRotation = Quaternion.Euler(0f, 0f, turn);
         up.color = new Color(1f, 1f, 1f, fade);
         stars.color = new Color(1f, 1f, 1f, Night);
@@ -132,7 +143,24 @@ public class DayNight : MonoBehaviour
     // and a dim glow round it all. Distances here are in blocks from the middle of the hole, which is 1 block in radius.
     static Color32 PaintBlackHole(int x, int y)
     {
-        float dx = (x + 0.5f - BlackHoleWidth / 2f) / FinePixels, dy = (BlackHoleHeight / 2f - (y + 0.5f)) / FinePixels;
+        Color sum = Color.clear;
+        for (int sy = 0; sy < BlackHoleSamples; sy++)
+        {
+            for (int sx = 0; sx < BlackHoleSamples; sx++)
+            {
+                Color c = BlackHoleAt(x + (sx + 0.5f) / BlackHoleSamples, y + (sy + 0.5f) / BlackHoleSamples);
+                // Weighted by how solid each point is, so see-through points do not dull the colour.
+                sum += new Color(c.r * c.a, c.g * c.a, c.b * c.a, c.a);
+            }
+        }
+        if (sum.a <= 0f) return new Color32(0, 0, 0, 0);
+        return new Color(sum.r / sum.a, sum.g / sum.a, sum.b / sum.a, sum.a / (BlackHoleSamples * BlackHoleSamples));
+    }
+
+    // The colour of the black hole's picture at a point, measured in its pixels from the top left.
+    static Color BlackHoleAt(float x, float y)
+    {
+        float dx = (x - BlackHoleWidth / 2f) / FinePixels, dy = (BlackHoleHeight / 2f - y) / FinePixels;
         // Along the tipped disc, and up from it.
         float tilt = DiscTilt * Mathf.Deg2Rad;
         float along = dx * Mathf.Cos(tilt) + dy * Mathf.Sin(tilt), up = -dx * Mathf.Sin(tilt) + dy * Mathf.Cos(tilt);
