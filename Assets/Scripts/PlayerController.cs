@@ -119,6 +119,9 @@ public class PlayerController : MonoBehaviour
         // the land in front. They are drawn darker the deeper they are, to show they are down in it.
         float ground = sideView ? 0f : FloorUnder(transform.position, altitude);
         float lift = sideView ? 0f : Mathf.Max(altitude, LowestDrawn) * PlanetOne.HeightScale;
+        // In a tunnel the ground overhead is drawn see-through, and the player is drawn on their own square beneath it.
+        Vector2Int square = Vector2Int.FloorToInt(GroundPosition);
+        if (!sideView && planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(altitude + 0.01f))) lift = 0f;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
         shadow.localPosition = new Vector3(0f, 0.1f + Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
