@@ -139,6 +139,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Top-down view is angled,** so you can see the edges of the cliffs (asked 2026-10-09).
 - **Ice is a little slippery** (asked 2026-10-09).
 - **Walking in snow is a little slower,** only a little (asked 2026-10-09). Currently 90% of full speed; ice is full speed.
+- **Player speed is 3/5 of the original** (asked 2026-10-10): 3 squares a second at a full walk, down from 5. Before settling on this he tried 5 times speed for a while to get around the big planet.
 - **Deeper blocks are gradually shaded in the side-scroller, and after the first 1.5 blocks it turns black** (asked 2026-10-09). This is for mining mode only, not the top-down view. It took three tries: Claude first shaded the low ground in top-down, then made a gentle shade that never reached black; Taivan corrected both.
 - **No ore or crystals in the world for now.** Taivan asked for the placeholder ones to be taken away (2026-10-09). Reason not given.
 

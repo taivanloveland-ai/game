@@ -11,7 +11,8 @@ public class PlayerController : MonoBehaviour
     // In the top-down view only the player's feet touch the ground: the bottom part of the rectangle.
     const float FeetDepth = 0.4f;
 
-    public float speed = 5f;
+    // Squares per second at a full walk. This is three fifths of the original 5.
+    public float speed = 3f;
     // Walking through snow is a little slower than full speed. 1 would be no slowdown.
     public float snowSpeedFactor = 0.9f;
     // How quickly the player can change speed on ice, in units per second each second. Lower is more slippery.
