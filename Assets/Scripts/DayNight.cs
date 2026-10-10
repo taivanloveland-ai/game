@@ -7,9 +7,8 @@ using UnityEngine;
 // At night the world also gets darker, in both views.
 public class DayNight : MonoBehaviour
 {
-    // Seconds for one full day and night, half of it day and half night.
-    // TEMPORARY, for testing: 1 minute. The length chosen for the game is 6 minutes (360).
-    public float cycleSeconds = 60f;
+    // Seconds for one full day and night: 24 minutes, 12 of day and 12 of night.
+    public float cycleSeconds = 1440f;
     // Where we are in the cycle: 0 is sunrise, 0.5 is sunset, and 1 is the next sunrise.
     [Range(0f, 1f)] public float time = 0.1f;
 
