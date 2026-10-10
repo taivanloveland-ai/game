@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Small things on the ground the player can collect: plants on the snow and sharp ice shards on the ice.
-// They show in both views. Right clicking one collects it if the player is at most a block away;
+// They show in both views. Left clicking one collects it if the player is at most a block away;
 // otherwise the player walks to it in a straight line first, jumping where needed. If a rock or the ship is in the way, nothing happens.
 public class Gatherables : MonoBehaviour
 {
@@ -272,11 +272,11 @@ public class Gatherables : MonoBehaviour
         {
             ShowNearby();
         }
-        if (GameInput.HarvestPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
+        if (GameInput.LeftClickPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
         if (target.HasValue) Walk();
     }
 
-    // Handles a right click at a point on screen (given in world units). Collects the thing there if it is in reach,
+    // Handles a left click at a point on screen (given in world units). Collects the thing there if it is in reach,
     // or starts walking to it if there is a way. Returns false, doing nothing, if there is no thing there or no way to it.
     public bool ClickAt(Vector2 point)
     {

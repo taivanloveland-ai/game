@@ -146,7 +146,7 @@ public class CraftingNook : MonoBehaviour
             return;
         }
         picture.position = Foot + new Vector2(0f, 0.02f);
-        if (GameInput.HarvestPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
+        if (GameInput.RightClickPressed()) ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
         if (walking) Walk();
         // Walking away or pressing Escape puts the menu away.
         if (Open && (!InReach || GameInput.CancelPressed())) Open = false;
