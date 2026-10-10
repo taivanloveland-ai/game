@@ -34,13 +34,26 @@ public class PlanetOne : MonoBehaviour
     // The tallest anything gets: rock standing 2 blocks above raised ground.
     public const int MaxTop = 3;
     // Blocks can be placed up to this many blocks above the lowest ground, and no higher.
-    public const int BuildLimit = 10;
+    public const int BuildLimit = 20;
 
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3, Stone = 4;
     // How many blocks deep the ground goes. The very bottom layer cannot be mined.
     public const int GroundDepth = 14;
     // A cliff face in the top-down view is never drawn taller than this many blocks; deeper holes look the same from above.
     const int MaxDrawnDrop = 4;
+    // The tallest south face a square is ever drawn with, in blocks.
+    const int MaxFaceBlocks = 20;
+
+    // A range of mountains crosses the far side of the planet from the crash site, running east to west: as far
+    // north of the ship as it is possible to go, which is also as far south. Its peaks are this many blocks tall.
+    const int MountainHeight = 14;
+    // The range reaches this many squares north and south of its middle, fading out over the last so many.
+    const int MountainHalfDepth = 140, MountainEdge = 50;
+    // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
+    // and reach full height where it is above that by the second.
+    const float MountainBlobSize = 44f, MountainAbove = 0.42f, MountainRise = 0.36f;
+    // Mountains this tall or taller have snow on top.
+    const int SnowCapFrom = 9;
     const int TilePixels = 16;
     const int FacePixels = 8;
     // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
@@ -157,6 +170,8 @@ public class PlanetOne : MonoBehaviour
     // How many blocks deep the ice and the snow go at each spot, seen from the side.
     byte[,] iceDepth;
     byte[,] snowDepth;
+    // How many blocks tall the mountain is at each spot, or 0 where there is none.
+    byte[,] mountain;
     GameObject topDownRoot;
     Tilemap terrain;
     Tilemap underground;
@@ -168,7 +183,7 @@ public class PlanetOne : MonoBehaviour
     readonly HashSet<Vector2Int> roomWalls = new HashSet<Vector2Int>();
     readonly Queue<Vector2Int> roomQueue = new Queue<Vector2Int>();
     static readonly Vector2Int[] Sides = { Vector2Int.left, Vector2Int.right, Vector2Int.up, Vector2Int.down };
-    readonly Dictionary<long, Tile> terrainTiles = new Dictionary<long, Tile>();
+    readonly Dictionary<(long, long), Tile> terrainTiles = new Dictionary<(long, long), Tile>();
     PlayerController player;
     // Mixed into each square's position to pick which look its tile has.
     int variantSeed;
@@ -227,6 +242,8 @@ public class PlanetOne : MonoBehaviour
         if (follow == null) follow = cam.gameObject.AddComponent<CameraFollow>();
         follow.target = controller.transform;
         follow.bounds = Unbounded;
+        // On high ground the player is drawn further up the screen, and the camera goes up with them.
+        follow.lift = () => controller.CameraLift;
 
         var mining = gameObject.AddComponent<MiningMode>();
         var dayNight = gameObject.AddComponent<DayNight>();
@@ -299,6 +316,7 @@ public class PlanetOne : MonoBehaviour
         var rand = new System.Random(seed);
         int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
         variantSeed = rand.Next();
+        int mountainSeed = rand.Next();
 
         kind = new byte[width, height];
         ground = new byte[width, height];
@@ -326,12 +344,21 @@ public class PlanetOne : MonoBehaviour
             for (int x = cx - 2; x < cx + 3; x++) kind[x, y] = Ship;
         }
 
+        RaiseMountains(cy, mountainSeed);
+
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
                 baseTop[x, y] = ground[x, y];
                 top[x, y] = (sbyte)ground[x, y];
+                if (mountain[x, y] > 0)
+                {
+                    // A mountain is rock from the ground up to its own height.
+                    baseTop[x, y] = (byte)Mathf.Max(mountain[x, y], ground[x, y]);
+                    top[x, y] = (sbyte)baseTop[x, y];
+                    continue;
+                }
                 if (kind[x, y] != Rock && kind[x, y] != Ship) continue;
                 int highest = 0;
                 for (int ny = y - 1; ny <= y + 1; ny++)
@@ -343,6 +370,61 @@ public class PlanetOne : MonoBehaviour
             }
         }
         ComputeGroundDepths(depthSeed);
+    }
+
+    // Works out how tall the mountains are everywhere and turns the land under them to rock. The slopes rise one
+    // block at a time, so any mountain can be climbed by jumping up its steps.
+    void RaiseMountains(int cy, int mountainSeed)
+    {
+        mountain = new byte[width, height];
+        int middle = cy + height / 2;
+        for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
+        {
+            int y = WrapY(middle + dy);
+            // Full height through the middle of the range, falling away to nothing at its north and south edges.
+            float strength = Mathf.Clamp01((MountainHalfDepth - Mathf.Abs(dy)) / (float)MountainEdge);
+            for (int x = 0; x < width; x++)
+            {
+                float rise = (LoopingNoise(x, y, MountainBlobSize, mountainSeed, 2) - MountainAbove) / MountainRise * strength;
+                mountain[x, y] = (byte)Mathf.Clamp(Mathf.RoundToInt(rise * MountainHeight), 0, MountainHeight);
+            }
+        }
+
+        // Wear down anything steeper than one block a square: no spot may stand more than a block above the lowest
+        // spot next to it. Sweeping forwards and then backwards a few times settles the whole range.
+        bool changed = true;
+        for (int pass = 0; pass < 8 && changed; pass++)
+        {
+            changed = false;
+            for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
+            {
+                int y = WrapY(middle + dy), south = WrapY(y - 1);
+                for (int x = 0; x < width; x++) changed |= WearDown(x, y, WrapX(x - 1), south);
+            }
+            for (int dy = MountainHalfDepth; dy >= -MountainHalfDepth; dy--)
+            {
+                int y = WrapY(middle + dy), north = WrapY(y + 1);
+                for (int x = width - 1; x >= 0; x--) changed |= WearDown(x, y, WrapX(x + 1), north);
+            }
+        }
+
+        for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
+        {
+            int y = WrapY(middle + dy);
+            for (int x = 0; x < width; x++)
+            {
+                if (mountain[x, y] > 0) kind[x, y] = Rock;
+            }
+        }
+    }
+
+    // Lowers a spot of mountain to one block above its lower neighbour to the side or above or below, if it is higher.
+    bool WearDown(int x, int y, int sideX, int nextY)
+    {
+        int limit = Mathf.Min(mountain[sideX, y], mountain[x, nextY]) + 1;
+        if (mountain[x, y] <= limit) return false;
+        mountain[x, y] = (byte)limit;
+        return true;
     }
 
     // How much of the walkable land can be reached on foot from the crash site, from 0 to 1.
@@ -561,7 +643,7 @@ public class PlanetOne : MonoBehaviour
     // the face stops a few blocks down, since deeper holes look the same from above.
     static int FaceDrop(int level, int south)
     {
-        return Mathf.Max(0, level - Mathf.Max(south, Mathf.Min(0, level - MaxDrawnDrop)));
+        return Mathf.Clamp(level - Mathf.Max(south, Mathf.Min(0, level - MaxDrawnDrop)), 0, MaxFaceBlocks);
     }
 
     // What each block of a square's south face is, from the top down, three bits a block: the block's own material,
@@ -643,7 +725,8 @@ public class PlanetOne : MonoBehaviour
     // is lower. FaceBlocks says what each block of that face is; see FaceBlocks above.
     Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, long faceBlocks = 0)
     {
-        long key = material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 15) | (variant << 18) | (faceBlocks << 22);
+        // The south face can be up to MaxFaceBlocks tall, which is too much to fit in one number with the rest.
+        var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (variant << 19)), faceBlocks);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         BlockPicture picture = PictureFor(material);
@@ -780,7 +863,9 @@ public class PlanetOne : MonoBehaviour
             case Stone:
                 if (y < 2) return RockEdge;
                 if (foot) return CliffFoot;
-                bool crack = (x == 3 && y > 4) || (x == 8 && y < 11) || (x == 12 && y > 6);
+                // The cracks repeat every two blocks down a tall face.
+                int crackY = y % (FacePixels * 2);
+                bool crack = (x == 3 && crackY > 4) || (x == 8 && crackY < 11) || (x == 12 && crackY > 6);
                 return crack ? CliffCrack : CliffFace;
             default: return foot ? SnowFoot : SnowFace;
         }
@@ -910,6 +995,8 @@ public class PlanetOne : MonoBehaviour
         if (k == Rock)
         {
             if (level < surface) return SideBlock.Stone;
+            // The tallest mountains have a block of snow on top.
+            if (level == baseTop[x, row] - 1 && mountain[x, row] >= SnowCapFrom) return SideBlock.Snow;
             return level == baseTop[x, row] - 1 ? SideBlock.RockTop : SideBlock.Rock;
         }
         if (level >= surface) return SideBlock.Ship;
