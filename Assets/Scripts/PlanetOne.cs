@@ -10,6 +10,9 @@ public class PlanetOne : MonoBehaviour
 {
     public int width = 160;
     public int height = 160;
+    // The world is different every time the game starts. Untick this to always build the world from the seed below.
+    public bool randomWorld = true;
+    // The number the world is built from. The same seed always gives the same world.
     public int seed = 1;
 
     // What one block of a row looks like from the side in mining mode.
@@ -30,6 +33,8 @@ public class PlanetOne : MonoBehaviour
     // Grey rocks and the ship stand this many blocks above the highest ground next to them, so a 1.5 block jump never clears them.
     const int RockHeight = 2;
     const int MaxIceDepth = 4;
+    // A random world must let the player walk to at least this share of its snow and ice from the crash site.
+    const float MinReachableShare = 0.8f;
     const int Blocked = 99;
 
     public static readonly Color[] RockColors = { new Color32(93, 107, 126, 255), new Color32(84, 98, 117, 255) };
@@ -107,7 +112,18 @@ public class PlanetOne : MonoBehaviour
         IceSideSprites = MakeIceSideSprites();
 
         int cx = width / 2, cy = height / 2;
-        BuildTerrain(cx, cy);
+        var picker = new System.Random();
+        if (randomWorld) seed = picker.Next(1, 1000000);
+        System.Random rand = GenerateLand(cx, cy);
+        // A random world is thrown away and picked again if rock walls off too much of it from the crash site.
+        for (int tries = 0; randomWorld && tries < 20 && ReachableShare(cx, cy) < MinReachableShare; tries++)
+        {
+            seed = picker.Next(1, 1000000);
+            rand = GenerateLand(cx, cy);
+        }
+        // Logged so a world worth keeping can be built again by typing its seed in and unticking Random World.
+        Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(ReachableShare(cx, cy) * 100f) + "% of its snow and ice can be walked to)");
+        BuildTerrain(rand);
 
         Camera cam = Camera.main;
         if (cam == null)
@@ -178,7 +194,9 @@ public class PlanetOne : MonoBehaviour
         return controller;
     }
 
-    void BuildTerrain(int cx, int cy)
+    // Works out the shape of the world from the seed: what each spot is made of and how high it is.
+    // Nothing is drawn yet. Returns the random number source, which the drawing carries on from.
+    System.Random GenerateLand(int cx, int cy)
     {
         var rand = new System.Random(seed);
         float ox = (float)rand.NextDouble() * 1000f, oy = (float)rand.NextDouble() * 1000f;
@@ -228,7 +246,44 @@ public class PlanetOne : MonoBehaviour
             }
         }
         ComputeGroundDepths(ox, oy);
+        return rand;
+    }
 
+    // How much of the walkable land can be reached on foot from the crash site, from 0 to 1.
+    // Raised ground does not count as a barrier, since the player can jump onto it; rock and the ship do.
+    float ReachableShare(int cx, int cy)
+    {
+        var seen = new bool[width, height];
+        var queue = new Queue<Vector2Int>();
+        var start = new Vector2Int(cx, cy - 1);
+        seen[start.x, start.y] = true;
+        queue.Enqueue(start);
+        var steps = new[] { Vector2Int.left, Vector2Int.right, Vector2Int.up, Vector2Int.down };
+        int reached = 0;
+        while (queue.Count > 0)
+        {
+            Vector2Int p = queue.Dequeue();
+            reached++;
+            foreach (Vector2Int step in steps)
+            {
+                Vector2Int n = p + step;
+                if (!InBounds(n.x, n.y) || seen[n.x, n.y] || kind[n.x, n.y] == Rock || kind[n.x, n.y] == Ship) continue;
+                seen[n.x, n.y] = true;
+                queue.Enqueue(n);
+            }
+        }
+
+        int walkable = 0;
+        foreach (byte k in kind)
+        {
+            if (k != Rock && k != Ship) walkable++;
+        }
+        return reached / (float)walkable;
+    }
+
+    // Draws the top-down view of the land.
+    void BuildTerrain(System.Random rand)
+    {
         var grid = new GameObject("Grid").AddComponent<Grid>();
         grid.transform.SetParent(transform, false);
         topDownRoot = grid.gameObject;
