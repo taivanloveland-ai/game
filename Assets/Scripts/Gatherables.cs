@@ -13,6 +13,8 @@ public class Gatherables : MonoBehaviour
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.025;
     const double ShardDensity = 0.03;
+    // How far across the drawn fern picture the foot of its stem is, from the left edge, as a share of its width.
+    const float FernFootAcross = 0.557f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
     // Where in its square a thing stands, measured up from the near edge.
@@ -122,6 +124,21 @@ public class Gatherables : MonoBehaviour
             char c = FernPicture[y][x];
             return c == 'D' ? FernDark : c == 'L' ? FernLight : Clear;
         });
+        // The drawn fern picture replaces the pixel one above, standing in the world as well as loose and in the inventory.
+        var fernPicture = Resources.Load<Texture2D>("Art/Fern");
+        if (fernPicture != null)
+        {
+            float pixelsPerUnit = fernPicture.height / PlantHeight;
+            var whole = new Rect(0, 0, fernPicture.width, fernPicture.height);
+            for (int level = 0; level < plant.Sprites.Length; level++)
+            {
+                // The pivot is the foot of the stem. Dropping it below the picture draws the fern higher, for raised ground.
+                var pivot = new Vector2(FernFootAcross, -level * PlanetOne.HeightScale / PlantHeight);
+                plant.Sprites[level] = Sprite.Create(fernPicture, whole, pivot, pixelsPerUnit);
+            }
+            plant.Item = new Item(plant.Item.Name, plant.Sprites[0]);
+            plant.Width = fernPicture.width / pixelsPerUnit;
+        }
         Kind shard = MakeKind("Ice shard", ShardPicture[0].Length, ShardPicture.Length, ShardPixelsPerUnit, (x, y) =>
         {
             char c = ShardPicture[y][x];
