@@ -59,6 +59,9 @@ public class PlayerController : MonoBehaviour
     // True on any frame the player is pressing a movement key or jump.
     public bool HasManualInput { get; private set; }
 
+    // How far up the screen the ground the player stands on is drawn in the top-down view, for the camera to follow.
+    public float CameraLift { get; private set; }
+
     // The player's feet height in blocks, in either view.
     public float FeetHeight => sideView ? body.position.y - Height / 2f : altitude;
 
@@ -125,6 +128,8 @@ public class PlayerController : MonoBehaviour
         // In a tunnel the ground overhead is drawn see-through, and the player is drawn on their own square beneath it.
         Vector2Int square = Vector2Int.FloorToInt(GroundPosition);
         if (!sideView && planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(altitude + 0.01f))) lift = 0f;
+        // The camera follows the ground the player is on, not each jump.
+        CameraLift = sideView || lift == 0f ? 0f : Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
         shadow.localPosition = new Vector3(0f, 0.1f + Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
