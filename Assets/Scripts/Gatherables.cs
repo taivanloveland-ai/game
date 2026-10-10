@@ -53,7 +53,8 @@ public class Gatherables : MonoBehaviour
     };
     // The same blues as the ice it grows from, so a shard reads as part of the ice: a lit side a little paler than
     // the ice, a middle that matches it, and a far side a little deeper.
-    static readonly Color32 ShardLight = new Color32(204, 231, 244, 255), ShardShade = new Color32(159, 201, 224, 255), ShardDark = new Color32(122, 170, 201, 255);
+    // These follow the drawn ice picture: its pale streak colour, its main blue, and a deeper blue.
+    static readonly Color32 ShardLight = new Color32(180, 223, 244, 255), ShardShade = new Color32(109, 194, 233, 255), ShardDark = new Color32(74, 156, 203, 255);
     // The ice shard, one text row per pixel row from the top. It is long and gently curved, thick at the base and
     // tapering to a point, like the pick of a pickaxe. The base spreads out where it joins the ice.
     // L is the lit side, S the middle, D the far side.

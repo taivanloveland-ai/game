@@ -23,8 +23,8 @@ public class PlanetOne : MonoBehaviour
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3;
     const int TilePixels = 16;
     const int FacePixels = 8;
-    // The snow picture is drawn with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
-    const int SnowPictureDetail = 8;
+    // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
+    const int PictureDetail = 8;
     // Grey rocks and the ship stand this many blocks above the highest ground next to them, so a 1.5 block jump never clears them.
     const int RockHeight = 2;
     const int MaxIceDepth = 4;
@@ -54,12 +54,19 @@ public class PlanetOne : MonoBehaviour
 
     // A plain white one-tile sprite; tint it to get a coloured block.
     public Sprite Square { get; private set; }
-    // The drawn snow picture as a one-block sprite, or null if there is no picture.
-    public Sprite SnowSprite { get; private set; }
+    // The drawn pictures for snow and ice as one-block sprites, or null where there is no picture.
+    public Sprite SnowSprite => snowPicture?.Sprite;
+    public Sprite IceSprite => icePicture?.Sprite;
 
-    // The snow picture's pixels, for painting it onto top-down tiles.
-    Color32[] snowPixels;
-    int snowWidth, snowHeight;
+    // A drawn picture of a block: as a sprite for mining mode, and as pixels for painting onto top-down tiles.
+    class BlockPicture
+    {
+        public Sprite Sprite;
+        public Color32[] Pixels;
+        public int Width, Height;
+    }
+
+    BlockPicture snowPicture, icePicture;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -75,15 +82,9 @@ public class PlanetOne : MonoBehaviour
     {
         Square = PaintSprite((x, y) => new Color32(255, 255, 255, 255));
 
-        // The drawn snow picture, if there is one, is used for the top of snow tiles and for snow blocks in mining mode.
-        var snowPicture = Resources.Load<Texture2D>("Art/SnowBlock");
-        if (snowPicture != null)
-        {
-            SnowSprite = Sprite.Create(snowPicture, new Rect(0, 0, snowPicture.width, snowPicture.height), new Vector2(0.5f, 0.5f), snowPicture.width);
-            snowPixels = ReadPixels(snowPicture);
-            snowWidth = snowPicture.width;
-            snowHeight = snowPicture.height;
-        }
+        // Drawn pictures, where they exist, are used for the top of tiles here and for blocks in mining mode.
+        snowPicture = LoadBlockPicture("Art/SnowBlock");
+        icePicture = LoadBlockPicture("Art/IceBlock");
 
         int cx = width / 2, cy = height / 2;
         BuildTerrain(cx, cy);
@@ -222,8 +223,8 @@ public class PlanetOne : MonoBehaviour
                 int drop = Mathf.Max(0, level - TopAt(x, y - 1, level));
                 int rims = (TopAt(x, y + 1, level) < level ? 1 : 0) | (TopAt(x - 1, y, level) < level ? 2 : 0) | (TopAt(x + 1, y, level) < level ? 4 : 0);
                 // Plain tiles get one of a few shades; tiles with an edge all share one so the edges line up cleanly.
-                // Snow drawn from the picture always looks exactly like the picture, so it has no shades.
-                bool pictured = kind[x, y] == Snow && snowPixels != null;
+                // A tile drawn from a picture always looks exactly like the picture, so it has no shades.
+                bool pictured = PictureFor(kind[x, y]) != null;
                 int variant = !pictured && rims == 0 && drop == 0 ? rand.Next(3) : 0;
                 terrain.SetTile(new Vector3Int(x, y, 0), TerrainTile(kind[x, y], ground[x, y], level, drop, rims, variant));
             }
@@ -236,11 +237,12 @@ public class PlanetOne : MonoBehaviour
         int key = material | (groundLevel << 2) | (level << 3) | (drop << 6) | (rims << 9) | (variant << 12);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
-        bool pictured = material == Snow && snowPixels != null;
+        BlockPicture picture = PictureFor(material);
+        bool pictured = picture != null;
         Color32 topColor, rimColor;
         switch (material)
         {
-            case Ice: topColor = IceColors[groundLevel][variant]; rimColor = IceRim; break;
+            case Ice: topColor = IceColors[groundLevel][pictured ? 0 : variant]; rimColor = IceRim; break;
             case Rock: topColor = RockColors[variant % RockColors.Length]; rimColor = RockEdge; break;
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
             default: topColor = SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
@@ -250,30 +252,50 @@ public class PlanetOne : MonoBehaviour
         int spriteHeight = TilePixels + facePixels;
         // The pivot sits where the far edge of the square is on flat ground, so higher blocks are drawn shifted up.
         var pivot = new Vector2(0.5f, (spriteHeight - level * FacePixels) / (float)spriteHeight);
-        // Tiles that use the snow picture are painted with several picture pixels for each ordinary tile pixel.
-        int detail = pictured ? SnowPictureDetail : 1;
+        // Tiles that use a picture are painted with several picture pixels for each ordinary tile pixel.
+        int detail = pictured ? PictureDetail : 1;
         Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, pictured, (fineX, fineY) =>
         {
             int x = fineX / detail, y = fineY / detail;
             if (y >= TilePixels) return PaintFace(material, x, y - TilePixels, facePixels);
             bool rim = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
-            return pictured ? SnowPicturePixel(fineX, fineY) : topColor;
+            return pictured ? PicturePixel(picture, fineX, fineY) : topColor;
         });
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
     }
 
-    // One pixel of the top of a snow tile, taken straight from the snow picture: one picture fills one tile,
-    // the same way up and in the same colours as it was drawn.
-    Color32 SnowPicturePixel(int x, int y)
+    // The drawn picture for a kind of ground, or null if that kind is drawn as flat colour.
+    BlockPicture PictureFor(byte material)
     {
-        int size = TilePixels * SnowPictureDetail;
-        int pictureX = x * snowWidth / size, pictureY = y * snowHeight / size;
-        Color32 c = snowPixels[(snowHeight - 1 - pictureY) * snowWidth + pictureX];
+        return material == Snow ? snowPicture : material == Ice ? icePicture : null;
+    }
+
+    // One pixel of the top of a tile, taken straight from its picture: one picture fills one tile,
+    // the same way up and in the same colours as it was drawn.
+    static Color32 PicturePixel(BlockPicture picture, int x, int y)
+    {
+        int size = TilePixels * PictureDetail;
+        int pictureX = x * picture.Width / size, pictureY = y * picture.Height / size;
+        Color32 c = picture.Pixels[(picture.Height - 1 - pictureY) * picture.Width + pictureX];
         c.a = 255;
         return c;
+    }
+
+    // Loads a block picture from the art folder. Returns null if there is no picture of that name.
+    static BlockPicture LoadBlockPicture(string path)
+    {
+        var texture = Resources.Load<Texture2D>(path);
+        if (texture == null) return null;
+        return new BlockPicture
+        {
+            Sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), texture.width),
+            Pixels = ReadPixels(texture),
+            Width = texture.width,
+            Height = texture.height,
+        };
     }
 
     // Reads the pixels of a picture whether or not Unity imported it as readable, by drawing it and reading the drawing back.

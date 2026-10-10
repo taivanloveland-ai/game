@@ -413,14 +413,15 @@ public class MiningMode : MonoBehaviour
         if (darker && block != PlanetOne.SideBlock.Ship) color *= 0.965f;
         color.a = 1f;
 
-        // Snow blocks use the drawn snow picture when there is one, exactly as drawn: no colouring and no flipping.
-        bool pictured = block == PlanetOne.SideBlock.Snow && planet.SnowSprite != null;
-        if (pictured) color = Color.white;
+        // Snow and ice blocks use their drawn pictures when there are any, exactly as drawn: no colouring and no flipping.
+        Sprite picture = block == PlanetOne.SideBlock.Snow ? planet.SnowSprite : block == PlanetOne.SideBlock.Ice ? planet.IceSprite : null;
+        if (picture != null) color = Color.white;
         Color32 c = color;
-        int key = (c.r << 16) | (c.g << 8) | c.b | (pictured ? 1 << 24 : 0);
+        // Snow and ice pictures are both drawn white, so the kind of block is part of the key to keep them apart.
+        int key = (c.r << 16) | (c.g << 8) | c.b | (picture != null ? (int)block << 24 : 0);
         if (!tiles.TryGetValue(key, out Tile tile))
         {
-            tile = PlanetOne.MakeTile(color, pictured ? planet.SnowSprite : planet.Square, true);
+            tile = PlanetOne.MakeTile(color, picture != null ? picture : planet.Square, true);
             tiles[key] = tile;
         }
         return tile;
