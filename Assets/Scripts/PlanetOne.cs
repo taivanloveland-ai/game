@@ -57,6 +57,12 @@ public class PlanetOne : MonoBehaviour
     // its own noise is above the third.
     const float RockAbove = 0.62f, IceBelow = 0.38f, RaisedAbove = 0.6f;
 
+    // Ground over the player turns see-through this many squares around them, wherever the tunnel they are in is open.
+    const int SeeThroughRadius = 2;
+    static readonly Color RoofTint = new Color(1f, 1f, 1f, 0.3f);
+    // The floor of a tunnel is drawn darker than land in the open.
+    static readonly Color UndergroundTint = new Color(0.5f, 0.56f, 0.68f);
+
     // Camera limits that never come into play, for a world with no edges.
     public static readonly Rect Unbounded = new Rect(-1e7f, -1e7f, 2e7f, 2e7f);
 
@@ -133,6 +139,9 @@ public class PlanetOne : MonoBehaviour
     byte[,] snowDepth;
     GameObject topDownRoot;
     Tilemap terrain;
+    Tilemap underground;
+    // The squares whose ground is currently see-through because the player is under it.
+    readonly List<Vector2Int> seeThrough = new List<Vector2Int>();
     readonly Dictionary<int, Tile> terrainTiles = new Dictionary<int, Tile>();
     PlayerController player;
     // Mixed into each square's position to pick which look its tile has.
@@ -340,11 +349,62 @@ public class PlanetOne : MonoBehaviour
         // they stand on and behind taller tiles nearer the bottom of the screen.
         terrain.tileAnchor = new Vector3(0.5f, 1f, 0f);
         terrain.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Individual;
+
+        // Drawn beneath the land: the floor of a tunnel, seen through the ground above it when that turns see-through.
+        underground = MakeTilemap(grid, "Underground", -1);
+        underground.tileAnchor = terrain.tileAnchor;
+        underground.color = UndergroundTint;
     }
 
     void Update()
     {
-        if (topDownRoot.activeSelf) ShowLandAround(Vector2Int.FloorToInt(player.GroundPosition));
+        if (!topDownRoot.activeSelf) return;
+        ShowLandAround(Vector2Int.FloorToInt(player.GroundPosition));
+        ShowUnderRoof();
+    }
+
+    // True if a spot is open at a level but has ground over it: the inside of a tunnel or a cave.
+    public bool IsTunnel(int x, int y, int level)
+    {
+        return SideBlockAt(x, y, level) == SideBlock.Air && TopAt(x, y) > level;
+    }
+
+    // When the player is under a roof, the ground above them and above the open tunnel around them turns see-through,
+    // so they and the tunnel floor can be seen from above. It is redone every frame, which also keeps it right when
+    // tiles are replaced as the player moves.
+    void ShowUnderRoof()
+    {
+        foreach (Vector2Int cell in seeThrough)
+        {
+            terrain.SetColor((Vector3Int)cell, Color.white);
+            underground.SetTile((Vector3Int)cell, null);
+        }
+        seeThrough.Clear();
+
+        int level = Mathf.FloorToInt(player.FeetHeight + 0.01f);
+        Vector2Int at = Vector2Int.FloorToInt(player.GroundPosition);
+        if (!IsTunnel(at.x, at.y, level)) return;
+        for (int y = at.y - SeeThroughRadius; y <= at.y + SeeThroughRadius; y++)
+        {
+            for (int x = at.x - SeeThroughRadius; x <= at.x + SeeThroughRadius; x++)
+            {
+                if (!IsTunnel(x, y, level)) continue;
+                var cell = new Vector3Int(x, y, 0);
+                // A tile normally keeps its own colour; this lets this one square be faded.
+                terrain.SetTileFlags(cell, TileFlags.None);
+                terrain.SetColor(cell, RoofTint);
+                underground.SetTile(cell, TunnelFloorTile(x, y, level));
+                seeThrough.Add(new Vector2Int(x, y));
+            }
+        }
+    }
+
+    // The tile for the floor of a tunnel: whatever block is under the open space at that level.
+    Tile TunnelFloorTile(int x, int y, int level)
+    {
+        int floor = level - 1;
+        while (floor > -GroundDepth && SideBlockAt(x, y, floor) == SideBlock.Air) floor--;
+        return TerrainTile(MaterialOf(SideBlockAt(x, y, floor)), 0, 0, 0, 0, 0);
     }
 
     // Makes sure the tiles around a square are on the tilemap, and takes away the ones that have fallen out of range.
@@ -656,7 +716,13 @@ public class PlanetOne : MonoBehaviour
     // The material showing on top of a spot, as the top-down view draws it.
     byte SurfaceMaterial(int x, int y)
     {
-        switch (SideBlockAt(x, y, TopAt(x, y) - 1))
+        return MaterialOf(SideBlockAt(x, y, TopAt(x, y) - 1));
+    }
+
+    // The top-down material for a block.
+    static byte MaterialOf(SideBlock block)
+    {
+        switch (block)
         {
             case SideBlock.Snow: return Snow;
             case SideBlock.Ice: return Ice;
