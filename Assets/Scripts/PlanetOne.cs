@@ -56,21 +56,25 @@ public class PlanetOne : MonoBehaviour
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
     const float MountainBlobSize = 84f, MountainAbove = 0.4f, MountainRise = 0.4f;
-    // Ridges and peaks: how many squares apart the ridges are, and how much of a mountain's height they make.
-    const float RidgeBlobSize = 40f, RidgeShare = 0.55f;
-    // How a mountain rises, in sixths of a square for each block of height, from the foot up: foothills that ramp up
-    // a block every two squares (they can be walked and jumped up), then a block a square, then the steep top, two
-    // or three blocks a square, up to a point. No spot rises faster than this from the spot next to it.
+    // Ridges and peaks: roughly how many squares apart the ridges are.
+    const float RidgeBlobSize = 40f;
+    // Along the ridges, peaks are about this many squares apart, and how much they stand above the saddles between.
+    const float PeakBlobSize = 28f, PeakShare = 0.6f;
+    // How a mountain rises, after his sketch and his photo of the Himalayas: a long, gentle rise at the foot that gets
+    // steeper and steeper, up to a narrow spire at the peak. For each band of height, this is how wide each block of
+    // rise is, in sixths of a square: 3 squares a block at the foot, then 2, then 1, then two blocks a square, three,
+    // and at the very top six blocks a square. No spot rises faster than this from the spot next to it.
     const int SlopeUnitsPerSquare = 6;
-    const int FoothillsTo = 6, MiddleTo = 20;
+    static readonly int[] SlopeBandTops = { 5, 10, 16, 24, 32, 40 };
+    static readonly int[] SlopeBandWidths = { 18, 12, 6, 3, 2, 1 };
     // Between these heights the mountainside is broken into flat ledges this many blocks apart, with sheer cliff faces
     // between them: good places for cave mouths later. A cliff of 4 cannot be jumped up.
-    const int LedgesFrom = 8, LedgesTo = 20, LedgeStep = 4;
+    const int LedgesFrom = 10, LedgesTo = 22, LedgeStep = 4;
     // Here and there, in small patches about this many squares across, the ledges are not cut, so the slope there
     // happens to give a way up to the next ledge. Patches stand where their noise is above this.
     const float WayUpBlobSize = 14f, WayUpAbove = 0.8f;
     // Mountains this tall or taller have snow on top.
-    const int SnowCapFrom = 26;
+    const int SnowCapFrom = 22;
     const int TilePixels = 16;
     const int FacePixels = 8;
     // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
@@ -435,9 +439,13 @@ public class PlanetOne : MonoBehaviour
             {
                 float rise = Mathf.Clamp01((LoopingNoise(x, y, MountainBlobSize, mountainSeed, 2) - MountainAbove) / MountainRise) * strength;
                 if (rise <= 0f) continue;
-                // Ridges: sharp lines of high ground where the ridge noise is near its middle, so peaks stand in rows.
+                // Ridges: sharp lines of high ground where the ridge noise is near its middle, with valleys between. This
+                // only says how high a spot may be; how high it really is comes from how far it is from lower ground,
+                // below, which gives every mountain its long foot and steep, pointed top.
                 float ridge = 1f - Mathf.Abs(LoopingNoise(x, y, RidgeBlobSize, mountainSeed + 3, 3) * 2f - 1f);
-                float wanted = rise * MountainHeight * (1f - RidgeShare + RidgeShare * Mathf.Pow(ridge, 1.5f));
+                // Along a ridge, peaks stand where this noise is high, with saddles between them.
+                float peak = LoopingNoise(x, y, PeakBlobSize, mountainSeed + 5, 2);
+                float wanted = MountainHeight * Mathf.Clamp01(rise * 2f) * ridge * ridge * (1f - PeakShare + PeakShare * peak);
                 int tall = Mathf.Clamp(Mathf.RoundToInt(wanted), 0, MountainHeight);
                 // Kept for now as how far in from the foot of the mountain a spot this tall has to be.
                 mountain[x, y] = (byte)RunTo(tall);
@@ -494,11 +502,19 @@ public class PlanetOne : MonoBehaviour
         int run = 0;
         for (int level = 1; level <= tall; level++)
         {
-            if (level <= FoothillsTo) run += 12;
-            else if (level <= MiddleTo) run += 6;
-            else run += level % 2 == 0 ? 3 : 2;
+            run += SlopeAt(level);
         }
         return run;
+    }
+
+    // How wide one block of rise is at a height of the mountainside, in sixths of a square.
+    static int SlopeAt(int level)
+    {
+        for (int band = 0; band < SlopeBandTops.Length; band++)
+        {
+            if (level <= SlopeBandTops[band]) return SlopeBandWidths[band];
+        }
+        return SlopeBandWidths[SlopeBandWidths.Length - 1];
     }
 
     // Lowers a spot of mountain to at most one square further in than its lower neighbour to the side or above or
