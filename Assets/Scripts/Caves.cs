@@ -1,10 +1,11 @@
+using System.Collections.Generic;
 using UnityEngine;
 
-// The frost caves. Their mouths are dark holes with icicles, high in the cliffs of the mountains round the poles,
-// on ledges that cannot be reached without digging or building. Walking into one fades the screen to black and
-// then into the cave: stone tunnels and rooms, seen without a roof, zoomed in twice as close, with the mini map
-// dark. "FROST CAVE" comes up across the screen and the cave is marked on the maps. Walking back into the hole the
-// player came in by takes them back out onto the ledge.
+// The frost caves. Their mouths are natural holes dug out of real blocks in the cliffs of the mountains round the
+// poles, dark inside with icicles hanging at the top, on ledges that cannot be reached without digging or building.
+// Walking into one fades the screen to black and then into the cave: stone tunnels and rooms, seen without a roof,
+// zoomed in twice as close, with the mini map dark. "FROST CAVE" comes up across the screen and the cave is marked
+// on the maps. The way out is a hole like it in the cave wall where the player arrives, back onto the ledge.
 //
 // A cave is a world of its own (see PlanetOne), so digging and building in it does not change the land above.
 public class Caves : MonoBehaviour
@@ -15,18 +16,17 @@ public class Caves : MonoBehaviour
     const float TitleSeconds = 3f, TitleFadeSeconds = 1f;
     // How much of the world the camera shows: half as much in a cave, which zooms in twice as close.
     const float SurfaceZoom = 7f, CaveZoom = 3.5f;
-    // The hole is painted with this many pixels a block, this many wide and tall.
-    const int HolePixels = 32, HoleWide = 28, HoleTall = 32;
-    // The hole is only drawn when the player is within this many squares of it.
+    // The darkness in each dug-out block of the opening is painted with this many pixels a block: a block wide and
+    // half a block tall, which is how the side of one block shows from above.
+    const int DarkPixels = 32;
+    // A hole is only drawn when the player is within this many squares of it.
     const float ShowWithin = 60f;
 
-    static readonly Color32 HoleDark = new Color32(6, 8, 15, 255), HoleEdge = new Color32(18, 24, 38, 255);
-    static readonly Color32 RimStone = new Color32(150, 170, 192, 255), RimFrost = new Color32(226, 238, 248, 255);
+    static readonly Color32 HoleDark = new Color32(6, 8, 15, 255), HoleDeep = new Color32(12, 16, 27, 255);
     static readonly Color32 Icicle = new Color32(196, 230, 248, 255), IcicleLight = new Color32(240, 250, 255, 255);
-    static readonly Color32 Clear = new Color32(0, 0, 0, 0);
-    // Where the icicles hang across the top of the hole, from its middle, in pixels, and how long each is.
-    static readonly int[] IcicleAt = { -8, -5, -2, 1, 4, 7 };
-    static readonly int[] IcicleLength = { 4, 7, 3, 8, 5, 4 };
+    // Where icicles hang along the top of an opening, in pixels from the left of a block, and how long each is.
+    static readonly int[] IcicleAt = { 3, 9, 16, 23, 28 };
+    static readonly int[] IcicleLength = { 5, 8, 4, 7, 4 };
 
     PlanetOne planet;
     PlayerController player;
@@ -38,9 +38,10 @@ public class Caves : MonoBehaviour
     Pickups pickups;
     WorldMap map;
 
-    Texture2D holePicture;
-    readonly System.Collections.Generic.Dictionary<int, Sprite> topDownHoles = new System.Collections.Generic.Dictionary<int, Sprite>();
-    SpriteRenderer topDownHole, sideHole;
+    // The dark pictures for the opening, by the level of the block and whether icicles hang from its top.
+    readonly Dictionary<(int, bool), Sprite> darkSprites = new Dictionary<(int, bool), Sprite>();
+    Texture2D darkPicture, iciclePicture;
+    readonly List<SpriteRenderer> darkness = new List<SpriteRenderer>();
     // False while the player is standing in the hole they have just come out of, so they do not go straight back in.
     bool armed = true;
     // The fade going into or out of a cave, if one is under way: when it started, which land it goes to, and
@@ -62,65 +63,48 @@ public class Caves : MonoBehaviour
         this.spiders = spiders;
         this.pickups = pickups;
         this.map = map;
-
-        Sprite side = PlanetOne.PaintSprite(HoleWide, HoleTall, new Vector2(0.5f, 0f), HolePixels, PaintHole);
-        holePicture = side.texture;
-        topDownHole = MakeHole("Cave Hole", planet.TopDownRoot, side);
-        topDownHole.spriteSortPoint = SpriteSortPoint.Pivot;
-        sideHole = MakeHole("Cave Hole (side)", mining.Root, side);
+        darkPicture = PlanetOne.PaintSprite(DarkPixels, DarkPixels / 2, new Vector2(0.5f, 0f), DarkPixels, (x, y) => PaintDark(x, y, false)).texture;
+        iciclePicture = PlanetOne.PaintSprite(DarkPixels, DarkPixels / 2, new Vector2(0.5f, 0f), DarkPixels, (x, y) => PaintDark(x, y, true)).texture;
     }
 
-    static SpriteRenderer MakeHole(string name, Transform parent, Sprite sprite)
+    // The darkness for one dug-out block of an opening seen from above, at a level. It is sorted just in front of
+    // the square it is dug out of, but drawn as high up the screen as the block is.
+    Sprite DarkSprite(int level, bool icicles)
     {
-        var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        var renderer = go.AddComponent<SpriteRenderer>();
-        renderer.sprite = sprite;
-        renderer.enabled = false;
-        return renderer;
-    }
-
-    // The top-down picture of the hole for a ledge at a level. It is sorted at the foot of the cliff the hole is
-    // in, just behind the ledge, but drawn as high up the screen as the ledge is.
-    Sprite TopDownHole(int level)
-    {
-        if (topDownHoles.TryGetValue(level, out Sprite sprite)) return sprite;
+        if (darkSprites.TryGetValue((level, icicles), out Sprite sprite)) return sprite;
         float lift = level * PlanetOne.HeightScale - 0.01f;
-        sprite = Sprite.Create(holePicture, new Rect(0, 0, HoleWide, HoleTall), new Vector2(0.5f, -lift * HolePixels / HoleTall), HolePixels);
-        topDownHoles[level] = sprite;
+        sprite = Sprite.Create(icicles ? iciclePicture : darkPicture, new Rect(0, 0, DarkPixels, DarkPixels / 2), new Vector2(0.5f, -lift * 2f), DarkPixels);
+        darkSprites[(level, icicles)] = sprite;
         return sprite;
     }
 
-    // The hole the player could walk into from here: in a cave, the way out; up top, the nearest cave mouth.
-    // Gives its square (the one in front of the hole, the copy nearest the player) and the level it is at.
-    bool NearestHole(out Vector2Int square, out int level)
+    // The hole the player could walk into from here: in a cave, the way out; up top, the nearest cave mouth, with how
+    // far the copy of it nearest the player is from where it is on the planet.
+    bool NearestHole(out PlanetOne.CaveHole hole, out Vector2Int offset)
     {
-        if (planet.InCave)
-        {
-            square = PlanetOne.CaveArrival;
-            level = 0;
-            return true;
-        }
-        square = default;
-        level = 0;
+        offset = Vector2Int.zero;
+        hole = planet.CaveExit;
+        if (hole != null) return true;
         float best = float.MaxValue;
         Vector2 at = player.GroundPosition;
-        for (int i = 0; i < planet.CaveMouths.Length; i++)
+        foreach (PlanetOne.CaveHole mouth in planet.CaveHoles)
         {
-            Vector2 near = planet.Nearest(planet.CaveMouths[i] + new Vector2(0.5f, 0.5f), at);
+            Vector2 near = planet.Nearest(mouth.Front + new Vector2(0.5f, 0.5f), at);
             float away = Vector2.Distance(near, at);
             if (away >= best) continue;
             best = away;
-            square = Vector2Int.FloorToInt(near);
-            level = planet.CaveMouthLevels[i];
+            hole = mouth;
+            offset = Vector2Int.FloorToInt(near) - mouth.Front;
         }
-        return best < ShowWithin;
+        return hole != null && best < ShowWithin;
     }
 
     void Update()
     {
-        bool near = NearestHole(out Vector2Int square, out int level);
-        ShowHole(near, square, level);
+        bool near = NearestHole(out PlanetOne.CaveHole hole, out Vector2Int offset);
+        Vector2Int square = Vector2Int.FloorToInt(player.GroundPosition);
+        bool inTunnel = near && Mathf.Abs(player.FeetHeight - hole.Level) < 0.6f && hole.Squares.Contains(square - offset);
+        ShowDarkness(near && !mining.Active && !inTunnel, hole, offset);
 
         if (fadeStartedAt >= 0f)
         {
@@ -138,40 +122,39 @@ public class Caves : MonoBehaviour
             return;
         }
 
-        // Walking into the hole: being in its square, at the height of its ledge.
-        bool inHole = near && Vector2Int.FloorToInt(player.GroundPosition) == square && Mathf.Abs(player.FeetHeight - level) < 0.6f;
-        if (inHole && armed) Begin(planet.InCave ? -1 : MouthIndexAt(square));
-        armed = !inHole;
+        // Walking far enough into the tunnel, at the level of its floor, goes through.
+        bool through = near && square - offset == hole.Inside && Mathf.Abs(player.FeetHeight - hole.Level) < 0.6f;
+        if (through && armed) Begin(planet.InCave ? -1 : System.Array.IndexOf(planet.CaveHoles, hole));
+        armed = !through;
     }
 
-    // Which cave mouth a square is, on whichever copy of the planet it was found.
-    int MouthIndexAt(Vector2Int square)
+    // The opening of a hole seen from above is dark inside, with icicles hanging from its top. From the side the
+    // dug-out blocks are simply missing, so nothing more is drawn. While the player is in the tunnel the darkness
+    // goes, so it does not hide them.
+    void ShowDarkness(bool show, PlanetOne.CaveHole hole, Vector2Int offset)
     {
-        Vector2Int onPlanet = planet.Wrap(square);
-        for (int i = 0; i < planet.CaveMouths.Length; i++)
+        int used = 0;
+        if (show)
         {
-            if (planet.CaveMouths[i] == onPlanet) return i;
+            foreach (Vector3Int block in hole.Opening)
+            {
+                if (used == darkness.Count)
+                {
+                    var go = new GameObject("Cave Hole Darkness");
+                    go.transform.SetParent(planet.TopDownRoot, false);
+                    var renderer = go.AddComponent<SpriteRenderer>();
+                    renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+                    darkness.Add(renderer);
+                }
+                SpriteRenderer dark = darkness[used++];
+                // Icicles hang from the top of each column of the opening.
+                bool top = !hole.Opening.Contains(block + Vector3Int.forward);
+                dark.sprite = DarkSprite(block.z, top);
+                dark.transform.position = new Vector3(block.x + offset.x + 0.5f, block.y + offset.y + 0.01f, 0f);
+                dark.enabled = true;
+            }
         }
-        return -1;
-    }
-
-    // Draws the hole: in the top-down view on the cliff behind its square, and from the side in the row view, in the
-    // cliff of the row just behind. Looking along a column, the hole faces the other way and cannot be seen.
-    void ShowHole(bool near, Vector2Int square, int level)
-    {
-        topDownHole.enabled = near && !mining.Active;
-        if (topDownHole.enabled)
-        {
-            topDownHole.sprite = TopDownHole(level);
-            topDownHole.transform.position = new Vector3(square.x + 0.5f, square.y + 1.01f, 0f);
-        }
-        sideHole.enabled = near && mining.Active && !mining.Column && mining.Slice == square.y;
-        if (sideHole.enabled)
-        {
-            sideHole.transform.position = new Vector3(square.x + 0.5f, level + MiningMode.BehindLift(1), 0f);
-            sideHole.sortingOrder = MiningMode.BehindThingOrder(1);
-            sideHole.color = mining.BehindShade(1);
-        }
+        for (int i = used; i < darkness.Count; i++) darkness[i].enabled = false;
     }
 
     // Starts the fade into a cave (its number) or back out (-1).
@@ -257,38 +240,21 @@ public class Caves : MonoBehaviour
         GUI.color = Color.white;
     }
 
-    // One pixel of the hole, with (0, 0) at the top left: a dark arch, a rim of frosted stone, and icicles hanging
-    // down inside from the top of the arch.
-    static Color32 PaintHole(int x, int y)
+    // One pixel of the darkness in a dug-out block, with (0, 0) at the top left: a little lighter toward the bottom,
+    // where the floor of the tunnel catches some light. With icicles, they hang from the top edge.
+    static Color32 PaintDark(int x, int y, bool icicles)
     {
-        float across = x + 0.5f - HoleWide / 2f, up = HoleTall - 1 - y + 0.5f;
-        const float straight = 17f, inner = 10f, outer = 12.5f;
-        bool inside = InArch(across, up, inner, straight);
-        if (!InArch(across, up, outer, straight)) return Clear;
-        if (!inside) return up > straight + 3f ? RimFrost : RimStone;
-
-        // The icicles hang from the top of the opening.
-        float roof = straight + Mathf.Sqrt(Mathf.Max(0f, inner * inner - across * across));
-        for (int i = 0; i < IcicleAt.Length; i++)
+        if (icicles)
         {
-            float middle = IcicleAt[i] + 0.5f, down = roof - up;
-            if (down < 0f || down > IcicleLength[i]) continue;
-            float halfWidth = 1.3f * (1f - down / IcicleLength[i]) + 0.2f;
-            float off = across - middle;
-            if (Mathf.Abs(off) > halfWidth) continue;
-            return off < 0f ? IcicleLight : Icicle;
+            for (int i = 0; i < IcicleAt.Length; i++)
+            {
+                int off = x - IcicleAt[i];
+                // Two pixels wide, then one at the tip.
+                if (off < 0 || off > 1 || y >= IcicleLength[i]) continue;
+                if (off == 1 && y >= IcicleLength[i] - 2) continue;
+                return off == 0 ? IcicleLight : Icicle;
+            }
         }
-        // Dark inside, a touch lighter just inside the edge.
-        bool edge = !InArch(across, up, inner - 1.5f, straight);
-        return edge ? HoleEdge : HoleDark;
-    }
-
-    // True inside an arch: straight sides this far either side of the middle, up to a height, and a round top.
-    static bool InArch(float across, float up, float half, float straight)
-    {
-        if (Mathf.Abs(across) > half || up < 0f) return false;
-        if (up <= straight) return true;
-        float over = up - straight;
-        return across * across + over * over <= half * half;
+        return y >= DarkPixels / 2 - 3 ? HoleDeep : HoleDark;
     }
 }
