@@ -1177,6 +1177,8 @@ public class PlanetOne : MonoBehaviour
         public sbyte[,] Top;
         public Dictionary<Vector2Int, HashSet<int>> Mined;
         public Dictionary<Vector2Int, Dictionary<int, SideBlock>> Placed;
+        // In a cave, the way out: a tunnel dug into the north wall of the square the player arrives on.
+        public CaveHole Exit;
     }
 
     // How many caves there are, half of them in each pole's ring of mountains, and how far apart their mouths are
@@ -1203,6 +1205,9 @@ public class PlanetOne : MonoBehaviour
     // and the level of the ledge each is on.
     public Vector2Int[] CaveMouths { get; private set; } = new Vector2Int[0];
     public int[] CaveMouthLevels { get; private set; } = new int[0];
+    // The mouths themselves, dug into the cliffs; and in a cave, the way out.
+    public CaveHole[] CaveHoles { get; private set; } = new CaveHole[0];
+    public CaveHole CaveExit => InCave ? caveLands[caveIndex].Exit : null;
     // True while the player is in a cave, and which one.
     public bool InCave => caveIndex >= 0;
     public int CaveIndex => caveIndex;
@@ -1258,6 +1263,9 @@ public class PlanetOne : MonoBehaviour
                 if (reached[x, y] || mountain[x, y] == 0 || level < CaveMouthFrom || level > CaveMouthTo) continue;
                 Vector2Int north = Wrap(x, y + 1), south = Wrap(x, y - 1);
                 if (top[north.x, north.y] < level + CaveCliff || top[south.x, south.y] > level) continue;
+                // Room for the tunnel to go in a second square, under a roof.
+                Vector2Int further = Wrap(x, y + 2);
+                if (top[further.x, further.y] < level + CaveCliff) continue;
                 if (FromPole(x, y) - CapAt(x, y) > CaveNearIce) continue;
                 spots.Add(new Vector2Int(x, y));
             }
@@ -1290,6 +1298,10 @@ public class PlanetOne : MonoBehaviour
         CaveMouths = mouths.ToArray();
         CaveMouthLevels = new int[mouths.Count];
         for (int i = 0; i < mouths.Count; i++) CaveMouthLevels[i] = top[mouths[i].x, mouths[i].y];
+        // Each mouth is dug out of the cliff.
+        CaveHoles = new CaveHole[mouths.Count];
+        Land here = SaveLand();
+        for (int i = 0; i < mouths.Count; i++) CaveHoles[i] = CarveHole(here, mouths[i], CaveMouthLevels[i], rand);
         caveLands = new Land[mouths.Count];
         Debug.Log("Frost caves: " + mouths.Count + " mouths picked from " + spots.Count + " ledges nobody can walk to, in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds");
     }
@@ -1302,7 +1314,7 @@ public class PlanetOne : MonoBehaviour
         var mouth = new Vector2Int(CrashSite.x + 7, CrashSite.y);
         for (int x = mouth.x - 1; x <= mouth.x + 1; x++)
         {
-            for (int y = mouth.y; y <= mouth.y + 1; y++)
+            for (int y = mouth.y; y <= mouth.y + 3; y++)
             {
                 int tall = y == mouth.y ? 2 : 5;
                 kind[x, y] = Rock;
@@ -1312,6 +1324,63 @@ public class PlanetOne : MonoBehaviour
             }
         }
         return mouth;
+    }
+
+    // A cave mouth, dug out of real blocks: an uneven opening in the cliff behind a ledge, and a short dark tunnel
+    // going into the rock. Walking in as far as Inside takes the player through.
+    public class CaveHole
+    {
+        // The square on the ledge in front of the opening, and the level the ledge is at.
+        public Vector2Int Front;
+        public int Level;
+        // The square in the tunnel that leads through.
+        public Vector2Int Inside;
+        // The blocks dug out whose south sides face the open air: what is seen of the opening from outside, as
+        // (x, y, level).
+        public List<Vector3Int> Opening = new List<Vector3Int>();
+        // Every square of the tunnel.
+        public List<Vector2Int> Squares = new List<Vector2Int>();
+    }
+
+    // Digs a cave mouth into the cliff north of a square on a ledge, in an uneven, natural shape: two blocks tall,
+    // sometimes three in the middle and sometimes a block wider at one side, going three squares in, narrowing.
+    // A roof of rock is always left over it.
+    static CaveHole CarveHole(Land land, Vector2Int front, int level, System.Random rand)
+    {
+        var hole = new CaveHole { Front = front, Level = level, Inside = new Vector2Int(front.x, front.y + 2) };
+        var dug = new HashSet<Vector3Int>();
+
+        void Dig(int x, int y, int from, int to)
+        {
+            x = ((x % land.Width) + land.Width) % land.Width;
+            for (int l = from; l <= to; l++)
+            {
+                // Always a block of roof left above.
+                if (l + 1 >= land.Top[x, y]) return;
+                var spot = new Vector2Int(x, y);
+                if (!land.Mined.TryGetValue(spot, out HashSet<int> gone)) land.Mined[spot] = gone = new HashSet<int>();
+                gone.Add(l);
+                dug.Add(new Vector3Int(x, y, l));
+                if (!hole.Squares.Contains(spot)) hole.Squares.Add(spot);
+            }
+        }
+
+        int x0 = front.x, y1 = front.y + 1;
+        Dig(x0, y1, level, level + (rand.NextDouble() < 0.5 ? 2 : 1));
+        if (rand.NextDouble() < 0.5) Dig(x0 - 1, y1, level, level + (rand.NextDouble() < 0.3 ? 1 : 0));
+        if (rand.NextDouble() < 0.5) Dig(x0 + 1, y1, level, level + (rand.NextDouble() < 0.3 ? 1 : 0));
+        Dig(x0, y1 + 1, level, level + 1);
+        Dig(x0, y1 + 2, level, level);
+
+        // The parts of the opening seen from outside: dug blocks with open air (not more of the tunnel) south of them.
+        foreach (Vector3Int block in dug)
+        {
+            int southX = block.x, southY = block.y - 1;
+            if (dug.Contains(new Vector3Int(southX, southY, block.z))) continue;
+            if (land.Top[southX, southY] > block.z) continue;
+            hole.Opening.Add(block);
+        }
+        return hole;
     }
 
     // Takes the player's land away into a cave, or (with -1) back up to the surface.
@@ -1399,11 +1468,11 @@ public class PlanetOne : MonoBehaviour
                     tunnels.Add((at, heading + (rand.NextDouble() < 0.5 ? 1f : -1f) * (Mathf.PI / 2f + ((float)rand.NextDouble() - 0.5f))));
             }
         }
-        // A little room where the player arrives, with solid wall behind it to the north for the hole.
+        // A little room where the player arrives, with solid wall behind it to the north for the way out.
         Dig(open, arrival, 1.6f, 1.6f);
         for (int x = arrival.x - 1; x <= arrival.x + 1; x++)
         {
-            for (int y = arrival.y + 1; y <= arrival.y + 2; y++) open[x, y] = false;
+            for (int y = arrival.y + 1; y <= arrival.y + 4; y++) open[x, y] = false;
         }
         open[arrival.x, arrival.y] = true;
 
@@ -1441,6 +1510,8 @@ public class PlanetOne : MonoBehaviour
                 land.Top[x, y] = CaveWallHeight;
             }
         }
+        // The way out: dug into the wall like the mouths outside.
+        land.Exit = CarveHole(land, arrival, 0, rand);
         return land;
     }
 
