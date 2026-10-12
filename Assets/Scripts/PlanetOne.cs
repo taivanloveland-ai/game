@@ -303,6 +303,7 @@ public class PlanetOne : MonoBehaviour
         var dayNight = gameObject.AddComponent<DayNight>();
         mining.Setup(this, controller, follow, cam, dayNight);
         dayNight.Setup(cam, mining, Square);
+        gameObject.AddComponent<Music>().Setup(dayNight);
 
         var inventory = new Inventory();
         var hud = gameObject.AddComponent<Hud>();

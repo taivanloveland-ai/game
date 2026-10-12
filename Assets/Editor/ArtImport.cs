@@ -19,3 +19,17 @@ class ArtImport : AssetPostprocessor
         importer.isReadable = true;
     }
 }
+
+// Music dropped into Assets/Resources/Music is played straight from the file as it goes, instead of being unpacked
+// into memory all at once, so a long song does not hold up the game while it loads.
+class MusicImport : AssetPostprocessor
+{
+    void OnPreprocessAudio()
+    {
+        if (!assetPath.StartsWith("Assets/Resources/Music/")) return;
+        var importer = (AudioImporter)assetImporter;
+        AudioImporterSampleSettings settings = importer.defaultSampleSettings;
+        settings.loadType = UnityEngine.AudioClipLoadType.Streaming;
+        importer.defaultSampleSettings = settings;
+    }
+}
