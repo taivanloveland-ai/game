@@ -46,8 +46,6 @@ public class Gatherables : MonoBehaviour
     static readonly Color32 IcicleBody = new Color32(146, 202, 232, 255), IcicleGlint = new Color32(206, 235, 248, 255), IcicleShade = new Color32(112, 174, 212, 255);
     static readonly Color IcicleFrost = new Color32(232, 245, 252, 255), IcicleClear = new Color32(178, 226, 247, 255), IcicleTip = new Color32(236, 249, 255, 255);
     static readonly Color IcicleDeep = new Color32(96, 158, 206, 255);
-    // How many rows of pixels apart the faint rings up the icicle are.
-    const int IcicleRingRows = 11;
     // The soft shadow drawn beside a thing that would otherwise blend into the ground: where it sits, and its colour.
     static readonly Vector3 ShadowOffset = new Vector3(0.09f, -0.03f, 0f);
     static readonly Color ShadowColor = new Color(0.25f, 0.42f, 0.6f, 0.6f);
@@ -252,7 +250,7 @@ public class Gatherables : MonoBehaviour
 
     // Taivan's icicle picture, made taller and recoloured to look like a real icicle instead of matching the ice it
     // stands on: frosted white where it meets the ground, clearing to a slightly see-through pale blue up its length,
-    // with faint ripples where the meltwater froze in rings, and nearly white at the tip. His pale stripe and shaded
+    // and nearly white at the tip. His pale stripe and shaded
     // side are kept, as a bright glint and a deeper blue. The top row of the picture is left out, since it has a stray
     // mark in one corner. Returns null if there is no picture. His file itself is not changed.
     static Texture2D MakeIcicle()
@@ -267,7 +265,7 @@ public class Gatherables : MonoBehaviour
         {
             // Each row of the taller picture is taken from the row of the original at the same share of the way up.
             int from = Mathf.Min(rows - 1, (int)(y / IcicleStretch));
-            for (int x = 0; x < width; x++) stretched[y * width + x] = Recolour(pixels[from * width + x], y / (float)height, y);
+            for (int x = 0; x < width; x++) stretched[y * width + x] = Recolour(pixels[from * width + x], y / (float)height);
         }
         var icicle = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = picture.filterMode, wrapMode = TextureWrapMode.Clamp };
         icicle.SetPixels32(stretched);
@@ -276,8 +274,8 @@ public class Gatherables : MonoBehaviour
     }
 
     // One pixel of the icicle, from a pixel of Taivan's picture. Up is how far up the icicle it is, from 0 at the
-    // ground to 1 at the tip, and row is its row of pixels counted from the bottom.
-    static Color32 Recolour(Color32 c, float up, int row)
+    // ground to 1 at the tip.
+    static Color32 Recolour(Color32 c, float up)
     {
         if (c.a == 0) return c;
         // Frosted near the ground, clear and a little see-through up the middle, and paler again toward the tip.
@@ -285,8 +283,6 @@ public class Gatherables : MonoBehaviour
             ? Color.Lerp(IcicleFrost, IcicleClear, up / 0.15f)
             : Color.Lerp(IcicleClear, IcicleTip, Mathf.Pow((up - 0.15f) / 0.85f, 2f));
         float solid = up < 0.15f ? Mathf.Lerp(0.97f, 0.84f, up / 0.15f) : 0.84f;
-        // Faint rings up its length, a little paler.
-        if (row % IcicleRingRows < 2 && up > 0.12f) body = Color.Lerp(body, Color.white, 0.35f);
 
         if (c.r == IcicleGlint.r && c.g == IcicleGlint.g && c.b == IcicleGlint.b) { body = Color.white; solid = 1f; }
         else if (c.r == IcicleShade.r && c.g == IcicleShade.g && c.b == IcicleShade.b) { body = Color.Lerp(body, IcicleDeep, 0.75f); solid = Mathf.Max(solid, 0.9f); }

@@ -37,7 +37,7 @@ public class PlanetOne : MonoBehaviour
     // The tallest anything gets: rock standing 2 blocks above raised ground.
     public const int MaxTop = 3;
     // Blocks can be placed up to this many blocks above the lowest ground, and no higher.
-    public const int BuildLimit = 20;
+    public const int BuildLimit = 30;
 
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3, Stone = 4;
     // How many blocks deep the ground goes. The very bottom layer cannot be mined.
@@ -45,22 +45,31 @@ public class PlanetOne : MonoBehaviour
     // A cliff face in the top-down view is never drawn taller than this many blocks; deeper holes look the same from above.
     const int MaxDrawnDrop = 4;
     // The tallest south face a square is ever drawn with, in blocks.
-    const int MaxFaceBlocks = 20;
+    const int MaxFaceBlocks = 21;
 
     // A range of mountains crosses the far side of the planet from the crash site, running east to west: as far
     // north of the ship as it is possible to go, which is also as far south. Its peaks are this many blocks tall.
-    const int MountainHeight = 14;
+    const int MountainHeight = 24;
     // The range reaches this many squares north and south of its middle, fading out over the last so many.
     const int MountainHalfDepth = 140, MountainEdge = 50;
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
-    const float MountainBlobSize = 64f, MountainAbove = 0.4f, MountainRise = 0.4f;
-    // Mountains get gradually steeper toward the top. This is how many squares wide each step of a slope is, from
-    // the first block up to the last: broad and gentle at the foot, a block for every square near the peak.
-    // No step is ever more than one block high, so every mountain can still be climbed.
-    static readonly int[] StepWidths = { 4, 3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1 };
+    const float MountainBlobSize = 84f, MountainAbove = 0.4f, MountainRise = 0.4f;
+    // Mountains get steeper toward the top, and much steeper near the peak. This is how wide each step of a slope
+    // is, from the first block up to the last, in sixths of a square: broad and gentle at the foot (4 squares a
+    // block), a block a square in the middle, then two blocks a square, and three near the peak. The lower slopes
+    // can be climbed by jumping; the steep tops cannot, without digging or building steps.
+    const int SlopeUnitsPerSquare = 6;
+    static readonly int[] StepWidths =
+    {
+        24, 18, 18, 18,
+        12, 12, 12, 12,
+        6, 6, 6, 6, 6, 6,
+        3, 3, 3, 3, 3, 3,
+        2, 2, 2, 2,
+    };
     // Mountains this tall or taller have snow on top.
-    const int SnowCapFrom = 9;
+    const int SnowCapFrom = 16;
     const int TilePixels = 16;
     const int FacePixels = 8;
     // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
@@ -74,7 +83,7 @@ public class PlanetOne : MonoBehaviour
     const float MinReachableShare = 0.8f;
     // The top-down view holds only the tiles this far either side of the player: a little more than the screen shows.
     const int WindowHalfWidth = 22;
-    const int WindowHalfHeight = 16;
+    const int WindowHalfHeight = 26;
     // Roughly how many squares across the big shapes of the land are: snow, ice and rock; raised ground; snow depth.
     const float LandBlobSize = 26f, RaisedBlobSize = 17f, DepthBlobSize = 8f;
 
@@ -408,8 +417,8 @@ public class PlanetOne : MonoBehaviour
         ComputeGroundDepths(depthSeed);
     }
 
-    // Works out how tall the mountains are everywhere and turns the land under them to rock. The slopes rise one
-    // block at a time, so any mountain can be climbed by jumping up its steps.
+    // Works out how tall the mountains are everywhere and turns the land under them to rock. The slopes are gentle at
+    // the foot and steep near the top; see StepWidths.
     void RaiseMountains(int cy, int mountainSeed)
     {
         mountain = new byte[width, height];
@@ -428,7 +437,7 @@ public class PlanetOne : MonoBehaviour
             }
         }
 
-        // Wear the mountains into shape: no spot may be more than one square further in from the foot than the
+        // Wear the mountains into shape: no spot may be more than one square (six sixths) further in from the foot than the
         // spot next to it. Sweeping forwards and then backwards a few times settles the whole range.
         bool changed = true;
         for (int pass = 0; pass < 8 && changed; pass++)
@@ -468,10 +477,11 @@ public class PlanetOne : MonoBehaviour
         return run;
     }
 
-    // Lowers a spot of mountain to one more than its lower neighbour to the side or above or below, if it is higher.
+    // Lowers a spot of mountain to at most one square further in than its lower neighbour to the side or above or
+    // below.
     bool WearDown(int x, int y, int sideX, int nextY)
     {
-        int limit = Mathf.Min(mountain[sideX, y], mountain[x, nextY]) + 1;
+        int limit = Mathf.Min(mountain[sideX, y], mountain[x, nextY]) + SlopeUnitsPerSquare;
         if (mountain[x, y] <= limit) return false;
         mountain[x, y] = (byte)limit;
         return true;
