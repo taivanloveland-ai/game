@@ -1,4 +1,4 @@
-# Game context
+﻿# Game context
 
 Running record of what Taivan wants for the game, what has been built, and what is still undecided. Updated as work goes on.
 
@@ -176,6 +176,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## Temporary settings to undo later
 
 - **On again since 2026-10-12** ("toggle temporaries", after "undo temporaries" earlier that day turned them off): the player starts with the ice pickaxe and 999 each of snow, ice and stone on the hotbar (`startWithPickaxe`, `startWithBlocks` in `PlanetOne.cs`), and walks at 25 squares a second (`speed` in `PlayerController.cs`). Undo: no pickaxe, 0 blocks, speed **4**.
+- **A test cave right by the crash site** (asked 2026-10-12: "temporarily drop one right by the spawn"). `caveByCrashSite` in `PlanetOne.cs`. Undo: set it to false.
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
@@ -357,3 +358,6 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 
 - **"cave name stays on map forever"** (2026-10-12): once a frost cave is found, its "Frost Cave" mark stays on the mini map and world map for the rest of the game. That is how it was built. The world is new each time Play is pressed, so marks do not carry over to the next play (there is no saving yet).
+
+- **"make caves spawn very near the ice caps"** (2026-10-12): cave mouths are now on the inner side of the mountain rings, at most 70 squares out from the edge of a pole's ice sheet (in tests, 127 to 205 squares from the pole, with the ice edge at about 90 to 150). To fit all six that close, the least distance between caves went down from 900 to 500 squares.
+- **"along with that, temporarily drop one right by the spawn"** (2026-10-12, TEMPORARY): a 7th cave mouth 7 squares east of the crash site, in a little rock cliff: a ledge 2 blocks up in front of a cliff 5 tall. Build one step to get onto the ledge and walk in. caveByCrashSite in PlanetOne.cs; turn it off to undo.
