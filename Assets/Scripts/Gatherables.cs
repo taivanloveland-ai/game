@@ -161,6 +161,8 @@ public class Gatherables : MonoBehaviour
     readonly List<Vector2Int> outOfRange = new List<Vector2Int>();
     RectInt shownWindow;
     readonly List<SpriteRenderer> sideView = new List<SpriteRenderer>();
+    // How many rows behind the front one each of those stands on.
+    readonly List<int> sideViewBack = new List<int>();
 
     // The thing being walked to, and the view and row or column the walk started in.
     Vector2Int? target;
@@ -532,26 +534,36 @@ public class Gatherables : MonoBehaviour
         return new Vector2(cell.x + 0.5f, cell.y + BaseOffset);
     }
 
-    // Shows the things that stand in the row or column on screen in the side-scroller.
+    // Shows the things that stand in the row or column on screen in the side-scroller, and the ones standing on the
+    // rows behind it too, drawn on those rows: a little higher and in the same dimmer, bluer shade.
     void BuildSideView()
     {
         foreach (SpriteRenderer renderer in sideView) Destroy(renderer.gameObject);
         sideView.Clear();
-        for (int along = mining.WindowStart; along < mining.WindowStart + MiningMode.WindowColumns; along++)
+        sideViewBack.Clear();
+        // The furthest row first, so nearer things are added after the ones behind them.
+        for (int back = MiningMode.RowsBehind; back >= 0; back--)
         {
-            Vector2Int cell = mining.Cell(along);
-            if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
-            var go = new GameObject(kind.Item.Name);
-            go.transform.SetParent(mining.Root, false);
-            go.transform.position = new Vector3(along + 0.5f, planet.GroundAt(cell.x, cell.y), 0f);
-            var renderer = go.AddComponent<SpriteRenderer>();
-            renderer.sprite = kind.Sprites[0];
-            renderer.sortingOrder = MiningMode.ObjectSortingOrder;
-            // It fills its block of space as far as walking goes, the same as it does in the top-down view.
-            var solid = go.AddComponent<BoxCollider2D>();
-            solid.size = Vector2.one;
-            solid.offset = new Vector2(0f, 0.5f);
-            sideView.Add(renderer);
+            for (int along = mining.WindowStart; along < mining.WindowStart + MiningMode.WindowColumns; along++)
+            {
+                Vector2Int cell = mining.Cell(along, back);
+                if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
+                var go = new GameObject(kind.Item.Name);
+                go.transform.SetParent(mining.Root, false);
+                go.transform.position = new Vector3(along + 0.5f, planet.GroundAt(cell.x, cell.y) + MiningMode.BehindLift(back), 0f);
+                var renderer = go.AddComponent<SpriteRenderer>();
+                renderer.sprite = kind.Sprites[0];
+                renderer.sortingOrder = back == 0 ? MiningMode.ObjectSortingOrder : MiningMode.BehindThingOrder(back);
+                if (back == 0)
+                {
+                    // It fills its block of space as far as walking goes, the same as it does in the top-down view.
+                    var solid = go.AddComponent<BoxCollider2D>();
+                    solid.size = Vector2.one;
+                    solid.offset = new Vector2(0f, 0.5f);
+                }
+                sideView.Add(renderer);
+                sideViewBack.Add(back);
+            }
         }
     }
 
@@ -559,7 +571,7 @@ public class Gatherables : MonoBehaviour
     {
         if (mining.Active)
         {
-            foreach (SpriteRenderer renderer in sideView) renderer.color = dayNight.WorldTint;
+            for (int i = 0; i < sideView.Count; i++) sideView[i].color = sideViewBack[i] == 0 ? dayNight.WorldTint : mining.BehindShade(sideViewBack[i]);
         }
         else
         {

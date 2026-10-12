@@ -296,7 +296,7 @@ public class PlayerController : MonoBehaviour
         sideSlice = slice;
         sideColumn = column;
         // In the side view the player is drawn over everything, and real physics does the falling and bumping.
-        sorting.sortingOrder = 20;
+        sorting.sortingOrder = 60;
         body.bodyType = RigidbodyType2D.Dynamic;
         body.gravityScale = gravityScale;
         Teleport(new Vector2(along, feet + Height / 2f + 0.02f));

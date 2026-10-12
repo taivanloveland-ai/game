@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
-// Mining mode: press R to see the row of the world the player is standing on from the side, as a 2D side-scroller.
+// Mining mode: press F to see the row of the world the player is standing on from the side, as a 2D side-scroller.
 // The next few rows further back are drawn dimmer and a little higher behind it. W and S step between rows:
 // the rows slide forward or back, and the one arriving at the front brightens into the new front row.
-// Press R again to go back to the top-down view.
-// G does the same along a column of the world instead of a row: the player looks west, with north on the right.
+// Press F again to go back to the top-down view.
+// R does the same along a column of the world instead of a row: the player looks west, with north on the right.
 // Pressing the other key while in mining mode turns the view on the spot.
 public class MiningMode : MonoBehaviour
 {
@@ -46,9 +46,38 @@ public class MiningMode : MonoBehaviour
     static readonly Color IceDepthTint = new Color(0.63f, 0.74f, 0.85f);
     static readonly Color Stone = new Color32(70, 80, 96, 255);
 
-    // Drawing order, back to front: the rows behind (furthest first, with 0 for one sliding in at the back), the front
-    // row, its darkness, a row sliding in at the front and its darkness, then things standing in the row.
-    const int FrontOrder = BehindRows + 1;
+    // Drawing order, back to front: the rows behind (furthest first, with 0 for one sliding in at the back), each with
+    // the things standing on it just above it, then the front row, its darkness, a row sliding in at the front and
+    // its darkness, then things standing in the front row.
+    const int FrontOrder = 2 * (BehindRows + 1);
+
+    // The drawing order of a row, given as how many rows behind the front one it is. Rows are two apart, so the
+    // things standing on a row can go between it and the row in front of it.
+    static int BehindOrder(int back)
+    {
+        return FrontOrder - 2 * back;
+    }
+
+    // How many rows are drawn behind the front one.
+    public const int RowsBehind = BehindRows;
+
+    // How much higher a row behind the front one is drawn, in blocks, and the colour it is shaded with now.
+    public static float BehindLift(int back)
+    {
+        return back * RowOffset;
+    }
+
+    public Color BehindShade(int back)
+    {
+        Color shade = BehindTints[Mathf.Clamp(back, 1, BehindTints.Length) - 1], day = dayNight.WorldTint;
+        return new Color(shade.r * day.r, shade.g * day.g, shade.b * day.b, 1f);
+    }
+
+    // The drawing order for things standing on a row behind the front one (back is 1 or more).
+    public static int BehindThingOrder(int back)
+    {
+        return BehindOrder(back) + 1;
+    }
     const int DarkOrder = FrontOrder + 1;
     const int IncomingFrontOrder = FrontOrder + 2;
     const int IncomingDarkOrder = FrontOrder + 3;
@@ -117,7 +146,7 @@ public class MiningMode : MonoBehaviour
         behindMaps = new Tilemap[BehindTints.Length];
         for (int i = 0; i < behindMaps.Length; i++)
         {
-            behindMaps[i] = PlanetOne.MakeTilemap(grid, "Row Behind " + (i + 1), FrontOrder - 1 - i);
+            behindMaps[i] = PlanetOne.MakeTilemap(grid, "Row Behind " + (i + 1), BehindOrder(i + 1));
         }
         rowMap = PlanetOne.MakeTilemap(grid, "Row", FrontOrder);
         spareMap = PlanetOne.MakeTilemap(grid, "Row Arriving", 0);
@@ -575,9 +604,9 @@ public class MiningMode : MonoBehaviour
     void OnGUI()
     {
         if (labelStyle == null) labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
-        string text = "[R] Mining mode, along the row    [G] Mining mode, along the column    [Space] jump";
-        if (Active && !Column) text = "MINING MODE, ROW    [R] back to top-down    [G] turn to the column    [Space] jump    [W] row behind    [S] row in front    [Left click] mine";
-        if (Active && Column) text = "MINING MODE, COLUMN    [G] back to top-down    [R] turn to the row    [Space] jump    [W] column behind    [S] column in front    [Left click] mine";
+        string text = "[F] Mining mode, along the row    [R] Mining mode, along the column    [Space] jump";
+        if (Active && !Column) text = "MINING MODE, ROW    [F] back to top-down    [R] turn to the column    [Space] jump    [W] row behind    [S] row in front    [Left click] mine";
+        if (Active && Column) text = "MINING MODE, COLUMN    [R] back to top-down    [F] turn to the row    [Space] jump    [W] column behind    [S] column in front    [Left click] mine";
         if (Active && Time.time < blockedUntil) text = "MINING MODE    Something is in the way there";
         labelStyle.normal.textColor = Color.black;
         GUI.Label(new Rect(18, 14, 1400, 32), text, labelStyle);
