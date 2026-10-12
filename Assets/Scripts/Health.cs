@@ -18,6 +18,9 @@ public class Health : MonoBehaviour
     public float Current { get; private set; } = Max;
     // True from the moment health runs out until the player has woken up at the ship.
     public bool Down => fellAt >= 0f;
+    // Called just before the player wakes up at the ship, after they have dropped what they lost: brings them up out
+    // of a cave if they fell in one.
+    public System.Action BeforeWaking;
 
     PlanetOne planet;
     PlayerController player;
@@ -68,6 +71,7 @@ public class Health : MonoBehaviour
     {
         woken = true;
         string lost = DropHalfAStack();
+        BeforeWaking?.Invoke();
         if (mining.Active) mining.Toggle();
         player.Respawn(home);
         Current = Max;

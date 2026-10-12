@@ -32,7 +32,10 @@ public class Pickups : MonoBehaviour
     MiningMode mining;
     DayNight dayNight;
     Inventory inventory;
-    readonly List<Dropped> drops = new List<Dropped>();
+    List<Dropped> drops = new List<Dropped>();
+    // The drops in each land: the surface is -1 and each cave its own number. Only the land the player is in is shown.
+    readonly Dictionary<int, List<Dropped>> dropsByLand = new Dictionary<int, List<Dropped>>();
+    int land = -1;
 
     public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight, Inventory inventory)
     {
@@ -41,6 +44,16 @@ public class Pickups : MonoBehaviour
         this.mining = mining;
         this.dayNight = dayNight;
         this.inventory = inventory;
+    }
+
+    // Switches to the drops of another land: -1 for the surface, or a cave's number.
+    public void SetLand(int newLand)
+    {
+        if (newLand == land) return;
+        foreach (Dropped drop in drops) drop.Renderer.enabled = false;
+        dropsByLand[land] = drops;
+        land = newLand;
+        if (!dropsByLand.TryGetValue(land, out drops)) drops = new List<Dropped>();
     }
 
     // Drops something that was standing on the ground, at ground level.

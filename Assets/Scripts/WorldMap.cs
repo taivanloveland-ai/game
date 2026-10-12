@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // The maps. A mini map in the top right corner shows the land around the player, with markers for the player and
@@ -48,6 +49,14 @@ public class WorldMap : MonoBehaviour
     readonly Color32[] brushPixels = new Color32[BrushSize * BrushSize];
     readonly Vector2Int[] brushTargets = new Vector2Int[BrushSize * BrushSize];
     bool[,] explored;
+    int mapWidth, mapHeight;
+    // While the player is in a cave, the mouth they went in by. The mini map goes dark then, and on the world map
+    // the player's marker waits at the mouth.
+    public Vector2? CaveMouth;
+    // The cave mouths the player has found, marked on both maps as a frost cave.
+    readonly List<Vector2> caves = new List<Vector2>();
+    static readonly Color CaveMark = new Color32(150, 214, 245, 255);
+    GUIStyle caveStyle;
     Vector2Int lastCell = new Vector2Int(int.MinValue, int.MinValue);
     GUIStyle titleStyle;
 
@@ -66,13 +75,16 @@ public class WorldMap : MonoBehaviour
         this.planet = planet;
         this.player = player;
         this.ship = ship;
+        // The size of the planet's surface. (While the player is in a cave, the planet's own size is the cave's.)
+        mapWidth = planet.width;
+        mapHeight = planet.height;
         GameInput.PointerOverMap = PointerOverMap;
-        worldMiddle = new Vector2(planet.width / 2f, planet.height / 2f);
+        worldMiddle = new Vector2(mapWidth / 2f, mapHeight / 2f);
 
-        explored = new bool[planet.width, planet.height];
+        explored = new bool[mapWidth, mapHeight];
         // The picture repeats past its east and west edges, as the planet does, so a map can show the land across the join.
-        picture = new Texture2D(planet.width, planet.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp };
-        var pixels = new Color32[planet.width * planet.height];
+        picture = new Texture2D(mapWidth, mapHeight, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp };
+        var pixels = new Color32[mapWidth * mapHeight];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = Unexplored;
         picture.SetPixels32(pixels);
         picture.Apply();
@@ -110,10 +122,10 @@ public class WorldMap : MonoBehaviour
             else if (draggingWorld)
             {
                 // The land follows the mouse, so the middle moves the other way. Up the screen is north.
-                float scale = frame.width * worldZoom / planet.width;
+                float scale = frame.width * worldZoom / mapWidth;
                 Vector2 moved = pointer - lastPointer;
                 worldMiddle += new Vector2(-moved.x, moved.y) / scale;
-                worldMiddle.x = Mathf.Repeat(worldMiddle.x, planet.width);
+                worldMiddle.x = Mathf.Repeat(worldMiddle.x, mapWidth);
             }
         }
         else
@@ -141,15 +153,23 @@ public class WorldMap : MonoBehaviour
         return area.Contains(Pointer());
     }
 
+    // Marks a cave mouth on the maps.
+    public void MarkCave(Vector2 mouth)
+    {
+        if (!caves.Contains(mouth)) caves.Add(mouth);
+    }
+
     // Where the player is within the planet, however many times they have gone round it.
     Vector2 PlayerOnPlanet()
     {
+        if (CaveMouth.HasValue) return CaveMouth.Value;
         return planet.WrapPoint(player.GroundPosition);
     }
 
     // Remembers every square the mini map is showing right now.
     void Explore()
     {
+        if (CaveMouth.HasValue) return;
         Vector2Int cell = Vector2Int.FloorToInt(player.GroundPosition);
         if (cell == lastCell) return;
         lastCell = cell;
@@ -207,8 +227,8 @@ public class WorldMap : MonoBehaviour
     // across. The picture repeats, so the land across the join shows too.
     void DrawLand(Rect frame, Vector2 middle, float squares)
     {
-        float across = squares / planet.width, down = squares * frame.height / frame.width / planet.height;
-        var part = new Rect(middle.x / planet.width - across / 2f, middle.y / planet.height - down / 2f, across, down);
+        float across = squares / mapWidth, down = squares * frame.height / frame.width / mapHeight;
+        var part = new Rect(middle.x / mapWidth - across / 2f, middle.y / mapHeight - down / 2f, across, down);
         GUI.DrawTextureWithTexCoords(frame, picture, part);
     }
 
@@ -217,7 +237,7 @@ public class WorldMap : MonoBehaviour
     Vector2 KeepOffPoles(Rect frame, Vector2 middle, float squares)
     {
         float halfDown = squares * frame.height / frame.width / 2f;
-        float y = halfDown * 2f >= planet.height ? planet.height / 2f : Mathf.Clamp(middle.y, halfDown, planet.height - halfDown);
+        float y = halfDown * 2f >= mapHeight ? mapHeight / 2f : Mathf.Clamp(middle.y, halfDown, mapHeight - halfDown);
         return new Vector2(middle.x, y);
     }
 
@@ -225,7 +245,7 @@ public class WorldMap : MonoBehaviour
     // square. The nearest copy of the spot to the east or west is used, since the map repeats that way.
     Vector2 OnMap(Rect frame, Vector2 middle, float scale, Vector2 spot)
     {
-        var away = new Vector2(Mathf.Repeat(spot.x - middle.x + planet.width / 2f, planet.width) - planet.width / 2f, spot.y - middle.y);
+        var away = new Vector2(Mathf.Repeat(spot.x - middle.x + mapWidth / 2f, mapWidth) - mapWidth / 2f, spot.y - middle.y);
         return new Vector2(frame.center.x + away.x * scale, frame.center.y - away.y * scale);
     }
 
@@ -238,6 +258,14 @@ public class WorldMap : MonoBehaviour
     {
         Rect frame = MiniMapFrame();
         GUI.Box(new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + 8f), GUIContent.none);
+        // In a cave the mini map goes dark: the way has to be remembered.
+        if (CaveMouth.HasValue)
+        {
+            GUI.color = Unexplored;
+            GUI.DrawTexture(frame, Texture2D.whiteTexture);
+            GUI.color = Color.white;
+            return;
+        }
         Vector2 at = PlayerOnPlanet();
         Vector2 middle = KeepOffPoles(frame, at + miniOffset, miniSquares);
         DrawLand(frame, middle, miniSquares);
@@ -245,6 +273,7 @@ public class WorldMap : MonoBehaviour
         // The ship's marker shows the shortest way home, and stays on the edge of the mini map when the ship is out of
         // range. So does the player's, when the map has been dragged away from them.
         float scale = MiniMapSize / miniSquares;
+        DrawCaves(frame, middle, scale);
         DrawMark(KeepInside(frame, OnMap(frame, middle, scale, ship)), 8f, ShipMark);
         DrawMark(KeepInside(frame, OnMap(frame, middle, scale, at)), 7f, PlayerMark);
 
@@ -263,20 +292,38 @@ public class WorldMap : MonoBehaviour
         Rect frame = WorldFrame();
         GUI.Box(new Rect(frame.x - 6f, frame.y - 34f, frame.width + 12f, frame.height + 40f), GUIContent.none);
         GUI.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move", titleStyle);
-        float squares = planet.width / worldZoom;
+        float squares = mapWidth / worldZoom;
         worldMiddle = KeepOffPoles(frame, worldMiddle, squares);
         DrawLand(frame, worldMiddle, squares);
 
         float scale = frame.width / squares;
         Vector2 shipSpot = OnMap(frame, worldMiddle, scale, ship), playerSpot = OnMap(frame, worldMiddle, scale, PlayerOnPlanet());
+        DrawCaves(frame, worldMiddle, scale);
         if (frame.Contains(shipSpot)) DrawMark(shipSpot, 10f, ShipMark);
         DrawMark(KeepInside(frame, playerSpot), 9f, PlayerMark);
 
-        bool moved = worldZoom != 1f || worldMiddle != new Vector2(planet.width / 2f, planet.height / 2f);
+        bool moved = worldZoom != 1f || worldMiddle != new Vector2(mapWidth / 2f, mapHeight / 2f);
         if (moved && GUI.Button(new Rect(frame.x, frame.yMax + 10f, frame.width, 24f), "Whole map"))
         {
             worldZoom = 1f;
-            worldMiddle = new Vector2(planet.width / 2f, planet.height / 2f);
+            worldMiddle = new Vector2(mapWidth / 2f, mapHeight / 2f);
+        }
+    }
+
+    // The frost caves the player has found that are on a map: a pale blue marker with the name beside it.
+    void DrawCaves(Rect frame, Vector2 middle, float scale)
+    {
+        if (caveStyle == null) caveStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft };
+        foreach (Vector2 mouth in caves)
+        {
+            Vector2 spot = OnMap(frame, middle, scale, mouth);
+            if (!frame.Contains(spot)) continue;
+            DrawMark(spot, 7f, CaveMark);
+            var label = new Rect(spot.x + 7f, spot.y - 10f, 90f, 20f);
+            GUI.color = MarkEdge;
+            GUI.Label(new Rect(label.x + 1f, label.y + 1f, label.width, label.height), "Frost Cave", caveStyle);
+            GUI.color = Color.white;
+            GUI.Label(label, "Frost Cave", caveStyle);
         }
     }
 
