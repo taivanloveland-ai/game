@@ -336,3 +336,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"when you can see most of the character, the transparency doesnt apply."** (2026-10-12): the blocks covering the player only turned see-through below ground. Now any block drawn over the player turns see-through, at any height: behind a wall, a mountain or a step up on the surface too, even when it only hides a little of them.
 
 - **"so when i go to the north pole and go to where the two parts of the map where they connect and make the screen flip a lot and walk away the screen keeps shaking. fix it"** (2026-10-12): each trip over a pole moved the player's position half a planet further east and it never came back onto the map, so after many flips the numbers got so big the game lost exactness and everything shook. Now a pole crossing always lands back on the map, and anyone far round to the east or west is moved back a whole planet width (which looks exactly the same).
+
+## Music (asked 2026-10-12)
+- His words: "these are the night and day themes. put them into the game." (from his Downloads folder "hi"): **Planet 1 Day Theme.mp3** (about 8.5 minutes) and **Planet 1 Night Theme.mp3** (about 11 minutes), used exactly as he made them, in Assets/Resources/Music.
+- His picks: **fade across at sunrise and sunset** (the day theme fades out as the night theme fades in, over 4 seconds, as the sky gets dark, and the other way at dawn), and **no mute key**. Each theme loops, and starts again from the beginning each time it comes back.
