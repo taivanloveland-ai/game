@@ -36,6 +36,15 @@ public class Gatherables : MonoBehaviour
     // tall the icicle itself is, in pixels.
     const float IcicleFootAcross = 44.5f / 128f, IcicleFootUp = 7f;
     const int IcicleTopRowsLeftOut = 1;
+    // The icicle is drawn this many times as tall as in the picture, the same width.
+    const float IcicleStretch = 1.6f;
+    // The three blues of the icicle picture (the same as the ice's), and what the icicle is coloured instead: frosty
+    // white at the foot, a clear pale blue up the middle, nearly white at the tip, and a deeper blue for the shaded side.
+    static readonly Color32 IcicleBody = new Color32(146, 202, 232, 255), IcicleGlint = new Color32(206, 235, 248, 255), IcicleShade = new Color32(112, 174, 212, 255);
+    static readonly Color IcicleFrost = new Color32(232, 245, 252, 255), IcicleClear = new Color32(178, 226, 247, 255), IcicleTip = new Color32(236, 249, 255, 255);
+    static readonly Color IcicleDeep = new Color32(96, 158, 206, 255);
+    // How many rows of pixels apart the faint rings up the icicle are.
+    const int IcicleRingRows = 11;
     // The soft shadow drawn beside a thing that would otherwise blend into the ground: where it sits, and its colour.
     static readonly Vector3 ShadowOffset = new Vector3(0.09f, -0.03f, 0f);
     static readonly Color ShadowColor = new Color(0.25f, 0.42f, 0.6f, 0.6f);
@@ -191,23 +200,21 @@ public class Gatherables : MonoBehaviour
             plant.Width = fernPicture.width / pixelsPerUnit;
         }
         Kind shard = MakeKind("Ice shard", ShardPixelsWide, ShardPixelsTall, ShardPixelsPerUnit, true, ShardPixel);
-        // Standing on the ice, a shard looks like Taivan's icicle picture, used exactly as drawn at the fine scale.
-        // The picture's top row has a stray mark in one corner, so only the rows below it are used.
-        var iciclePicture = Resources.Load<Texture2D>("Art/Icicle");
-        if (iciclePicture != null)
+        // Standing on the ice, a shard looks like Taivan's icicle picture at the fine scale. He asked for it taller and
+        // looking different from the ice, so it is stretched upward and recoloured paler, frostier blues.
+        Texture2D icicle = MakeIcicle();
+        if (icicle != null)
         {
-            var below = new Rect(0, 0, iciclePicture.width, iciclePicture.height - IcicleTopRowsLeftOut);
-            float pictureHeight = below.height / ShardPixelsPerUnit;
+            var whole = new Rect(0, 0, icicle.width, icicle.height);
+            float pictureHeight = icicle.height / ShardPixelsPerUnit;
             for (int level = 0; level < shard.Sprites.Length; level++)
             {
                 // The pivot is the middle of its base. Dropping it draws the icicle higher, for raised ground.
-                var pivot = new Vector2(IcicleFootAcross, IcicleFootUp / below.height - level * PlanetOne.HeightScale / pictureHeight);
-                shard.Sprites[level] = Sprite.Create(iciclePicture, below, pivot, ShardPixelsPerUnit);
+                var pivot = new Vector2(IcicleFootAcross, IcicleFootUp * IcicleStretch / icicle.height - level * PlanetOne.HeightScale / pictureHeight);
+                shard.Sprites[level] = Sprite.Create(icicle, whole, pivot, ShardPixelsPerUnit);
             }
             shard.Width = IcicleWidePixels / ShardPixelsPerUnit;
-            shard.Height = IcicleTallPixels / ShardPixelsPerUnit;
-            // The icicle is the same blue as the ice it stands on, so it casts a soft shadow to stand out against it.
-            shard.Shadow = true;
+            shard.Height = IcicleTallPixels * IcicleStretch / ShardPixelsPerUnit;
         }
         // Once it has been knocked loose, an ice shard looks like the drawn picture, both on the ground and in the inventory.
         var shardPicture = Resources.Load<Texture2D>("Art/IceShardItem");
@@ -239,6 +246,52 @@ public class Gatherables : MonoBehaviour
         planet.Obstacle = (x, y) => things.ContainsKey(new Vector2Int(x, y));
         ShowNearby();
     }
+
+    // Taivan's icicle picture, made taller and recoloured to look like a real icicle instead of matching the ice it
+    // stands on: frosted white where it meets the ground, clearing to a slightly see-through pale blue up its length,
+    // with faint ripples where the meltwater froze in rings, and nearly white at the tip. His pale stripe and shaded
+    // side are kept, as a bright glint and a deeper blue. The top row of the picture is left out, since it has a stray
+    // mark in one corner. Returns null if there is no picture. His file itself is not changed.
+    static Texture2D MakeIcicle()
+    {
+        var picture = Resources.Load<Texture2D>("Art/Icicle");
+        if (picture == null || !picture.isReadable) return null;
+        Color32[] pixels = picture.GetPixels32();
+        int width = picture.width, rows = picture.height - IcicleTopRowsLeftOut;
+        int height = Mathf.RoundToInt(rows * IcicleStretch);
+        var stretched = new Color32[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            // Each row of the taller picture is taken from the row of the original at the same share of the way up.
+            int from = Mathf.Min(rows - 1, (int)(y / IcicleStretch));
+            for (int x = 0; x < width; x++) stretched[y * width + x] = Recolour(pixels[from * width + x], y / (float)height, y);
+        }
+        var icicle = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = picture.filterMode, wrapMode = TextureWrapMode.Clamp };
+        icicle.SetPixels32(stretched);
+        icicle.Apply();
+        return icicle;
+    }
+
+    // One pixel of the icicle, from a pixel of Taivan's picture. Up is how far up the icicle it is, from 0 at the
+    // ground to 1 at the tip, and row is its row of pixels counted from the bottom.
+    static Color32 Recolour(Color32 c, float up, int row)
+    {
+        if (c.a == 0) return c;
+        // Frosted near the ground, clear and a little see-through up the middle, and paler again toward the tip.
+        Color body = up < 0.15f
+            ? Color.Lerp(IcicleFrost, IcicleClear, up / 0.15f)
+            : Color.Lerp(IcicleClear, IcicleTip, Mathf.Pow((up - 0.15f) / 0.85f, 2f));
+        float solid = up < 0.15f ? Mathf.Lerp(0.97f, 0.84f, up / 0.15f) : 0.84f;
+        // Faint rings up its length, a little paler.
+        if (row % IcicleRingRows < 2 && up > 0.12f) body = Color.Lerp(body, Color.white, 0.35f);
+
+        if (c.r == IcicleGlint.r && c.g == IcicleGlint.g && c.b == IcicleGlint.b) { body = Color.white; solid = 1f; }
+        else if (c.r == IcicleShade.r && c.g == IcicleShade.g && c.b == IcicleShade.b) { body = Color.Lerp(body, IcicleDeep, 0.75f); solid = Mathf.Max(solid, 0.9f); }
+        else if (!(c.r == IcicleBody.r && c.g == IcicleBody.g && c.b == IcicleBody.b)) return c;
+        body.a = solid * c.a / 255f;
+        return body;
+    }
+
 
     // The thornam bush: Taivan's picture of a tangle of teal vines and thorns on a short brown trunk. Collecting one
     // gives 3 thorns, 3 thornam bush vines and 1 thornam stick.
