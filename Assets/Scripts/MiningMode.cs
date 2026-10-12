@@ -538,7 +538,7 @@ public class MiningMode : MonoBehaviour
         color.a = 1f;
 
         // Snow and ice blocks use their drawn pictures when there are any, exactly as drawn: no colouring and no flipping.
-        // Snow has three looks, picked block by block: Taivan's two pictures, and plain white.
+        // Snow has three looks, picked block by block: Taivan's three snow pictures.
         Sprite picture = block == PlanetOne.SideBlock.Ice ? planet.IceSprite : null;
         int iceLook = 0;
         if (block == PlanetOne.SideBlock.Snow && planet.SnowSprite != null)

@@ -122,7 +122,7 @@ public class PlanetOne : MonoBehaviour
         new[] { new[] { 4, 12, 5, 1, 2 }, new[] { 8, 8, 3, -1, 2 } },
         new[] { new[] { 12, 5, 2, 1, 1 } },
     };
-    // Snow comes in three looks: Taivan's two pictures and this plain white.
+    // Snow comes in three looks: Taivan's three snow pictures. Plain white stands in if the third is missing.
     const int SnowLooks = 3;
     static readonly Color32 PlainSnow = new Color32(255, 255, 255, 255);
     static readonly Color32 SnowRim = new Color32(200, 214, 228, 255), SnowFace = new Color32(176, 194, 214, 255), SnowFoot = new Color32(152, 173, 197, 255);
@@ -167,7 +167,7 @@ public class PlanetOne : MonoBehaviour
         public int Width, Height;
     }
 
-    BlockPicture snowPicture, snowPicture2, icePicture;
+    BlockPicture snowPicture, snowPicture2, snowPicture3, icePicture;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -218,6 +218,7 @@ public class PlanetOne : MonoBehaviour
         // Drawn pictures, where they exist, are used for the top of tiles here and for blocks in mining mode.
         snowPicture = LoadBlockPicture("Art/SnowBlock");
         snowPicture2 = LoadBlockPicture("Art/SnowBlock2");
+        snowPicture3 = LoadBlockPicture("Art/SnowBlock3");
         icePicture = LoadBlockPicture("Art/IceBlock");
         IceSideSprites = MakeIceSideSprites();
 
@@ -785,7 +786,7 @@ public class PlanetOne : MonoBehaviour
         var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (variant << 19) | (glassy ? 1 << 23 : 0)), faceBlocks);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
-        // Snow has three looks, picked square by square: Taivan's two snow pictures, and plain white.
+        // Snow has three looks, picked square by square: Taivan's three snow pictures.
         BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : PictureFor(material);
         bool pictured = picture != null;
         Color32 topColor, rimColor;
@@ -864,14 +865,14 @@ public class PlanetOne : MonoBehaviour
         return sprites;
     }
 
-    // Which of the three looks a block of snow has: 0 and 1 are Taivan's two snow pictures, 2 is plain white.
+    // Which of the three looks a block of snow has: Taivan's three snow pictures, numbered 0 to 2.
     // It is picked at random for each block, but always the same for the same block.
     public int SnowLookAt(int x, int y, int level)
     {
         return Mathf.Min(SnowLooks - 1, (int)(Hash(WrapX(x), WrapY(y), variantSeed + 7919 * (level + 64)) * SnowLooks));
     }
 
-    // The picture for a look of snow, or null for plain white.
+    // The picture for a look of snow, or null for plain white (only if the third picture is missing).
     public Sprite SnowLookSprite(int look)
     {
         return SnowPicture(look)?.Sprite;
@@ -880,7 +881,7 @@ public class PlanetOne : MonoBehaviour
     BlockPicture SnowPicture(int look)
     {
         // If the second picture is missing, its share of the snow uses the first one.
-        return look == 0 ? snowPicture : look == 1 ? snowPicture2 ?? snowPicture : null;
+        return look == 0 ? snowPicture : look == 1 ? snowPicture2 ?? snowPicture : snowPicture3;
     }
 
     // The drawn picture for a kind of ground, or null if that kind is drawn as flat colour.
@@ -905,10 +906,28 @@ public class PlanetOne : MonoBehaviour
     {
         var texture = Resources.Load<Texture2D>(path);
         if (texture == null) return null;
+        Color32[] pixels = ReadPixels(texture);
+
+        // A block is solid, so any see-through pixel left in a picture (a stray one or two can slip in while drawing)
+        // is filled with white instead of showing a hole. Everything else is used exactly as drawn.
+        bool filled = false;
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (pixels[i].a == 255) continue;
+            pixels[i] = Color32.Lerp(new Color32(255, 255, 255, 255), new Color32(pixels[i].r, pixels[i].g, pixels[i].b, 255), pixels[i].a / 255f);
+            filled = true;
+        }
+        if (filled)
+        {
+            var solid = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false) { filterMode = texture.filterMode, wrapMode = TextureWrapMode.Clamp };
+            solid.SetPixels32(pixels);
+            solid.Apply();
+            texture = solid;
+        }
         return new BlockPicture
         {
             Sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), texture.width),
-            Pixels = ReadPixels(texture),
+            Pixels = pixels,
             Width = texture.width,
             Height = texture.height,
         };
