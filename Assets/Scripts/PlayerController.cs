@@ -17,7 +17,10 @@ public class PlayerController : MonoBehaviour
     // Walking through snow is a little slower than full speed. 1 would be no slowdown.
     public float snowSpeedFactor = 0.9f;
     // How quickly the player can change speed on ice, in units per second each second. Lower is more slippery.
-    public float iceGrip = 12f;
+    // Made a bit more slippery on 2026-10-11 (it was 12).
+    public float iceGrip = 8f;
+    // On ice the player slides a little faster than full speed. 1 would be no faster.
+    public float iceSpeedFactor = 1.2f;
     // How high a jump reaches, in blocks.
     public float jumpHeight = 1.5f;
     // How strongly the player is pulled down, as a multiple of normal gravity.
@@ -150,7 +153,7 @@ public class PlayerController : MonoBehaviour
 
         // On ice the player speeds up, turns and stops gradually. Everywhere else movement is instant.
         bool onIce = grounded && planet.IsIce(new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f));
-        Vector2 wanted = move * (onIce ? speed : speed * snowSpeedFactor);
+        Vector2 wanted = move * (onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
         velocity = onIce ? Vector2.MoveTowards(velocity, wanted, iceGrip * dt) : wanted;
 
         if (jumpQueued && grounded)
@@ -252,7 +255,7 @@ public class PlayerController : MonoBehaviour
     {
         bool grounded = IsGrounded();
         bool onIce = grounded && planet.IsIce(GroundPosition);
-        float wanted = move.x * (onIce ? speed : speed * snowSpeedFactor);
+        float wanted = move.x * (onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
 
         Vector2 v = body.linearVelocity;
         v.x = onIce ? Mathf.MoveTowards(v.x, wanted, iceGrip * Time.fixedDeltaTime) : wanted;
