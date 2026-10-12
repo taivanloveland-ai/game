@@ -12,8 +12,7 @@ public class PlayerController : MonoBehaviour
     const float FeetDepth = 0.4f;
 
     // Squares per second at a full walk.
-    // TEMPORARY (asked 2026-10-11): 5 times the original 5, for testing. The speed chosen for the game is 4.
-    public float speed = 25f;
+    public float speed = 4f;
     // Walking through snow is a little slower than full speed. 1 would be no slowdown.
     public float snowSpeedFactor = 0.9f;
     // How quickly the player can change speed on ice, in units per second each second. Lower is more slippery.
