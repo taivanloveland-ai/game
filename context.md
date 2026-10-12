@@ -175,6 +175,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## Temporary settings to undo later
 
 - **The player starts with the ice pickaxe and 999 each of snow, ice and stone, for testing** (asked 2026-10-11: "temporary start with pickaxe and blocks"). `startWithPickaxe` and `startWithBlocks` in `PlanetOne.cs`. The pickaxe is in hotbar slot 1 and the blocks in slots 2 to 4. Turn both off for the real game (the same thing was on before and was undone on 2026-10-10). 999 is the amount used last time; he did not give a number.
+- **5x walking speed, for testing** (asked 2026-10-11: "temporary speed x5"). `speed` in `PlayerController.cs` is 25, five times the original 5 (the same reading as the earlier x5). The speed he chose for the game is **4**; put it back to 4 when this is undone.
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
