@@ -71,6 +71,37 @@ public static class GameInput
 #endif
     }
 
+    // The left mouse button on the frame it is pressed, and while it is held, wherever the mouse is. For the maps,
+    // which take clicks on themselves; everything in the world uses LeftClickPressed and LeftClickHeld instead.
+    public static bool MouseButtonPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+#else
+        return Input.GetMouseButtonDown(0);
+#endif
+    }
+
+    public static bool MouseButtonHeld()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null && Mouse.current.leftButton.isPressed;
+#else
+        return Input.GetMouseButton(0);
+#endif
+    }
+
+    // How far the mouse wheel turned this frame, wherever the mouse is: more than 0 for away from the player (up),
+    // less than 0 for toward them (down). For the maps.
+    public static float MouseWheel()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
+#else
+        return Input.mouseScrollDelta.y;
+#endif
+    }
+
     // Left mouse button, for as long as it is held down: keeps the pickaxe swinging.
     public static bool LeftClickHeld()
     {

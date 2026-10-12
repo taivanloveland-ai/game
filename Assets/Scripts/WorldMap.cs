@@ -2,19 +2,26 @@ using UnityEngine;
 
 // The maps. A mini map in the top right corner shows the land around the player, with markers for the player and
 // the ship. Everything the mini map has ever shown is remembered, and pressing M opens a world map of all of it.
-// Both maps are top-down, whichever view the game is in. Ferns and ice shards are not shown. Scrolling over the
-// mini map zooms it, and dragging it moves it around; "Back to me" puts it back on the player.
+// Both maps are top-down, whichever view the game is in. Ferns and ice shards are not shown.
 //
-// The planet has no edges, so the mini map carries straight on past the edge of the world map picture and shows
-// the land from its opposite side. On the world map, going off the top brings your marker back in at the bottom.
+// Both maps zoom with the mouse wheel when the mouse is over them, and can be dragged around with the left button.
+// Under the mini map, "Back to me" puts it back on the player once it has been moved; on the world map, "Whole map"
+// shows all of it again.
+//
+// The planet has no edges, so the maps carry straight on past the edge of the picture and show the land from its
+// opposite side. On the world map, going off the top brings your marker back in at the bottom.
 public class WorldMap : MonoBehaviour
 {
     // How many squares across the mini map shows to begin with, and how big it is on screen.
     const int MiniMapSquares = 40;
     const float MiniMapSize = 190f;
     const float Margin = 14f;
-    // The mini map can be zoomed to show between this few and this many squares across, a notch of the wheel at a time.
-    const float FewestSquares = 10f, MostSquares = 400f, ZoomStep = 1.25f;
+    // The mini map can be zoomed to show between this few and this many squares across.
+    const float FewestSquares = 10f, MostSquares = 400f;
+    // The world map can be zoomed in this many times at most.
+    const float MostWorldZoom = 16f;
+    // How much one notch of the mouse wheel zooms a map.
+    const float ZoomStep = 1.25f;
 
     static readonly Color32 Unexplored = new Color32(12, 16, 26, 255);
     static readonly Color PlayerMark = new Color32(240, 138, 46, 255);
@@ -35,20 +42,28 @@ public class WorldMap : MonoBehaviour
     bool[,] explored;
     Vector2Int lastCell = new Vector2Int(int.MinValue, int.MinValue);
     GUIStyle titleStyle;
+
     // How many squares across the mini map is showing, and how far the spot in its middle is from the player, in squares.
-    float viewSquares = MiniMapSquares;
-    Vector2 viewOffset;
-    bool dragging;
+    float miniSquares = MiniMapSquares;
+    Vector2 miniOffset;
+    // How far the world map is zoomed in, and the spot of the planet in its middle.
+    float worldZoom = 1f;
+    Vector2 worldMiddle;
+    // Which map is being dragged, if either, and where the mouse was on the last frame.
+    bool draggingMini, draggingWorld;
+    Vector2 lastPointer;
 
     public void Setup(PlanetOne planet, PlayerController player, Vector2 ship)
     {
         this.planet = planet;
         this.player = player;
         this.ship = ship;
-        GameInput.PointerOverMap = PointerOverMiniMap;
+        GameInput.PointerOverMap = PointerOverMap;
+        worldMiddle = new Vector2(planet.width / 2f, planet.height / 2f);
 
         explored = new bool[planet.width, planet.height];
-        picture = new Texture2D(planet.width, planet.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        // The picture repeats past its edges, as the planet does, so a map can show the land across the join.
+        picture = new Texture2D(planet.width, planet.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
         var pixels = new Color32[planet.width * planet.height];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = Unexplored;
         picture.SetPixels32(pixels);
@@ -61,6 +76,61 @@ public class WorldMap : MonoBehaviour
         if (GameInput.MapPressed()) Open = !Open;
         if (Open && GameInput.CancelPressed()) Open = false;
         Explore();
+        HandleMouse();
+    }
+
+    // The mouse on screen, measured from the top left, as the maps are laid out.
+    static Vector2 Pointer()
+    {
+        Vector2 pointer = GameInput.PointerPosition();
+        return new Vector2(pointer.x, Screen.height - pointer.y);
+    }
+
+    // Zooming with the wheel and dragging with the left button, on whichever map is under the mouse.
+    void HandleMouse()
+    {
+        Vector2 pointer = Pointer();
+        float wheel = GameInput.MouseWheel();
+        bool held = GameInput.MouseButtonHeld();
+        if (!held) draggingMini = draggingWorld = false;
+
+        if (Open)
+        {
+            Rect frame = WorldFrame();
+            if (wheel != 0f && frame.Contains(pointer)) worldZoom = Mathf.Clamp(worldZoom * (wheel > 0f ? ZoomStep : 1f / ZoomStep), 1f, MostWorldZoom);
+            if (GameInput.MouseButtonPressed() && frame.Contains(pointer)) draggingWorld = true;
+            else if (draggingWorld)
+            {
+                // The land follows the mouse, so the middle moves the other way. Up the screen is north.
+                float scale = frame.width * worldZoom / planet.width;
+                Vector2 moved = pointer - lastPointer;
+                worldMiddle += new Vector2(-moved.x, moved.y) / scale;
+                worldMiddle = new Vector2(Mathf.Repeat(worldMiddle.x, planet.width), Mathf.Repeat(worldMiddle.y, planet.height));
+            }
+        }
+        else
+        {
+            Rect frame = MiniMapFrame();
+            if (wheel != 0f && frame.Contains(pointer)) miniSquares = Mathf.Clamp(miniSquares * (wheel > 0f ? 1f / ZoomStep : ZoomStep), FewestSquares, MostSquares);
+            if (GameInput.MouseButtonPressed() && frame.Contains(pointer)) draggingMini = true;
+            else if (draggingMini)
+            {
+                float scale = MiniMapSize / miniSquares;
+                Vector2 moved = pointer - lastPointer;
+                miniOffset += new Vector2(-moved.x, moved.y) / scale;
+            }
+        }
+        lastPointer = pointer;
+    }
+
+    // True while the mouse is over a map or dragging one, or the world map is open, so clicks and the wheel go to
+    // the map and not to the world or the hotbar.
+    bool PointerOverMap()
+    {
+        if (Open || draggingMini || draggingWorld) return true;
+        Rect frame = MiniMapFrame();
+        var area = new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + (miniOffset != Vector2.zero ? 38f : 8f));
+        return area.Contains(Pointer());
     }
 
     // Where the player is within the planet, however many times they have gone round it.
@@ -100,89 +170,54 @@ public class WorldMap : MonoBehaviour
         if (Open) DrawWorldMap();
     }
 
-    void DrawMiniMap()
-    {
-        var frame = MiniMapFrame();
-        HandleMiniMapMouse(Event.current, frame);
-        GUI.Box(new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + 8f), GUIContent.none);
-        GUI.color = (Color)Unexplored;
-        GUI.DrawTexture(frame, Texture2D.whiteTexture);
-        GUI.color = Color.white;
-
-        // The whole world picture is drawn inside the frame, shifted so the spot being looked at sits in the middle;
-        // the frame cuts off everything outside it. That spot is the player, unless the map has been dragged away.
-        // Near an edge of the picture, copies of it are drawn alongside so the mini map shows the land across the join.
-        float scale = MiniMapSize / viewSquares;
-        Vector2 at = PlayerOnPlanet();
-        Vector2 middle = at + viewOffset;
-        float worldWidth = planet.width * scale, worldHeight = planet.height * scale;
-        float left = MiniMapSize / 2f - middle.x * scale, top = MiniMapSize / 2f - (planet.height - middle.y) * scale;
-        GUI.BeginGroup(frame);
-        for (int copyY = -1; copyY <= 1; copyY++)
-        {
-            for (int copyX = -1; copyX <= 1; copyX++)
-            {
-                var copy = new Rect(left + copyX * worldWidth, top + copyY * worldHeight, worldWidth, worldHeight);
-                if (copy.xMax > 0f && copy.x < MiniMapSize && copy.yMax > 0f && copy.y < MiniMapSize) GUI.DrawTexture(copy, picture);
-            }
-        }
-        // The ship's marker shows the shortest way home, and stays on the edge of the mini map when the ship is out of range.
-        // So does the player's, when the map has been dragged away from them.
-        DrawMark(MiniMapSpot(planet.Nearest(ship, middle) - middle, scale), 8f, ShipMark);
-        DrawMark(MiniMapSpot(-viewOffset, scale), 7f, PlayerMark);
-        GUI.EndGroup();
-
-        if (viewOffset != Vector2.zero && GUI.Button(new Rect(frame.x, frame.yMax + 8f, frame.width, 22f), "Back to me")) viewOffset = Vector2.zero;
-    }
-
-    // Where on the mini map a place this far from its middle is drawn, kept inside its edges.
-    static Vector2 MiniMapSpot(Vector2 fromMiddle, float scale)
-    {
-        var spot = new Vector2(MiniMapSize / 2f + fromMiddle.x * scale, MiniMapSize / 2f - fromMiddle.y * scale);
-        return new Vector2(Mathf.Clamp(spot.x, 5f, MiniMapSize - 5f), Mathf.Clamp(spot.y, 5f, MiniMapSize - 5f));
-    }
-
     static Rect MiniMapFrame()
     {
         return new Rect(Screen.width - MiniMapSize - Margin, Margin, MiniMapSize, MiniMapSize);
     }
 
-    // Scrolling over the mini map zooms it in and out around its middle; dragging it with the left button moves it.
-    void HandleMiniMapMouse(Event e, Rect frame)
+    static Rect WorldFrame()
     {
-        if (e.type == EventType.ScrollWheel && frame.Contains(e.mousePosition))
-        {
-            viewSquares = Mathf.Clamp(viewSquares * (e.delta.y > 0f ? ZoomStep : 1f / ZoomStep), FewestSquares, MostSquares);
-            e.Use();
-        }
-        else if (e.type == EventType.MouseDown && e.button == 0 && frame.Contains(e.mousePosition))
-        {
-            dragging = true;
-            e.Use();
-        }
-        else if (e.type == EventType.MouseDrag && dragging)
-        {
-            // The land follows the mouse, so the spot looked at moves the other way. Up the screen is north.
-            float scale = MiniMapSize / viewSquares;
-            viewOffset += new Vector2(-e.delta.x, e.delta.y) / scale;
-            e.Use();
-        }
-        else if (e.type == EventType.MouseUp && e.button == 0 && dragging)
-        {
-            dragging = false;
-            e.Use();
-        }
+        float size = Mathf.Min(Screen.width, Screen.height) * 0.8f;
+        return new Rect((Screen.width - size) / 2f, (Screen.height - size) / 2f + 12f, size, size);
     }
 
-    // True while the mouse is over the mini map or dragging it, so the click does not also land in the world.
-    bool PointerOverMiniMap()
+    // Draws the part of the world picture around a spot of the planet into a frame on screen, a number of squares
+    // across. The picture repeats, so the land across the join shows too.
+    void DrawLand(Rect frame, Vector2 middle, float squares)
     {
-        if (dragging) return true;
-        Vector2 pointer = GameInput.PointerPosition();
-        pointer.y = Screen.height - pointer.y;
+        float across = squares / planet.width, down = squares * frame.height / frame.width / planet.height;
+        var part = new Rect(middle.x / planet.width - across / 2f, middle.y / planet.height - down / 2f, across, down);
+        GUI.DrawTextureWithTexCoords(frame, picture, part);
+    }
+
+    // Where a spot of the planet is drawn on a map, given the spot in the map's middle and its scale in pixels a
+    // square. The nearest copy of the spot is used, since the planet repeats.
+    Vector2 OnMap(Rect frame, Vector2 middle, float scale, Vector2 spot)
+    {
+        Vector2 away = planet.Nearest(spot, middle) - middle;
+        return new Vector2(frame.center.x + away.x * scale, frame.center.y - away.y * scale);
+    }
+
+    static Vector2 KeepInside(Rect frame, Vector2 spot)
+    {
+        return new Vector2(Mathf.Clamp(spot.x, frame.x + 5f, frame.xMax - 5f), Mathf.Clamp(spot.y, frame.y + 5f, frame.yMax - 5f));
+    }
+
+    void DrawMiniMap()
+    {
         Rect frame = MiniMapFrame();
-        var area = new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + (viewOffset != Vector2.zero ? 38f : 8f));
-        return area.Contains(pointer);
+        GUI.Box(new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + 8f), GUIContent.none);
+        Vector2 at = PlayerOnPlanet();
+        Vector2 middle = at + miniOffset;
+        DrawLand(frame, middle, miniSquares);
+
+        // The ship's marker shows the shortest way home, and stays on the edge of the mini map when the ship is out of
+        // range. So does the player's, when the map has been dragged away from them.
+        float scale = MiniMapSize / miniSquares;
+        DrawMark(KeepInside(frame, OnMap(frame, middle, scale, ship)), 8f, ShipMark);
+        DrawMark(KeepInside(frame, OnMap(frame, middle, scale, at)), 7f, PlayerMark);
+
+        if (miniOffset != Vector2.zero && GUI.Button(new Rect(frame.x, frame.yMax + 8f, frame.width, 22f), "Back to me")) miniOffset = Vector2.zero;
     }
 
     void DrawWorldMap()
@@ -194,16 +229,23 @@ public class WorldMap : MonoBehaviour
         GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        float size = Mathf.Min(Screen.width, Screen.height) * 0.8f;
-        var frame = new Rect((Screen.width - size) / 2f, (Screen.height - size) / 2f + 12f, size, size);
+        Rect frame = WorldFrame();
         GUI.Box(new Rect(frame.x - 6f, frame.y - 34f, frame.width + 12f, frame.height + 40f), GUIContent.none);
-        GUI.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close", titleStyle);
-        GUI.DrawTexture(frame, picture);
+        GUI.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move", titleStyle);
+        float squares = planet.width / worldZoom;
+        DrawLand(frame, worldMiddle, squares);
 
-        float scaleX = size / planet.width, scaleY = size / planet.height;
-        Vector2 at = PlayerOnPlanet();
-        DrawMark(new Vector2(frame.x + ship.x * scaleX, frame.y + (planet.height - ship.y) * scaleY), 10f, ShipMark);
-        DrawMark(new Vector2(frame.x + at.x * scaleX, frame.y + (planet.height - at.y) * scaleY), 9f, PlayerMark);
+        float scale = frame.width / squares;
+        Vector2 shipSpot = OnMap(frame, worldMiddle, scale, ship), playerSpot = OnMap(frame, worldMiddle, scale, PlayerOnPlanet());
+        if (frame.Contains(shipSpot)) DrawMark(shipSpot, 10f, ShipMark);
+        DrawMark(KeepInside(frame, playerSpot), 9f, PlayerMark);
+
+        bool moved = worldZoom != 1f || worldMiddle != new Vector2(planet.width / 2f, planet.height / 2f);
+        if (moved && GUI.Button(new Rect(frame.x, frame.yMax + 10f, frame.width, 24f), "Whole map"))
+        {
+            worldZoom = 1f;
+            worldMiddle = new Vector2(planet.width / 2f, planet.height / 2f);
+        }
     }
 
     // A small square marker with a dark edge so it shows up on snow.
