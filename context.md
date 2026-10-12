@@ -332,3 +332,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Where the finished game should run (Windows PC, browser, phone).
 
 - **"my game is shaking for some reason"** (2026-10-12): after the planet doubled to 5760 x 2880, the map picture was sent to the graphics card whole (about 25 ms) every time the player stepped onto a new square, many times a second at the temporary 5x speed, so the game stuttered. Now only the newly seen squares are sent. If the shaking was at a pole instead: holding W there walks you over and back every step, as the 'real compass' choice works, which flips the view back and forth.
+
+- **"when you can see most of the character, the transparency doesnt apply."** (2026-10-12): the blocks covering the player only turned see-through below ground. Now any block drawn over the player turns see-through, at any height: behind a wall, a mountain or a step up on the surface too, even when it only hides a little of them.
