@@ -10,7 +10,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## How work is delivered (asked 2026-10-09 and 2026-10-10)
 
 - Each request gets its own git branch, made away from the folder Unity has open, so his game does not change while Claude is still working.
-- When a request is done and checked, the branch is merged into `main`, `main` is pushed to GitHub, and the new version is loaded into his open Unity editor. Loading stops the game if it is playing; he presses Play to start again.
+- When a request is done and checked, the branch is merged into `main`, `main` is pushed to GitHub, and the new version is loaded into his open Unity editor.
+- **Never interrupt his game** (asked 2026-10-11: "whenever youre working on something, and im playing, the came crashes. make it so it doesnt crash, and if i want the update, i stop and press play again."). While the game is playing, the editor now picks up no changed files at all, and Unity is set to wait until play stops before recompiling. When he stops, everything that changed loads, and pressing Play again plays the new version. Claude also no longer brings the Unity window to the front. (`Assets/Editor/ExternalRefresh.cs`.)
 
 ## Taivan's shorthand
 
