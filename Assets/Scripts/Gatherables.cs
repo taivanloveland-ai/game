@@ -31,6 +31,9 @@ public class Gatherables : MonoBehaviour
     const float FernFootUp = 0.088f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
+    // How far up the loose ice shards picture its lowest shard reaches, as a share of the picture's height. It
+    // sits on the ground there.
+    const float LooseShardFootUp = 16f / 128f;
     // Where the middle of the icicle's base is in Taivan's picture: across from the left edge as a share of the width,
     // and up from the bottom in pixels. How many rows at the top of the picture are left out, and how wide and
     // tall the icicle itself is, in pixels.
@@ -221,7 +224,7 @@ public class Gatherables : MonoBehaviour
         if (shardPicture != null)
         {
             var whole = new Rect(0, 0, shardPicture.width, shardPicture.height);
-            shard.Item = new Item(shard.Item.Name, Sprite.Create(shardPicture, whole, new Vector2(0.5f, 0.06f), shardPicture.height / LooseShardSize));
+            shard.Item = new Item(shard.Item.Name, Sprite.Create(shardPicture, whole, new Vector2(0.5f, LooseShardFootUp), shardPicture.height / LooseShardSize));
         }
         PlantItem = plant.Item;
         ShardItem = shard.Item;
