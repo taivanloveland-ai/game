@@ -12,7 +12,7 @@ public class MiningMode : MonoBehaviour
 {
     // How many blocks of ground are shown below the surface, and how much sky the camera may show above it.
     const int Depth = PlanetOne.GroundDepth;
-    const int SkyHeight = 34;
+    const int SkyHeight = 56;
     // Only this many columns of the row are drawn at a time, centred on the player. The row is redrawn further along
     // when the player gets within the margin of either end. A whole row of the planet is far too long to draw at once.
     public const int WindowColumns = 96;
