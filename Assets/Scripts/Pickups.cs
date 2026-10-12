@@ -71,6 +71,9 @@ public class Pickups : MonoBehaviour
         for (int i = drops.Count - 1; i >= 0; i--)
         {
             Dropped drop = drops[i];
+            // The planet joins up with itself, so use the copy of the drop nearest the player, which may be across
+            // a pole.
+            drop.Position = planet.Nearest(drop.Position, playerPosition);
             // In the side-scroller only the drops lying in the row or column on screen are shown.
             bool visible = !side || mining.Shows(Vector2Int.FloorToInt(drop.Position));
             drop.Renderer.enabled = visible;

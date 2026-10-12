@@ -236,7 +236,7 @@ public class Gatherables : MonoBehaviour
             {
                 double roll = rand.NextDouble();
                 // Nothing grows right where the player starts, since things on the ground cannot be walked through.
-                if (Mathf.Abs(x - planet.width / 2) <= 1 && Mathf.Abs(y - (planet.height / 2 - 1)) <= 1) continue;
+                if (Mathf.Abs(x - planet.CrashSite.x) <= 1 && Mathf.Abs(y - planet.CrashSite.y) <= 1) continue;
                 if (planet.IsSnow(x, y) && roll < PlantDensity) things[new Vector2Int(x, y)] = plant;
                 else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) things[new Vector2Int(x, y)] = shard;
             }
@@ -337,7 +337,7 @@ public class Gatherables : MonoBehaviour
             for (int x = 0; x < planet.width; x++)
             {
                 if (!planet.IsSnow(x, y) || things.ContainsKey(new Vector2Int(x, y))) continue;
-                if (Mathf.Abs(x - planet.width / 2) <= 1 && Mathf.Abs(y - (planet.height / 2 - 1)) <= 1) continue;
+                if (Mathf.Abs(x - planet.CrashSite.x) <= 1 && Mathf.Abs(y - planet.CrashSite.y) <= 1) continue;
                 if (planet.IsIceAt(x - 1, y) || planet.IsIceAt(x + 1, y) || planet.IsIceAt(x, y - 1) || planet.IsIceAt(x, y + 1)) shore.Add(new Vector2Int(x, y));
             }
         }
@@ -731,7 +731,9 @@ public class Gatherables : MonoBehaviour
     // Steers the player one frame further along the walk, and collects the thing on arrival.
     void Walk()
     {
-        Vector2Int goal = target.Value;
+        // The nearest copy of the thing, in case the walk has just gone over a pole.
+        Vector2Int goal = Vector2Int.FloorToInt(planet.Nearest(target.Value + new Vector2(0.5f, 0.5f), player.GroundPosition));
+        target = goal;
         // Give up if the thing is gone, the view or the row or column changed, or the player took over the controls.
         bool sameView = mining.Active == walkInSideView && (!walkInSideView || (mining.Column == walkColumn && mining.Slice == walkSlice));
         if (!things.ContainsKey(planet.Wrap(goal)) || !sameView || player.HasManualInput)

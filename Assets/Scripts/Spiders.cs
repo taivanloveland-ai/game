@@ -140,7 +140,7 @@ public class Spiders : MonoBehaviour
         }
 
         rand = new System.Random(planet.seed + 7);
-        var start = new Vector2Int(planet.width / 2, planet.height / 2 - 1);
+        Vector2Int start = planet.CrashSite;
         for (int y = 0; y < planet.height; y++)
         {
             for (int x = 0; x < planet.width; x++)
@@ -250,7 +250,7 @@ public class Spiders : MonoBehaviour
                 }
             }
             spider.Gait = Mathf.Repeat(spider.Gait + moved / StrideDistance, 1f);
-            spider.Position = new Vector2(Mathf.Repeat(at.x, planet.width), Mathf.Repeat(at.y, planet.height));
+            spider.Position = planet.WrapPoint(at);
             Draw(spider, at);
         }
     }
@@ -299,7 +299,7 @@ public class Spiders : MonoBehaviour
         {
             Vector2Int cell = Vector2Int.FloorToInt(at);
             at = Step(at, back.normalized * KnockBack, planet.TopAt(cell.x, cell.y));
-            struck.Position = new Vector2(Mathf.Repeat(at.x, planet.width), Mathf.Repeat(at.y, planet.height));
+            struck.Position = planet.WrapPoint(at);
         }
         return Strike.Hit;
     }
