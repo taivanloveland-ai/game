@@ -41,6 +41,12 @@ public class WorldMap : MonoBehaviour
     PlayerController player;
     Vector2 ship;
     Texture2D picture;
+    // Newly explored squares are painted here first and then copied into the picture on the graphics card, one
+    // square at a time. Sending the whole picture over again each time was far too slow for a picture this big.
+    const int BrushSize = 64;
+    Texture2D brush;
+    readonly Color32[] brushPixels = new Color32[BrushSize * BrushSize];
+    readonly Vector2Int[] brushTargets = new Vector2Int[BrushSize * BrushSize];
     bool[,] explored;
     Vector2Int lastCell = new Vector2Int(int.MinValue, int.MinValue);
     GUIStyle titleStyle;
@@ -148,7 +154,7 @@ public class WorldMap : MonoBehaviour
         if (cell == lastCell) return;
         lastCell = cell;
 
-        bool changed = false;
+        int count = 0;
         int half = MiniMapSquares / 2;
         for (int y = cell.y - half; y < cell.y + half; y++)
         {
@@ -159,11 +165,24 @@ public class WorldMap : MonoBehaviour
                 if (explored[px, py]) continue;
                 explored[px, py] = true;
                 ExploredCount++;
-                picture.SetPixel(px, py, planet.MapColorAt(px, py));
-                changed = true;
+                Color32 color = planet.MapColorAt(px, py);
+                // Kept in the picture's own copy too, though only the graphics card's copy is drawn.
+                picture.SetPixel(px, py, color);
+                brushPixels[count] = color;
+                brushTargets[count] = spot;
+                count++;
             }
         }
-        if (changed) picture.Apply();
+        if (count == 0) return;
+        if (SystemInfo.copyTextureSupport == UnityEngine.Rendering.CopyTextureSupport.None)
+        {
+            picture.Apply();
+            return;
+        }
+        if (brush == null) brush = new Texture2D(BrushSize, BrushSize, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        brush.SetPixels32(brushPixels);
+        brush.Apply();
+        for (int i = 0; i < count; i++) Graphics.CopyTexture(brush, 0, 0, i % BrushSize, i / BrushSize, 1, 1, picture, 0, 0, brushTargets[i].x, brushTargets[i].y);
     }
 
     void OnGUI()
