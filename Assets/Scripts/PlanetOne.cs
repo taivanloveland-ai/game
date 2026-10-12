@@ -30,6 +30,9 @@ public class PlanetOne : MonoBehaviour
     // on the hotbar.
     // TEMPORARY (asked 2026-10-12): 999 for testing.
     [System.NonSerialized] public int startWithBlocks = 999;
+    // TEMPORARY (asked 2026-10-12): an extra frost cave right by the crash site, for testing, in a little rock cliff
+    // a few squares east of the ship.
+    [System.NonSerialized] public bool caveByCrashSite = true;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship }
@@ -1179,7 +1182,10 @@ public class PlanetOne : MonoBehaviour
     // How many caves there are, half of them in each pole's ring of mountains, and how far apart their mouths are
     // at the least, in squares.
     public const int CaveCount = 6;
-    const int CaveSpacing = 900;
+    const int CaveSpacing = 500;
+    // Cave mouths are on the inner side of the ring of mountains, at most this many squares out from the edge of the
+    // pole's ice sheet.
+    const int CaveNearIce = 70;
     // A cave mouth is on a mountain ledge at least this high, which nobody can reach by walking and jumping, with a
     // cliff at least this many blocks tall behind it (to its north), where the hole is.
     const int CaveMouthFrom = 12, CaveMouthTo = 22, CaveCliff = 3;
@@ -1252,6 +1258,7 @@ public class PlanetOne : MonoBehaviour
                 if (reached[x, y] || mountain[x, y] == 0 || level < CaveMouthFrom || level > CaveMouthTo) continue;
                 Vector2Int north = Wrap(x, y + 1), south = Wrap(x, y - 1);
                 if (top[north.x, north.y] < level + CaveCliff || top[south.x, south.y] > level) continue;
+                if (FromPole(x, y) - CapAt(x, y) > CaveNearIce) continue;
                 spots.Add(new Vector2Int(x, y));
             }
         }
@@ -1279,11 +1286,32 @@ public class PlanetOne : MonoBehaviour
                 if (apart) mouths.Add(spot);
             }
         }
+        if (caveByCrashSite) mouths.Add(MakeCliffByCrashSite());
         CaveMouths = mouths.ToArray();
         CaveMouthLevels = new int[mouths.Count];
         for (int i = 0; i < mouths.Count; i++) CaveMouthLevels[i] = top[mouths[i].x, mouths[i].y];
         caveLands = new Land[mouths.Count];
         Debug.Log("Frost caves: " + mouths.Count + " mouths picked from " + spots.Count + " ledges nobody can walk to, in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds");
+    }
+
+    // For testing: a little cliff of rock a few squares east of the crash site, with a ledge 2 blocks up in front of
+    // a cliff 5 blocks tall, and the cave mouth on the ledge. With blocks to build a step it is a quick way into a
+    // cave. Gives the mouth.
+    Vector2Int MakeCliffByCrashSite()
+    {
+        var mouth = new Vector2Int(CrashSite.x + 7, CrashSite.y);
+        for (int x = mouth.x - 1; x <= mouth.x + 1; x++)
+        {
+            for (int y = mouth.y; y <= mouth.y + 1; y++)
+            {
+                int tall = y == mouth.y ? 2 : 5;
+                kind[x, y] = Rock;
+                mountain[x, y] = (byte)tall;
+                baseTop[x, y] = (byte)tall;
+                top[x, y] = (sbyte)tall;
+            }
+        }
+        return mouth;
     }
 
     // Takes the player's land away into a cave, or (with -1) back up to the surface.
