@@ -108,7 +108,7 @@ public class PlanetOne : MonoBehaviour
     const int SeeThroughRadius = 2;
     // A room's roof turns see-through at most this many squares from the player.
     const int RoomReach = 14;
-    // Below the ground, blocks drawn this close to the player turn see-through, in blocks.
+    // Blocks drawn this close to the player turn see-through, in blocks.
     const float CoverMargin = 0.3f;
     static readonly Color RoofTint = new Color(1f, 1f, 1f, 0.2f);
     // Under a see-through roof, the squares the walls stand on are drawn this much darker than the floor.
@@ -663,8 +663,9 @@ public class PlanetOne : MonoBehaviour
 
         int level = Mathf.FloorToInt(player.FeetHeight + 0.01f);
         Vector2Int at = Vector2Int.FloorToInt(player.GroundPosition);
-        // Down in the ground, the blocks drawn over the player turn see-through.
-        if (level < 0) ShowCovering(at, level);
+        // Any blocks drawn over the player turn see-through, however much of the player they hide: down in the
+        // ground, and up on the surface behind a wall, a mountain or a step up.
+        ShowCovering(at, level);
         if (!IsTunnel(at.x, at.y, level)) return;
 
         // The room is every covered, open square that can be walked to from the player's without leaving cover.
@@ -712,7 +713,8 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Below the ground, in a hole or a tunnel, the player is drawn as deep as they really are, so the higher ground
-    // just south of them, which is drawn in front, would cover them. The blocks that cover them turn see-through,
+    // just south of them, which is drawn in front, would cover them. On the surface, a wall, a mountain or higher
+    // ground south of the player is drawn in front of them too. The blocks that cover them turn see-through,
     // and beneath each one the land is shown cut through at the player's depth: open space as its floor, solid
     // ground as a darker block, so the player can see the sides of the hole or tunnel they are in.
     void ShowCovering(Vector2Int at, int level)
@@ -725,7 +727,8 @@ public class PlanetOne : MonoBehaviour
 
         // Only squares south of the player are drawn in front of them. A square's picture reaches from the foot of
         // its south face to the far edge of its top.
-        for (int y = at.y - 1; y >= at.y - GroundDepth; y--)
+        // Tall things are drawn far up the screen, so they can cover the player from a long way south.
+        for (int y = at.y - 1; y >= at.y - BuildLimit / 2 - 2; y--)
         {
             for (int x = Mathf.FloorToInt(leftEdge); x <= Mathf.FloorToInt(rightEdge); x++)
             {
