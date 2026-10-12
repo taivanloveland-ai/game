@@ -38,9 +38,13 @@ public class DayNight : MonoBehaviour
 
     // 0 in full daylight, 1 in the middle of the night.
     public float Night { get; private set; }
-    public Color SkyColor => Color.Lerp(DaySky, NightSky, Night);
+    public Color SkyColor => Underground ? CaveSky : Color.Lerp(DaySky, NightSky, Night);
+    // True while the player is in a cave: no sky, no sun or black hole, and no night there. The day still goes on
+    // up above.
+    public bool Underground;
+    static readonly Color CaveSky = new Color32(4, 5, 9, 255);
     // What to multiply the world's colours by right now.
-    public Color WorldTint => Color.Lerp(Color.white, NightTint, Mathf.Round(Night * TintSteps) / TintSteps);
+    public Color WorldTint => Underground ? Color.white : Color.Lerp(Color.white, NightTint, Mathf.Round(Night * TintSteps) / TintSteps);
 
     Camera cam;
     MiningMode mining;
@@ -94,6 +98,12 @@ public class DayNight : MonoBehaviour
         float fromMidnight = Mathf.Abs(Mathf.Repeat(time - 0.75f + 0.5f, 1f) - 0.5f);
         Night = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.25f - Twilight, 0.25f + Twilight, fromMidnight));
 
+        if (Underground)
+        {
+            sky.SetActive(false);
+            overlay.enabled = false;
+            return;
+        }
         bool sideView = mining != null && mining.Active;
         sky.SetActive(sideView);
         overlay.enabled = !sideView && Night > 0.01f;

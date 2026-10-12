@@ -67,12 +67,12 @@ public class PlanetOne : MonoBehaviour
     const float PeakBlobSize = 20f, PeakShare = 0.6f;
     // How a mountain rises, after his sketch and his photo of the Himalayas: a long, gentle rise at the foot that gets
     // steeper and steeper, up to a narrow spire at the peak. For each band of height, this is how wide each block of
-    // rise is, in sixths of a square: 2 squares a block at the foot, then 1, then two blocks every three squares,
-    // two a square, three a square, and at the very top six a square. No spot rises faster than this from the spot
-    // next to it.
+    // rise is, in sixths of a square. Made very steep on 2026-10-12: a short ramp of a block a square at the foot,
+    // then two blocks a square, then three, and from 14 blocks up six a square: sheer cliffs. No spot rises faster
+    // than this from the spot next to it.
     const int SlopeUnitsPerSquare = 6;
     static readonly int[] SlopeBandTops = { 4, 8, 14, 20, 26, 30 };
-    static readonly int[] SlopeBandWidths = { 12, 6, 4, 3, 2, 1 };
+    static readonly int[] SlopeBandWidths = { 6, 3, 2, 1, 1, 1 };
     // Between these heights the mountainside is broken into flat ledges this many blocks apart, with sheer cliff faces
     // between them: good places for cave mouths later. A cliff of 4 cannot be jumped up.
     const int LedgesFrom = 8, LedgesTo = 20, LedgeStep = 4;
@@ -200,11 +200,11 @@ public class PlanetOne : MonoBehaviour
     byte[,] baseTop;
     sbyte[,] top;
     // The blocks that have been mined away, by spot: the levels removed from that spot's column.
-    readonly Dictionary<Vector2Int, HashSet<int>> mined = new Dictionary<Vector2Int, HashSet<int>>();
+    Dictionary<Vector2Int, HashSet<int>> mined = new Dictionary<Vector2Int, HashSet<int>>();
 
     // The blocks the player has placed, by spot: the level each is at and what it is. A placed block can sit above
     // empty space, as the roof of a house does.
-    readonly Dictionary<Vector2Int, Dictionary<int, SideBlock>> placed = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>();
+    Dictionary<Vector2Int, Dictionary<int, SideBlock>> placed = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>();
 
     // Raised after a block is mined, with its spot (unwrapped, as given) and level.
     public event System.Action<int, int, int> BlockMined;
@@ -269,6 +269,7 @@ public class PlanetOne : MonoBehaviour
         }
         // Logged so a world worth keeping can be built again by typing its seed in and unticking Random World.
         Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(reachable * 100f) + "% of its snow and ice can be walked to, worked out in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds)");
+        FindCaveEntrances();
         BuildTerrain();
 
         Camera cam = Camera.main;
@@ -330,12 +331,18 @@ public class PlanetOne : MonoBehaviour
         // The player wakes up beside the ship, where they started.
         var health = gameObject.AddComponent<Health>();
         health.Setup(this, controller, mining, inventory, pickups, hud, new Vector2(cx + 0.5f, cy - 0.5f));
-        gameObject.AddComponent<Spiders>().Setup(this, controller, mining, dayNight, health, inventory, nook, pickups, cam);
+        var spiders = gameObject.AddComponent<Spiders>();
+        spiders.Setup(this, controller, mining, dayNight, health, inventory, nook, pickups, cam);
         // A thornam bush can only be cut down with the ice axe in hand.
         gatherables.AxeEquipped = () => inventory.Equipped == nook.Axe;
         gatherables.Say = text => hud.Say(text, 2f);
         // The maps mark the ship at the middle of its hull.
-        gameObject.AddComponent<WorldMap>().Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
+        var worldMap = gameObject.AddComponent<WorldMap>();
+        worldMap.Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
+        // The frost caves in the mountains. Falling in one, the player wakes up at the ship as usual.
+        var caves = gameObject.AddComponent<Caves>();
+        caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
+        health.BeforeWaking = caves.LeaveNow;
     }
 
     PlayerController BuildPlayer(Vector2 position)
@@ -1150,6 +1157,276 @@ public class PlanetOne : MonoBehaviour
                 snowDepth[x, y] = (byte)(LoopingNoise(x, y, DepthBlobSize, depthSeed, 1) > 0.5f ? 5 : 4);
             }
         });
+    }
+
+    // ---- Frost caves ----
+    // Caves are not part of the land above. Each is a world of its own, made the first time it is visited, and
+    // digging or building down there changes nothing up top. Going in swaps the land being shown and walked on for
+    // the cave's; coming out swaps it back.
+
+    // One stretch of land: the planet's surface, or a cave.
+    class Land
+    {
+        public int Width, Height;
+        public byte[,] Kind, Ground, BaseTop, IceDepth, SnowDepth, Mountain;
+        public sbyte[,] Top;
+        public Dictionary<Vector2Int, HashSet<int>> Mined;
+        public Dictionary<Vector2Int, Dictionary<int, SideBlock>> Placed;
+    }
+
+    // How many caves there are, half of them in each pole's ring of mountains, and how far apart their mouths are
+    // at the least, in squares.
+    public const int CaveCount = 6;
+    const int CaveSpacing = 900;
+    // A cave mouth is on a mountain ledge at least this high, which nobody can reach by walking and jumping, with a
+    // cliff at least this many blocks tall behind it (to its north), where the hole is.
+    const int CaveMouthFrom = 12, CaveMouthTo = 22, CaveCliff = 3;
+    // A cave is this many squares across, and its stone walls are this many blocks tall: too tall to jump.
+    const int CaveSize = 160, CaveWallHeight = 3;
+    // The cave is dug by a few tunnels that wander from the way in, branching now and then and opening out into
+    // rooms. They stay this far from the cave's edges.
+    const int CaveMargin = 14, CaveTunnelSteps = 1800, MostCaveTunnels = 14;
+
+    Land surface;
+    Land[] caveLands = new Land[CaveCount];
+    int caveIndex = -1;
+
+    // The squares of the cave mouths on the planet's surface, each in front of the hole in the cliff north of it,
+    // and the level of the ledge each is on.
+    public Vector2Int[] CaveMouths { get; private set; } = new Vector2Int[0];
+    public int[] CaveMouthLevels { get; private set; } = new int[0];
+    // True while the player is in a cave, and which one.
+    public bool InCave => caveIndex >= 0;
+    public int CaveIndex => caveIndex;
+    // Where the player comes out in a cave: the square in front of the hole they came in by, in its north wall.
+    public static Vector2Int CaveArrival => new Vector2Int(CaveSize / 2, CaveSize / 2);
+
+    // Picks the cave mouths: ledges high on the mountains that walking and jumping can never reach, however the
+    // player goes. Only digging or building gets there.
+    void FindCaveEntrances()
+    {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        // Everywhere that can be reached on foot from the lowlands. From one square to the next the player can go
+        // down any distance, and up at most one block (a jump is one and a half). To be safe this allows two, in
+        // case something like a fern is stood on to get the extra block.
+        var reached = new bool[width, height];
+        var queue = new Queue<Vector2Int>();
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (mountain[x, y] > 0) continue;
+                reached[x, y] = true;
+                // The search only needs to start from the lowland squares at the foot of a mountain.
+                bool foot = false;
+                foreach (Vector2Int side in Sides)
+                {
+                    Vector2Int n = Wrap(x + side.x, y + side.y);
+                    foot |= mountain[n.x, n.y] > 0;
+                }
+                if (foot) queue.Enqueue(new Vector2Int(x, y));
+            }
+        }
+        while (queue.Count > 0)
+        {
+            Vector2Int p = queue.Dequeue();
+            int from = top[p.x, p.y];
+            foreach (Vector2Int side in Sides)
+            {
+                Vector2Int n = Wrap(p + side);
+                if (reached[n.x, n.y] || top[n.x, n.y] > from + 2) continue;
+                reached[n.x, n.y] = true;
+                queue.Enqueue(n);
+            }
+        }
+
+        // Every ledge that would do, in a random order that is the same for the same world.
+        var spots = new List<Vector2Int>();
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int level = top[x, y];
+                if (reached[x, y] || mountain[x, y] == 0 || level < CaveMouthFrom || level > CaveMouthTo) continue;
+                Vector2Int north = Wrap(x, y + 1), south = Wrap(x, y - 1);
+                if (top[north.x, north.y] < level + CaveCliff || top[south.x, south.y] > level) continue;
+                spots.Add(new Vector2Int(x, y));
+            }
+        }
+        var rand = new System.Random(seed + 11);
+        for (int i = spots.Count - 1; i > 0; i--)
+        {
+            int j = rand.Next(i + 1);
+            (spots[i], spots[j]) = (spots[j], spots[i]);
+        }
+
+        // Half the caves in the south and half in the north, well apart from each other.
+        var mouths = new List<Vector2Int>();
+        foreach (bool north in new[] { false, true })
+        {
+            int wanted = mouths.Count + CaveCount / 2;
+            foreach (Vector2Int spot in spots)
+            {
+                if (mouths.Count >= wanted) break;
+                if ((spot.y >= height / 2) != north) continue;
+                bool apart = true;
+                foreach (Vector2Int other in mouths)
+                {
+                    if (Vector2.Distance(Nearest(spot, other), other) < CaveSpacing) apart = false;
+                }
+                if (apart) mouths.Add(spot);
+            }
+        }
+        CaveMouths = mouths.ToArray();
+        CaveMouthLevels = new int[mouths.Count];
+        for (int i = 0; i < mouths.Count; i++) CaveMouthLevels[i] = top[mouths[i].x, mouths[i].y];
+        caveLands = new Land[mouths.Count];
+        Debug.Log("Frost caves: " + mouths.Count + " mouths picked from " + spots.Count + " ledges nobody can walk to, in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds");
+    }
+
+    // Takes the player's land away into a cave, or (with -1) back up to the surface.
+    public void UseLand(int cave)
+    {
+        if (cave == caveIndex) return;
+        if (caveIndex < 0) surface = SaveLand();
+        else caveLands[caveIndex] = SaveLand();
+        if (cave >= 0 && caveLands[cave] == null) caveLands[cave] = MakeCave(cave);
+        LoadLand(cave < 0 ? surface : caveLands[cave]);
+        caveIndex = cave;
+
+        // Everything drawn was the other land's, so it all goes and is drawn again.
+        foreach (Vector2Int cell in seeThrough) terrain.SetColor((Vector3Int)cell, Color.white);
+        seeThrough.Clear();
+        terrain.ClearAllTiles();
+        underground.ClearAllTiles();
+        doorFloors.ClearAllTiles();
+        iceBeneath.ClearAllTiles();
+        window = new RectInt();
+    }
+
+    Land SaveLand()
+    {
+        return new Land
+        {
+            Width = width, Height = height, Kind = kind, Ground = ground, BaseTop = baseTop, Top = top,
+            IceDepth = iceDepth, SnowDepth = snowDepth, Mountain = mountain, Mined = mined, Placed = placed,
+        };
+    }
+
+    void LoadLand(Land land)
+    {
+        width = land.Width;
+        height = land.Height;
+        kind = land.Kind;
+        ground = land.Ground;
+        baseTop = land.BaseTop;
+        top = land.Top;
+        iceDepth = land.IceDepth;
+        snowDepth = land.SnowDepth;
+        mountain = land.Mountain;
+        mined = land.Mined;
+        placed = land.Placed;
+    }
+
+    // Makes one cave: solid rock walls with stone tunnels and rooms dug through them, all on one level, open to the
+    // sky with no roof drawn. The way in is a hole in the north wall of the square the player arrives on.
+    Land MakeCave(int index)
+    {
+        int size = CaveSize;
+        var land = new Land
+        {
+            Width = size, Height = size,
+            Kind = new byte[size, size], Ground = new byte[size, size], BaseTop = new byte[size, size], Top = new sbyte[size, size],
+            IceDepth = new byte[size, size], SnowDepth = new byte[size, size], Mountain = new byte[size, size],
+            Mined = new Dictionary<Vector2Int, HashSet<int>>(), Placed = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>(),
+        };
+        // To begin with it is all wall.
+        var open = new bool[size, size];
+        var rand = new System.Random(seed * 31 + index * 977 + 5);
+        Vector2Int arrival = CaveArrival;
+
+        // The tunnels: each wanders a square at a time, turning a little each step, sometimes opening into a room
+        // and sometimes splitting off a branch. The first heads south, away from the way in.
+        var tunnels = new List<(Vector2 at, float heading)> { (arrival, -Mathf.PI / 2f) };
+        int steps = 0;
+        for (int t = 0; t < tunnels.Count && steps < CaveTunnelSteps; t++)
+        {
+            Vector2 at = tunnels[t].at;
+            float heading = tunnels[t].heading;
+            int length = 80 + rand.Next(180);
+            float radius = 0.9f + (float)rand.NextDouble() * 0.7f;
+            for (int i = 0; i < length && steps < CaveTunnelSteps; i++, steps++)
+            {
+                heading += ((float)rand.NextDouble() - 0.5f) * 0.7f;
+                // Turned back toward the middle when it wanders near an edge.
+                Vector2 toMiddle = new Vector2(size / 2f, size / 2f) - at;
+                if (at.x < CaveMargin || at.x > size - CaveMargin || at.y < CaveMargin || at.y > size - CaveMargin)
+                    heading = Mathf.Atan2(toMiddle.y, toMiddle.x) + ((float)rand.NextDouble() - 0.5f);
+                at += new Vector2(Mathf.Cos(heading), Mathf.Sin(heading));
+                Dig(open, at, radius, radius);
+                if (rand.NextDouble() < 0.012) Dig(open, at, 3.5f + (float)rand.NextDouble() * 3.5f, 3f + (float)rand.NextDouble() * 3f);
+                if (rand.NextDouble() < 0.02 && tunnels.Count < MostCaveTunnels)
+                    tunnels.Add((at, heading + (rand.NextDouble() < 0.5 ? 1f : -1f) * (Mathf.PI / 2f + ((float)rand.NextDouble() - 0.5f))));
+            }
+        }
+        // A little room where the player arrives, with solid wall behind it to the north for the hole.
+        Dig(open, arrival, 1.6f, 1.6f);
+        for (int x = arrival.x - 1; x <= arrival.x + 1; x++)
+        {
+            for (int y = arrival.y + 1; y <= arrival.y + 2; y++) open[x, y] = false;
+        }
+        open[arrival.x, arrival.y] = true;
+
+        // Any bit of tunnel that filling in the wall cut off from the way in is filled in too.
+        var joined = new bool[size, size];
+        var queue = new Queue<Vector2Int>();
+        joined[arrival.x, arrival.y] = true;
+        queue.Enqueue(arrival);
+        while (queue.Count > 0)
+        {
+            Vector2Int p = queue.Dequeue();
+            foreach (Vector2Int side in Sides)
+            {
+                Vector2Int n = p + side;
+                if (n.x < 0 || n.y < 0 || n.x >= size || n.y >= size || joined[n.x, n.y] || !open[n.x, n.y]) continue;
+                joined[n.x, n.y] = true;
+                queue.Enqueue(n);
+            }
+        }
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                if (joined[x, y])
+                {
+                    // Floor: bare stone, all the way down.
+                    land.Kind[x, y] = Stone;
+                    continue;
+                }
+                // Wall: rock up to the wall's height, stone underneath.
+                land.Kind[x, y] = Rock;
+                land.Mountain[x, y] = CaveWallHeight;
+                land.BaseTop[x, y] = CaveWallHeight;
+                land.Top[x, y] = CaveWallHeight;
+            }
+        }
+        return land;
+    }
+
+    // Opens up an oval of a cave around a point.
+    static void Dig(bool[,] open, Vector2 at, float halfWidth, float halfHeight)
+    {
+        int size = open.GetLength(0);
+        for (int y = Mathf.FloorToInt(at.y - halfHeight); y <= Mathf.CeilToInt(at.y + halfHeight); y++)
+        {
+            for (int x = Mathf.FloorToInt(at.x - halfWidth); x <= Mathf.CeilToInt(at.x + halfWidth); x++)
+            {
+                if (x < 1 || y < 1 || x >= size - 1 || y >= size - 1) continue;
+                float dx = (x + 0.5f - at.x) / halfWidth, dy = (y + 0.5f - at.y) / halfHeight;
+                if (dx * dx + dy * dy <= 1f) open[x, y] = true;
+            }
+        }
     }
 
     // Brings a square back into the planet, the way the Earth works. Going off the east edge comes back on the west.

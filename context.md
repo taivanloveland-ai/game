@@ -339,3 +339,19 @@ Running record of what Taivan wants for the game, what has been built, and what 
 ## Music (asked 2026-10-12)
 - His words: "these are the night and day themes. put them into the game." (from his Downloads folder "hi"): **Planet 1 Day Theme.mp3** (about 8.5 minutes) and **Planet 1 Night Theme.mp3** (about 11 minutes), used exactly as he made them, in Assets/Resources/Music.
 - His picks: **fade across at sunrise and sunset** (the day theme fades out as the night theme fades in, over 4 seconds, as the sky gets dark, and the other way at dawn), and **no mute key**. Each theme loops, and starts again from the beginning each time it comes back.
+
+## Frost caves (asked 2026-10-12)
+- His words: "okay. were putting caves in. make sure there is no possible way to get in without a pickaxe or building. So im thinking its a dark hole with icicles that when you walk into, the screen turns fades black then fades into the cave, which for now will be stone tunnels with no visible roof. the cave itself is technacally not part of the overworld, so any building/mining does not affect the overworld."
+- His picks: mouths **high on mountain ledges**. "6 caves. make sure to make the mountains VERY steep". **Winding tunnels with rooms**. In caves, in his words: "td and sc work and the game itself zooms in 2x. the minimap goes dark. once you go in a cave, theres big text across the screen that says "frost cave" and it marks it on the map as frost cave".
+- As built:
+  - **6 caves**, 3 in the mountain ring round each pole, at least 900 squares apart. Each mouth is a dark arch with icicles in a cliff at least 3 blocks tall, above a ledge 12 to 22 blocks up.
+  - Each mouth is checked when the world is made: no route of walking and jumping from the lowlands reaches it. A jump only climbs 1 block, but the check allows 2 to be safe, in case something like a fern is stood on. Only digging or building gets there.
+  - Walking into the hole fades the screen to black (0.6 seconds) and then into the cave. You arrive in front of the hole in the cave's north wall; walking back into it takes you back out onto the ledge.
+  - Inside: stone floor and rock walls 3 blocks tall (too tall to jump), with no roof drawn. Twisting tunnels 2 to 3 squares wide open into rooms now and then, with some dead ends, in an area 160 squares across.
+  - Zoomed in twice as close, in both td and sc. The mini map goes dark. "FROST CAVE" comes up in big letters across the screen. The cave is marked "Frost Cave" on the mini map and world map from then on.
+  - No sky, sun, black hole or night down there. No ferns, ice shards or spiders. The music carries on.
+  - A cave is its own world: digging and building there does not change the land above. What you dig or build in a cave is still there when you come back. Items dropped in a cave stay in that cave.
+  - Falling in a cave, you wake up at the ship as usual.
+- **Mountains made VERY steep** (same request): a short ramp of a block a square at the foot, then 2 blocks a square, then 3, then from 14 blocks up 6 a square (sheer cliffs). Before, it was 2 squares a block at the foot, getting steeper.
+- Not asked, Claude's choices (can change): the cave size, the 4-second name display, leaving by walking back into the same hole, and 3 caves per pole.
+

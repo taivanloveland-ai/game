@@ -142,6 +142,26 @@ public class Gatherables : MonoBehaviour
     public bool Walking => target.HasValue;
 
     // Drops any walk in progress, for when the player has clicked on something else.
+    // Going into a cave puts the surface's things away, since a cave has none; coming out brings them back.
+    public void SetUnderground(bool underground)
+    {
+        if (underground == (surfaceThings != null)) return;
+        if (underground)
+        {
+            surfaceThings = things;
+            things = new Dictionary<Vector2Int, Kind>();
+        }
+        else
+        {
+            things = surfaceThings;
+            surfaceThings = null;
+        }
+        foreach (GameObject picture in shown.Values) Destroy(picture);
+        shown.Clear();
+        shownWindow = new RectInt();
+        target = null;
+    }
+
     public void CancelWalk()
     {
         target = null;
@@ -154,7 +174,9 @@ public class Gatherables : MonoBehaviour
     Pickups pickups;
     Camera cam;
     // What stands on each square of the planet that has something, by the square's position within the planet.
-    readonly Dictionary<Vector2Int, Kind> things = new Dictionary<Vector2Int, Kind>();
+    Dictionary<Vector2Int, Kind> things = new Dictionary<Vector2Int, Kind>();
+    // The things on the surface, kept aside while the player is in a cave, where there are none.
+    Dictionary<Vector2Int, Kind> surfaceThings;
     // The top-down pictures of the things near the player, by the position they are drawn at. Because the planet
     // repeats, that position can be many planet-widths away from the square's position within the planet.
     readonly Dictionary<Vector2Int, GameObject> shown = new Dictionary<Vector2Int, GameObject>();

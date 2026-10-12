@@ -93,6 +93,8 @@ public class Spiders : MonoBehaviour
     Camera cam;
     float nextSwingAt;
     readonly List<Spider> spiders = new List<Spider>();
+    // True while the player is in a cave. Spiders live on the surface, so none are shown or move then.
+    public bool Underground;
     Sprite[] topWalk, topBite, sideWalk, sideBite;
     System.Random rand;
 
@@ -167,6 +169,14 @@ public class Spiders : MonoBehaviour
 
     void Update()
     {
+        if (Underground)
+        {
+            foreach (Spider spider in spiders)
+            {
+                if (spider.Renderer != null) spider.Renderer.enabled = false;
+            }
+            return;
+        }
         Vector2 playerAt = player.GroundPosition;
         float playerFeet = player.FeetHeight;
 

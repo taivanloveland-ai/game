@@ -201,6 +201,14 @@ public class CraftingNook : MonoBehaviour
 
     void Update()
     {
+        // It is part of the ship, on the surface, so in a cave it is not there.
+        picture.gameObject.SetActive(!planet.InCave);
+        if (planet.InCave)
+        {
+            Open = false;
+            walking = false;
+            return;
+        }
         // The nook is only there in the top-down view.
         if (mining.Active)
         {

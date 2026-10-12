@@ -55,6 +55,9 @@ public class PlayerController : MonoBehaviour
 
     float Gravity => -Physics2D.gravity.y * gravityScale;
 
+    // While true the player stands still and the keys do nothing, as while the screen fades going into a cave.
+    public bool Frozen;
+
     // True on any frame the player is pressing a movement key or jump.
     public bool HasManualInput { get; private set; }
 
@@ -104,10 +107,10 @@ public class PlayerController : MonoBehaviour
         HasManualInput = keys != Vector2.zero || jumpKey;
 
         bool useSteering = steering && !HasManualInput;
-        move = useSteering ? steerMove : keys;
+        move = Frozen ? Vector2.zero : useSteering ? steerMove : keys;
         // Keep diagonal movement the same speed as straight movement.
         if (move.sqrMagnitude > 1f) move.Normalize();
-        if (useSteering ? steerJump : jumpKey) jumpQueued = true;
+        if (!Frozen && (useSteering ? steerJump : jumpKey)) jumpQueued = true;
         steering = false;
     }
 
@@ -200,7 +203,8 @@ public class PlayerController : MonoBehaviour
         // Walking over a pole comes out on the far side of the planet, half way round, now heading the other way on
         // the map: over the North Pole you come down it heading south. North stays up the screen.
         Vector2 feet = new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f);
-        if (planet.OverPole(feet, out Vector2 across))
+        // In a cave there are no poles, and nothing to go round.
+        if (!planet.InCave && planet.OverPole(feet, out Vector2 across))
         {
             velocity.y = -velocity.y;
             Teleport(new Vector2(across.x, across.y + Height / 2f - FeetDepth / 2f));
@@ -208,7 +212,7 @@ public class PlayerController : MonoBehaviour
         }
         // Far round the planet to the east or west, the player is moved back by a whole planet width, which looks
         // exactly the same, so positions never grow big enough to lose their exactness.
-        if (feet.x < -planet.width || feet.x > planet.width * 2f)
+        if (!planet.InCave && (feet.x < -planet.width || feet.x > planet.width * 2f))
         {
             Teleport(new Vector2(position.x - Mathf.Floor(feet.x / planet.width) * planet.width, position.y));
             return;
