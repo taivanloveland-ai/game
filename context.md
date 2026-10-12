@@ -261,25 +261,24 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Built so far
 
-- Unity project at the repo root, for editor 6000.6.5f1. Open `Assets/Scenes/PlanetOne` and press Play.
-- Planet 1 is a 1440 x 1440 tile world that is generated when the game starts, differently each time: snow, slippery ice lakes, and raised rock with cliff faces on its south edges. It has no edges; it loops in every direction. Only the land near the player is drawn.
-- A grey crashed ship sits in the middle of the map, with the crafting nook in the middle of its front. The player is an orange rectangle that starts just below it and walks with WASD or the arrow keys. The camera follows the player.
-- Every spot has a height. Ground is level 0 or, in patches (about a fifth of the walkable land), level 1. Rocks and the ship stand 2 above the highest ground next to them. In top-down, higher ground is drawn shifted up the screen with a cliff face on its south side.
-- Top-down jump: Space, 1.5 blocks high, with a shadow on the ground. You need it to get onto level 1; walking off an edge drops you back down.
-- Mining mode: R shows the player's row from the side, with three faded rows behind it, snow 4 or 5 blocks deep over stone, ice as a bowl up to 4 blocks deep, and a 1.5 block jump (Space). W or the up arrow steps to the row behind and S or the down arrow to the row in front, when nothing there is in the way. Each step takes a quarter of a second, about the time it takes to walk one block in td: stepping back, the rows behind slide forward and brighten, the nearest one becoming the front row while the old front row fades away; stepping forward is the reverse. Holding the key keeps stepping. To make the slide visible, each row further back is drawn 0.2 blocks higher than the one in front of it. Ice is slippery and snow is a little slow there too. Left click mines with the pickaxe.
-- Mining mode darkness: the ground is lit where it touches open air and fades to black 1.5 blocks in. Shading only applies to a block if there is a block in front of it in the next row forward (asked 2026-10-09); a block with nothing in front stays fully lit and lets light into its neighbours.
-- Day and night: a 6 minute cycle starting just after sunrise. In sc the red sun arcs across a dusky purple sky by day; at night the sky goes black with stars and the black hole arcs across. At night the sc ground and player are tinted dark blue, and top-down gets a dark blue wash.
-- Things to collect: fiddlehead ferns on 0.4% of snow squares (about 2,100 on the planet; bluish green, the tall frond about the player's height) and ice shards on 0.9% of ice squares (about 1,600; curved pale spikes about three quarters of a block tall). Neither grows back.
-- Maps: a mini map in the top right shows 40 squares around the player with markers for the player and the ship; M opens a world map of everything the mini map has shown (`WorldMap.cs`).
-- Collecting: left click one (it was right click until he asked for "left click for harvesting" on 2026-10-10; the crafting nook is still right click). Within a block it drops at once; otherwise the player walks to it in a straight line, jumping onto raised ground, then it drops. If a rock or the ship is on that line, the click does nothing. In sc the walk is along the row only. Pressing a movement key or jump cancels the walk. A drop sits for a third of a second, then slides to the player from up to 2 blocks away and goes into the inventory.
-- Inventory: stacks per kind of item with no limits. On screen there is a 5-slot tool hotbar, which shows crafted tools, and an Items panel opened with Tab that grows a row at a time.
-- Crafting: right clicking the nook on the ship's front (top-down only) walks the player over and opens the "Ship workbench" panel. 8 ferns and 5 ice shards make an ice pickaxe, which goes into the hotbar. The pickaxe is what you mine with.
-- Nothing is saved between plays: each play is a new world with an empty inventory.
-- Mining: in sc, left click hits a block within 3 blocks. Snow breaks in 1 hit, ice in 2, stone and grey rock in 5, and each drops a block item. Mined blocks stay gone for that play. Top-down movement uses the same blocks, so holes and tunnels work in both views.
-- Checked by running the game in the background on 2026-10-10, later the same day: the planet's edges match across the join and a full planet away is the start again; mining hit counts, reach and drops are right; switching to td in a hole or a tunnel keeps the player at their depth. Real mouse clicks, the mini map and world map on screen, and a full walk round the planet have not been checked by Claude.
-- Checked by running the game in the background on 2026-10-10: three random worlds each built fully walkable; clicking the nook from 7 blocks away walked over and opened it; crafting was refused without enough items and worked with 9 ferns and 5 shards, leaving 1 fern and one pickaxe. How the crafting panel looks and whether its Craft button responds to a real click have not been checked by Claude.
-- Checked by running the game in the background on 2026-10-09: the world builds; in top-down a ledge blocks walking but a jump gets you up, rocks stay blocked, and the jump peaks at 1.5 blocks; R switches views both ways; row stepping works and is refused when blocked. Collecting works in td and sc: a click on empty ground does nothing, and a click on a plant 7 blocks away, a plant up on raised ground, an ice shard, and a plant along the row in sc each walk the player over and end with the item in the inventory. Real key presses and mouse clicks, how the hotbar and Items panel look, the feel of the ice, and how smoothly it runs have not been checked by Claude.
-- Code: `Assets/Scripts/PlanetOne.cs` builds the world, `MiningMode.cs` builds the side view, `PlayerController.cs` handles movement, `DayNight.cs` runs the sky and night, `Gatherables.cs` holds plants, ice shards and the walk-to-collect, `Pickups.cs` the dropped items, `Inventory.cs` and `Hud.cs` the inventory and its display, `CraftingNook.cs` the nook, its menu and the pickaxe, `Mining.cs` hitting and breaking blocks, `WorldMap.cs` the mini map and world map, `Assets/Editor/ArtImport.cs` sets up any picture dropped into `Assets/Resources/Art` (see-through background kept, no compression), `Assets/Editor/ExternalRefresh.cs` lets Claude load finished work into the open editor, `GameInput.cs` reads the keyboard, `CameraFollow.cs` moves the camera, and `Assets/Editor/ProjectSetup.cs` creates the scene if it is missing.
+(Summary as of 2026-10-11. The sections above have the details and his exact words.)
+
+- Unity project at the repo root, for editor 6000.6.5f1. Open `Assets/Scenes/PlanetOne` and press Play. Nothing is saved between plays: each play is a new random world and an empty inventory.
+- **The planet:** 1440 x 1440 squares, made at random each play, with no edges: it loops in every direction. Snow, slippery ice lakes with reflective ice in td, grey rocks, raised patches one block higher, and the crashed ship in the middle. On the far side (720 squares north or south of the ship) is a range of climbable grey-rock mountains up to 14 blocks tall, gentle at the foot and steeper near the top, with snow caps.
+- **Snow** uses his three snow pictures at random, block by block. **Ice** is drawn by the game in blues.
+- **Views:** td is the main view. R switches to sc along the player's row, G to sc along the column (looking west, north on the right). In sc, W and S step between rows; ten rows behind fade off as a gradient; underground is dark past 1.5 blocks from open air.
+- **Moving:** WASD or arrows, 3 squares a second (a little slower on snow, slippery on ice). Space jumps 1.5 blocks in both views. Ferns, icicles and bushes block their square.
+- **Day and night:** 24 minutes, 12 of day and 12 of night. In the G view the red sun and the black hole cross the sky on a Terraria-style arc; the black hole tips with its path and is level at midnight. The R view looks north and shows only stars. Nights are tinted dark blue.
+- **Things to collect** (left click; you walk over if they are further than a block): fiddlehead ferns on snow; ice shards, standing as his icicle (taller and recoloured to look natural) on ice, 5 for every 8 ferns; thornam bushes (his picture) on snow next to ice, 1 for every 13 ferns, which need the ice axe and drop 3 thorns, 3 thornam bush vines and 1 thornam stick.
+- **Inventory:** Tab opens Items. The hotbar has 10 slots (1 to 9 and 0, or the mouse wheel); tools go there when made, and blocks can be dragged there to build with. A block that runs out keeps its slot.
+- **Crafting** at the ship's workbench (right click the nook on the ship's front, td only): ice pickaxe from 8 ferns and 5 ice shards; ice axe (shaped like Thor's axe) from 15 ferns and 10 ice shards. The player starts with nothing.
+- **Mining:** with the pickaxe, left click (or hold) a block within 3 blocks, in sc or td (td hits the top block of the square). Snow 1 hit, ice 2, stone and rock 5. Broken blocks drop as items.
+- **Building:** with a block on the hotbar equipped, left click to place it, in sc or td, touching another block, within 3 blocks. Under a roof in td, the whole roof of the room you are in goes see-through; holes in walls show as real holes. Build limit 20 blocks.
+- **Ice spiders** (his drawing, redone by Claude) live on the ice, about 450 of them. They chase you within 7 squares and bite for 8. With the ice axe they take 5 hits and leave spider silk, 2 spider legs and a spider fang.
+- **Health:** 100, on a bar at the top left. After 5 seconds unhurt it comes back at 5 a second. At zero you wake at the ship and leave half of one random stack where you fell.
+- **Maps:** a mini map in the top right; M opens a world map of everything seen.
+- **Not used yet:** thorns, thornam bush vines, thornam sticks, spider silk, legs and fangs.
+- **Code:** `Assets/Scripts`. `PlanetOne.cs` builds the world and the td view and wires everything; `MiningMode.cs` is sc; `PlayerController.cs` movement; `DayNight.cs` the sky; `Gatherables.cs` ferns, shards and bushes; `Pickups.cs` loose items; `Inventory.cs` and `Hud.cs` the inventory and hotbar; `CraftingNook.cs` crafting; `Mining.cs` and `Building.cs`; `Spiders.cs`; `Health.cs`; `WorldMap.cs`; `GameInput.cs` all keys and mouse. His pictures are in `Assets/Resources/Art`.
 
 ## Build approach (Claude's plan)
 
@@ -299,10 +298,9 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - What is his brother's game like (genre, setting, main mechanic)? Needed so this one can go a different way.
 - What are the alien materials, and what does each one do?
-- What are the mined snow, ice and stone blocks used for (building, crafting)? Can blocks be placed back?
 - Where do the alien materials appear: inside the stone, in the ice, on the surface?
 - If the suit keeps him warm, what is the danger on the cold planet? Can the suit be too weak for the coldest areas?
-- Are there creatures or enemies?
+- What are the thorns, vines, sticks, spider silk, legs and fangs for?
 - What does repairing the ship need?
 - Does the ship need repairing or upgrading again on later planets?
 - What makes each of the four planets different (temperature, materials, dangers)?
@@ -310,5 +308,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Why was he going to the innermost planet?
 - What kind of side-scroller are planets 3 and 4 (building, exploring, combat, jumping challenges)?
 - Tone of the world (dangerous, mysterious, cozy, silly).
-- Art style, and where the art comes from.
+- Should the game be saved between plays, or start fresh each time?
 - Where the finished game should run (Windows PC, browser, phone).
