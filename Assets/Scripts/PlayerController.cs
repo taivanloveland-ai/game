@@ -197,6 +197,16 @@ public class PlayerController : MonoBehaviour
             altitude = floor;
             verticalSpeed = 0f;
         }
+
+        // Walking over a pole comes out on the far side of the planet, half way round, now heading the other way on
+        // the map: over the North Pole you come down it heading south. North stays up the screen.
+        Vector2 feet = new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f);
+        if (planet.OverPole(feet, out Vector2 across))
+        {
+            velocity.y = -velocity.y;
+            Teleport(new Vector2(across.x, across.y + Height / 2f - FeetDepth / 2f));
+            return;
+        }
         body.MovePosition(position);
     }
 

@@ -7,13 +7,15 @@ using UnityEngine.Tilemaps;
 // Every spot has a height in blocks. The top-down view is angled: higher ground is drawn shifted up the screen,
 // with a cliff face showing on its south side. Mining mode uses the same heights to draw a row from the side.
 //
-// The planet has no edges. It joins up with itself, so walking far enough in any direction brings you back to
-// where you started. Positions in the game just keep counting past the planet's size; whenever the land is looked
-// up, the position is wrapped back into the planet. Only the land around the player is ever drawn.
+// The planet is round like the Earth, and the map of it is twice as wide as it is tall. Walking east or west far
+// enough brings you back to where you started. Walking north over the North Pole brings you down the far side of
+// the planet, half way round, walking south (and the same over the South Pole). Positions in the game just keep
+// counting past the edges of the map; whenever the land is looked up, the position is wrapped back into the planet.
+// Only the land around the player is ever drawn.
 public class PlanetOne : MonoBehaviour
 {
     // The size of the planet in squares. Not saved in the scene, so these numbers are always the ones used.
-    [System.NonSerialized] public int width = 2880;
+    [System.NonSerialized] public int width = 5760;
     [System.NonSerialized] public int height = 2880;
     // The world is different every time the game starts. Untick this to always build the world from the seed below.
     public bool randomWorld = true;
@@ -47,12 +49,17 @@ public class PlanetOne : MonoBehaviour
     // The tallest south face a square is ever drawn with, in blocks.
     const int MaxFaceBlocks = 21;
 
-    // A range of mountains like the Himalayas covers the top quarter of the planet, as the map shows it: from three
-    // quarters of the way up the map to its top edge, far from the crash site. Its peaks are this many blocks tall.
+    // Each pole sits in the middle of a flat, roughly round sheet of ice, this many squares from the pole to its edge
+    // give or take the second number. Its edge wanders in and out in bumps about the third number of squares across.
+    // On the map, which is flat, the ice shows as a strip along the top and another along the bottom.
+    const int CapRadius = 120, CapWobble = 30;
+    const float CapBlobSize = 200f;
+    // A ring of mountains like the Himalayas stands round each ice sheet, this many squares deep. Its peaks are this
+    // many blocks tall.
+    const int RingDepth = 300;
     const int MountainHeight = 30;
-    // The range is this share of the map (1 in 4), and fades in and out over this many squares at its southern edge
-    // and at the top edge of the map.
-    const int MountainShare = 4, MountainEdge = 40;
+    // The ring fades in and out over this many squares at its inner and outer edges.
+    const int MountainEdge = 40;
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
     const float MountainBlobSize = 60f, MountainAbove = 0.4f, MountainRise = 0.4f;
@@ -227,6 +234,12 @@ public class PlanetOne : MonoBehaviour
     // The squares whose tiles are currently on the tilemap. Empty until the first tiles are placed.
     RectInt window;
 
+    // The square the player starts on, just in front of the wrecked ship.
+    public Vector2Int CrashSite { get; private set; }
+
+    // How far each pole's ice sheet reaches at each column of the map, in squares from the pole.
+    int[] northCap, southCap;
+
     // The squares of land being drawn around the player right now, in unwrapped positions.
     public RectInt LandWindow => window;
 
@@ -241,7 +254,9 @@ public class PlanetOne : MonoBehaviour
         icePicture = LoadBlockPicture("Art/IceBlock");
         IceSideSprites = MakeIceSideSprites();
 
-        int cx = width / 2, cy = height / 2;
+        // The ship came down in the southern half of the planet, half way between the equator and the South Pole.
+        int cx = width / 2, cy = height / 4;
+        CrashSite = new Vector2Int(cx, cy - 1);
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var picker = new System.Random();
         if (randomWorld) seed = picker.Next(1, 1000000);
@@ -368,6 +383,16 @@ public class PlanetOne : MonoBehaviour
         int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
         variantSeed = rand.Next();
         int mountainSeed = rand.Next();
+        int capSeed = rand.Next();
+
+        // How far each ice sheet reaches, column by column.
+        northCap = new int[width];
+        southCap = new int[width];
+        for (int x = 0; x < width; x++)
+        {
+            northCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, height / 2, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
+            southCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, 0, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
+        }
 
         kind = new byte[width, height];
         ground = new byte[width, height];
@@ -380,6 +405,12 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < width; x++)
             {
+                // Round each pole: flat ice, at ground level.
+                if (FromPole(x, y) < CapAt(x, y))
+                {
+                    kind[x, y] = Ice;
+                    continue;
+                }
                 float fromCrash = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
                 float e = LoopingNoise(x, y, LandBlobSize, landSeed, 3);
                 // Flatten the land around the crash site so the start is open snow.
@@ -415,7 +446,7 @@ public class PlanetOne : MonoBehaviour
                 int highest = 0;
                 for (int ny = y - 1; ny <= y + 1; ny++)
                 {
-                    for (int nx = x - 1; nx <= x + 1; nx++) highest = Mathf.Max(highest, ground[WrapX(nx), WrapY(ny)]);
+                    for (int nx = x - 1; nx <= x + 1; nx++) { Vector2Int n = Wrap(nx, ny); highest = Mathf.Max(highest, ground[n.x, n.y]); }
                 }
                 baseTop[x, y] = (byte)(highest + RockHeight);
                 top[x, y] = (sbyte)baseTop[x, y];
@@ -426,18 +457,29 @@ public class PlanetOne : MonoBehaviour
 
     // Works out how tall the mountains are everywhere and turns the land under them to rock. Like the Himalayas:
     // foothills that ramp up, mountainsides broken into ledges and cliffs, and steep, pointed peaks along ridges.
+    // They stand in a ring round each pole's ice sheet.
     void RaiseMountains(int mountainSeed)
     {
         mountain = new byte[width, height];
-        int start = height - height / MountainShare, end = height - 1;
-        int middle = (start + end) / 2, halfDepth = (end - start) / 2;
-        System.Threading.Tasks.Parallel.For(-halfDepth, halfDepth + 1, dy =>
+        // The rows the rings can reach: the ones nearest the bottom of the map, then the ones nearest the top.
+        int reach = CapRadius + CapWobble + RingDepth + 1;
+        var rows = new int[reach * 2];
+        for (int i = 0; i < reach; i++)
         {
-            int y = WrapY(middle + dy);
-            // Full height through the middle of the range, falling away toward its southern edge and the top of the map.
-            float strength = Mathf.Clamp01((halfDepth - Mathf.Abs(dy)) / (float)MountainEdge);
+            rows[i] = i;
+            rows[reach + i] = height - reach + i;
+        }
+
+        System.Threading.Tasks.Parallel.For(0, rows.Length, i =>
+        {
+            int y = rows[i];
             for (int x = 0; x < width; x++)
             {
+                // Full height through the middle of the ring, falling away toward the ice sheet and toward the
+                // lowlands beyond.
+                int into = FromPole(x, y) - CapAt(x, y);
+                float strength = Mathf.Clamp01(Mathf.Min(into, RingDepth - into) / (float)MountainEdge);
+                if (strength <= 0f) continue;
                 float rise = Mathf.Clamp01((LoopingNoise(x, y, MountainBlobSize, mountainSeed, 2) - MountainAbove) / MountainRise) * strength;
                 if (rise <= 0f) continue;
                 // Ridges: sharp lines of high ground where the ridge noise is near its middle, with valleys between. This
@@ -460,23 +502,23 @@ public class PlanetOne : MonoBehaviour
         for (int pass = 0; pass < 8 && changed; pass++)
         {
             changed = false;
-            for (int dy = -halfDepth; dy <= halfDepth; dy++)
+            for (int i = 0; i < rows.Length; i++)
             {
-                int y = WrapY(middle + dy), south = WrapY(y - 1);
-                for (int x = 0; x < width; x++) changed |= WearDown(x, y, WrapX(x - 1), south);
+                int y = rows[i];
+                for (int x = 0; x < width; x++) changed |= WearDown(x, y, Wrap(x - 1, y), Wrap(x, y - 1));
             }
-            for (int dy = halfDepth; dy >= -halfDepth; dy--)
+            for (int i = rows.Length - 1; i >= 0; i--)
             {
-                int y = WrapY(middle + dy), north = WrapY(y + 1);
-                for (int x = width - 1; x >= 0; x--) changed |= WearDown(x, y, WrapX(x + 1), north);
+                int y = rows[i];
+                for (int x = width - 1; x >= 0; x--) changed |= WearDown(x, y, Wrap(x + 1, y), Wrap(x, y + 1));
             }
         }
 
         // Turn how far in each spot is into how tall it is, cut the mountainsides into ledges, and turn the land under
         // the mountains into rock.
-        System.Threading.Tasks.Parallel.For(-halfDepth, halfDepth + 1, dy =>
+        System.Threading.Tasks.Parallel.For(0, rows.Length, i =>
         {
-            int y = WrapY(middle + dy);
+            int y = rows[i];
             for (int x = 0; x < width; x++)
             {
                 if (mountain[x, y] == 0) continue;
@@ -485,16 +527,21 @@ public class PlanetOne : MonoBehaviour
                 bool wayUp = LoopingNoise(x, y, WayUpBlobSize, mountainSeed + 4, 1) > WayUpAbove;
                 if (tall >= LedgesFrom && tall <= LedgesTo && !wayUp) tall = LedgesFrom + (tall - LedgesFrom) / LedgeStep * LedgeStep;
                 mountain[x, y] = (byte)tall;
+                if (tall > 0) kind[x, y] = Rock;
             }
         });
-        for (int dy = -halfDepth; dy <= halfDepth; dy++)
-        {
-            int y = WrapY(middle + dy);
-            for (int x = 0; x < width; x++)
-            {
-                if (mountain[x, y] > 0) kind[x, y] = Rock;
-            }
-        }
+    }
+
+    // How many squares a spot is from the nearer pole: from the bottom of the map, or from the top.
+    int FromPole(int x, int y)
+    {
+        return y < height / 2 ? y : height - 1 - y;
+    }
+
+    // How far the ice sheet of the nearer pole reaches at a spot's column, in squares from the pole.
+    int CapAt(int x, int y)
+    {
+        return y < height / 2 ? southCap[x] : northCap[x];
     }
 
     // How far in from the foot of a mountain, in sixths of a square, its side has to go to be a number of blocks tall.
@@ -520,9 +567,9 @@ public class PlanetOne : MonoBehaviour
 
     // Lowers a spot of mountain to at most one square further in than its lower neighbour to the side or above or
     // below.
-    bool WearDown(int x, int y, int sideX, int nextY)
+    bool WearDown(int x, int y, Vector2Int side, Vector2Int next)
     {
-        int limit = Mathf.Min(mountain[sideX, y], mountain[x, nextY]) + SlopeUnitsPerSquare;
+        int limit = Mathf.Min(mountain[side.x, side.y], mountain[next.x, next.y]) + SlopeUnitsPerSquare;
         if (mountain[x, y] <= limit) return false;
         mountain[x, y] = (byte)limit;
         return true;
@@ -775,7 +822,7 @@ public class PlanetOne : MonoBehaviour
         // The look is worked out from the square's position, so a square looks the same every time it comes into view.
         bool pictured = PictureFor(material) != null;
         int looks = material == Ice ? IceMarks.Length : 3;
-        int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
+        int variant = !pictured && rims == 0 && drop == 0 ? (int)(HashAt(x, y, variantSeed) * looks) : 0;
         if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
@@ -805,7 +852,7 @@ public class PlanetOne : MonoBehaviour
     // True if a spot has been mined or built on. Everywhere else is solid from its top down.
     bool Changed(int x, int y)
     {
-        var spot = new Vector2Int(WrapX(x), WrapY(y));
+        Vector2Int spot = Wrap(x, y);
         return mined.ContainsKey(spot) || placed.ContainsKey(spot);
     }
 
@@ -959,7 +1006,7 @@ public class PlanetOne : MonoBehaviour
     // It is picked at random for each block, but always the same for the same block.
     public int SnowLookAt(int x, int y, int level)
     {
-        return Mathf.Min(SnowLooks - 1, (int)(Hash(WrapX(x), WrapY(y), variantSeed + 7919 * (level + 64)) * SnowLooks));
+        return Mathf.Min(SnowLooks - 1, (int)(HashAt(x, y, variantSeed + 7919 * (level + 64)) * SnowLooks));
     }
 
     // The picture for a look of snow, or null for plain white (only if the third picture is missing).
@@ -1103,31 +1150,65 @@ public class PlanetOne : MonoBehaviour
         });
     }
 
-    // Brings a position back into the planet. Going off one side comes back on the other.
-    public int WrapX(int x)
+    // Brings a square back into the planet, the way the Earth works. Going off the east edge comes back on the west.
+    // Going off the top of the map, over the North Pole, comes down on the far side of the planet, half way round:
+    // the rows past the top are the rows just below it, counting back down, half the planet's width along. The South
+    // Pole works the same way. So past a pole, the land is the far side of the planet, seen upside down.
+    public Vector2Int Wrap(int x, int y)
     {
+        int sheet = Mathf.FloorToInt(y / (float)height);
+        y -= sheet * height;
+        if ((sheet & 1) != 0)
+        {
+            y = height - 1 - y;
+            x += width / 2;
+        }
         x %= width;
-        return x < 0 ? x + width : x;
-    }
-
-    public int WrapY(int y)
-    {
-        y %= height;
-        return y < 0 ? y + height : y;
+        return new Vector2Int(x < 0 ? x + width : x, y);
     }
 
     public Vector2Int Wrap(Vector2Int cell)
     {
-        return new Vector2Int(WrapX(cell.x), WrapY(cell.y));
+        return Wrap(cell.x, cell.y);
     }
 
-    // Because the planet repeats, every spot can be found again one planet-width away in each direction.
-    // This gives the copy of a spot that is closest to another position.
+    // The same for a point: where it is on the planet, from 0 up to the planet's width and height.
+    public Vector2 WrapPoint(Vector2 point)
+    {
+        float x = point.x, y = Mathf.Repeat(point.y, height * 2f);
+        if (y >= height)
+        {
+            y = Mathf.Min(height * 2f - y, height - 0.001f);
+            x += width / 2f;
+        }
+        return new Vector2(Mathf.Repeat(x, width), y);
+    }
+
+    // True if a point is past the top or bottom of the map, over a pole. Then across is the same place on the
+    // planet, on the near side of the pole, half way round: someone walking north over the pole comes out there,
+    // walking south.
+    public bool OverPole(Vector2 point, out Vector2 across)
+    {
+        across = point;
+        if (point.y >= 0f && point.y < height) return false;
+        across = new Vector2(point.x + width / 2f, point.y < 0f ? -point.y : height * 2f - point.y);
+        return true;
+    }
+
+    // Because the planet joins up with itself, every spot can be found again round the planet to the east and west,
+    // and upside down past each pole. This gives the copy of a spot that is closest to another position.
     public Vector2 Nearest(Vector2 spot, Vector2 from)
     {
-        return new Vector2(
-            from.x + Mathf.Repeat(spot.x - from.x + width / 2f, width) - width / 2f,
-            from.y + Mathf.Repeat(spot.y - from.y + height / 2f, height) - height / 2f);
+        float period = height * 2f;
+        var straight = new Vector2(NearestRepeat(spot.x, from.x, width), NearestRepeat(spot.y, from.y, period));
+        var overPole = new Vector2(NearestRepeat(spot.x + width / 2f, from.x, width), NearestRepeat(-spot.y, from.y, period));
+        return (straight - from).sqrMagnitude <= (overPole - from).sqrMagnitude ? straight : overPole;
+    }
+
+    // The copy of a value, repeating every period, that is closest to another value.
+    static float NearestRepeat(float value, float from, float period)
+    {
+        return from + Mathf.Repeat(value - from + period / 2f, period) - period / 2f;
     }
 
     // Everything that belongs to the top-down view hangs under this.
@@ -1136,8 +1217,9 @@ public class PlanetOne : MonoBehaviour
     // The colour a spot is shown in on the maps: white snow, blue ice, grey rock and ship, each paler where raised.
     public Color32 MapColorAt(int x, int y)
     {
-        x = WrapX(x);
-        y = WrapY(y);
+        Vector2Int spot = Wrap(x, y);
+        x = spot.x;
+        y = spot.y;
         switch (SurfaceMaterial(x, y))
         {
             case Stone: return StoneColor;
@@ -1150,13 +1232,15 @@ public class PlanetOne : MonoBehaviour
 
     public bool IsSnow(int x, int y)
     {
-        return kind[WrapX(x), WrapY(y)] == Snow;
+        Vector2Int spot = Wrap(x, y);
+        return kind[spot.x, spot.y] == Snow;
     }
 
     // True where the land was made as ice, whatever has been dug or built there since.
     public bool IsIceAt(int x, int y)
     {
-        return kind[WrapX(x), WrapY(y)] == Ice;
+        Vector2Int spot = Wrap(x, y);
+        return kind[spot.x, spot.y] == Ice;
     }
 
     public bool IsIce(Vector2 position)
@@ -1167,21 +1251,24 @@ public class PlanetOne : MonoBehaviour
     // Height in blocks of whatever is at a spot.
     public int TopAt(int x, int y)
     {
-        return top[WrapX(x), WrapY(y)];
+        Vector2Int spot = Wrap(x, y);
+        return top[spot.x, spot.y];
     }
 
     // Height of the snow or ice surface at a spot, ignoring any rock or ship standing on it.
     public int GroundAt(int x, int y)
     {
-        return ground[WrapX(x), WrapY(y)];
+        Vector2Int spot = Wrap(x, y);
+        return ground[spot.x, spot.y];
     }
 
     // The block at one spot of a row seen from the side. Level 0 is the first block above the lowest ground,
     // and negative levels are underground.
     public SideBlock SideBlockAt(int x, int row, int level)
     {
-        x = WrapX(x);
-        row = WrapY(row);
+        Vector2Int spot = Wrap(x, row);
+        x = spot.x;
+        row = spot.y;
         if (placed.Count > 0 && placed.TryGetValue(new Vector2Int(x, row), out Dictionary<int, SideBlock> put) && put.TryGetValue(level, out SideBlock placedBlock)) return placedBlock;
         if (level >= baseTop[x, row]) return SideBlock.Air;
         if (mined.TryGetValue(new Vector2Int(x, row), out HashSet<int> gone) && gone.Contains(level)) return SideBlock.Air;
@@ -1209,7 +1296,9 @@ public class PlanetOne : MonoBehaviour
     // True if something stands on the ground at a spot and blocks the way.
     public bool ObstacleAt(int x, int y)
     {
-        return Obstacle != null && Obstacle(WrapX(x), WrapY(y));
+        if (Obstacle == null) return false;
+        Vector2Int spot = Wrap(x, y);
+        return Obstacle(spot.x, spot.y);
     }
 
     // True if the player cannot be in a space: there is a block there, or something standing on the ground there.
@@ -1245,7 +1334,7 @@ public class PlanetOne : MonoBehaviour
         SideBlock was = SideBlockAt(x, row, level);
         if (was == SideBlock.Air || was == SideBlock.Ship || level <= -GroundDepth) return SideBlock.Air;
 
-        var spot = new Vector2Int(WrapX(x), WrapY(row));
+        Vector2Int spot = Wrap(x, row);
         // A block the player placed is simply taken away again. A block of the land is recorded as mined.
         if (!placed.TryGetValue(spot, out Dictionary<int, SideBlock> put) || !put.Remove(level))
         {
@@ -1266,7 +1355,7 @@ public class PlanetOne : MonoBehaviour
     {
         if (level >= BuildLimit || level <= -GroundDepth || SideBlockAt(x, row, level) != SideBlock.Air) return false;
 
-        var spot = new Vector2Int(WrapX(x), WrapY(row));
+        Vector2Int spot = Wrap(x, row);
         if (!placed.TryGetValue(spot, out Dictionary<int, SideBlock> put)) placed[spot] = put = new Dictionary<int, SideBlock>();
         put[level] = block;
         if (level >= top[spot.x, spot.y]) top[spot.x, spot.y] = (sbyte)(level + 1);
@@ -1281,8 +1370,9 @@ public class PlanetOne : MonoBehaviour
         const int reach = 4;
         foreach (Vector2Int cell in window.allPositionsWithin)
         {
-            int dx = WrapX(cell.x - x), dy = WrapY(cell.y - y);
-            if (Mathf.Min(dx, width - dx) <= reach && Mathf.Min(dy, height - dy) <= reach) SetLandTile(cell);
+            // The nearest copy of the spot, which can be across a pole.
+            Vector2 near = Nearest(new Vector2(x + 0.5f, y + 0.5f), cell + new Vector2(0.5f, 0.5f));
+            if (Mathf.Abs(near.x - cell.x - 0.5f) <= reach + 0.01f && Mathf.Abs(near.y - cell.y - 0.5f) <= reach + 0.01f) SetLandTile(cell);
         }
     }
 
@@ -1328,6 +1418,13 @@ public class PlanetOne : MonoBehaviour
         y0 %= down;
         float a = Hash(x0, y0, noiseSeed), b = Hash(x1, y0, noiseSeed), c = Hash(x0, y1, noiseSeed), d = Hash(x1, y1, noiseSeed);
         return Mathf.Lerp(Mathf.Lerp(a, b, sx), Mathf.Lerp(c, d, sx), sy);
+    }
+
+    // A repeatable random value for a square of the planet, the same for every copy of it.
+    float HashAt(int x, int y, int hashSeed)
+    {
+        Vector2Int spot = Wrap(x, y);
+        return Hash(spot.x, spot.y, hashSeed);
     }
 
     // A repeatable random value from 0 up to (but not including) 1 for a grid point.

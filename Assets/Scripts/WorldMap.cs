@@ -8,8 +8,10 @@ using UnityEngine;
 // Under the mini map, "Back to me" puts it back on the player once it has been moved; on the world map, "Whole map"
 // shows all of it again.
 //
-// The planet has no edges, so the maps carry straight on past the edge of the picture and show the land from its
-// opposite side. On the world map, going off the top brings your marker back in at the bottom.
+// The map of the planet is twice as wide as it is tall, like a flat map of the Earth. Going east or west, the maps
+// carry straight on past the edge of the picture and show the land from its opposite side. The top and bottom edges
+// are the North and South Poles: the maps stop there, and someone walking over a pole comes back down on the far
+// side of the map, half way along.
 public class WorldMap : MonoBehaviour
 {
     // How many squares across the mini map shows to begin with, and how big it is on screen.
@@ -62,8 +64,8 @@ public class WorldMap : MonoBehaviour
         worldMiddle = new Vector2(planet.width / 2f, planet.height / 2f);
 
         explored = new bool[planet.width, planet.height];
-        // The picture repeats past its edges, as the planet does, so a map can show the land across the join.
-        picture = new Texture2D(planet.width, planet.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+        // The picture repeats past its east and west edges, as the planet does, so a map can show the land across the join.
+        picture = new Texture2D(planet.width, planet.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp };
         var pixels = new Color32[planet.width * planet.height];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = Unexplored;
         picture.SetPixels32(pixels);
@@ -105,7 +107,7 @@ public class WorldMap : MonoBehaviour
                 float scale = frame.width * worldZoom / planet.width;
                 Vector2 moved = pointer - lastPointer;
                 worldMiddle += new Vector2(-moved.x, moved.y) / scale;
-                worldMiddle = new Vector2(Mathf.Repeat(worldMiddle.x, planet.width), Mathf.Repeat(worldMiddle.y, planet.height));
+                worldMiddle.x = Mathf.Repeat(worldMiddle.x, planet.width);
             }
         }
         else
@@ -136,8 +138,7 @@ public class WorldMap : MonoBehaviour
     // Where the player is within the planet, however many times they have gone round it.
     Vector2 PlayerOnPlanet()
     {
-        Vector2 at = player.GroundPosition;
-        return new Vector2(Mathf.Repeat(at.x, planet.width), Mathf.Repeat(at.y, planet.height));
+        return planet.WrapPoint(player.GroundPosition);
     }
 
     // Remembers every square the mini map is showing right now.
@@ -153,7 +154,8 @@ public class WorldMap : MonoBehaviour
         {
             for (int x = cell.x - half; x < cell.x + half; x++)
             {
-                int px = planet.WrapX(x), py = planet.WrapY(y);
+                Vector2Int spot = planet.Wrap(x, y);
+                int px = spot.x, py = spot.y;
                 if (explored[px, py]) continue;
                 explored[px, py] = true;
                 ExploredCount++;
@@ -177,8 +179,9 @@ public class WorldMap : MonoBehaviour
 
     static Rect WorldFrame()
     {
-        float size = Mathf.Min(Screen.width, Screen.height) * 0.8f;
-        return new Rect((Screen.width - size) / 2f, (Screen.height - size) / 2f + 12f, size, size);
+        // Twice as wide as it is tall, like the planet.
+        float width = Mathf.Min(Screen.width * 0.9f, Screen.height * 0.8f * 2f);
+        return new Rect((Screen.width - width) / 2f, (Screen.height - width / 2f) / 2f + 12f, width, width / 2f);
     }
 
     // Draws the part of the world picture around a spot of the planet into a frame on screen, a number of squares
@@ -190,11 +193,20 @@ public class WorldMap : MonoBehaviour
         GUI.DrawTextureWithTexCoords(frame, picture, part);
     }
 
+    // The map stops at the poles, so the spot in a map's middle is kept far enough from the top and bottom edges
+    // that the map never shows past them.
+    Vector2 KeepOffPoles(Rect frame, Vector2 middle, float squares)
+    {
+        float halfDown = squares * frame.height / frame.width / 2f;
+        float y = halfDown * 2f >= planet.height ? planet.height / 2f : Mathf.Clamp(middle.y, halfDown, planet.height - halfDown);
+        return new Vector2(middle.x, y);
+    }
+
     // Where a spot of the planet is drawn on a map, given the spot in the map's middle and its scale in pixels a
-    // square. The nearest copy of the spot is used, since the planet repeats.
+    // square. The nearest copy of the spot to the east or west is used, since the map repeats that way.
     Vector2 OnMap(Rect frame, Vector2 middle, float scale, Vector2 spot)
     {
-        Vector2 away = planet.Nearest(spot, middle) - middle;
+        var away = new Vector2(Mathf.Repeat(spot.x - middle.x + planet.width / 2f, planet.width) - planet.width / 2f, spot.y - middle.y);
         return new Vector2(frame.center.x + away.x * scale, frame.center.y - away.y * scale);
     }
 
@@ -208,7 +220,7 @@ public class WorldMap : MonoBehaviour
         Rect frame = MiniMapFrame();
         GUI.Box(new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + 8f), GUIContent.none);
         Vector2 at = PlayerOnPlanet();
-        Vector2 middle = at + miniOffset;
+        Vector2 middle = KeepOffPoles(frame, at + miniOffset, miniSquares);
         DrawLand(frame, middle, miniSquares);
 
         // The ship's marker shows the shortest way home, and stays on the edge of the mini map when the ship is out of
@@ -233,6 +245,7 @@ public class WorldMap : MonoBehaviour
         GUI.Box(new Rect(frame.x - 6f, frame.y - 34f, frame.width + 12f, frame.height + 40f), GUIContent.none);
         GUI.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move", titleStyle);
         float squares = planet.width / worldZoom;
+        worldMiddle = KeepOffPoles(frame, worldMiddle, squares);
         DrawLand(frame, worldMiddle, squares);
 
         float scale = frame.width / squares;

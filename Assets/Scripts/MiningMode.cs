@@ -560,7 +560,8 @@ public class MiningMode : MonoBehaviour
             default: color = Stone; break;
         }
         // Slight block-to-block variation so large areas are not one flat colour.
-        int hash = (planet.WrapX(x) * 73856093) ^ (level * 19349663) ^ (planet.WrapY(worldRow) * 83492791);
+        Vector2Int spot = planet.Wrap(x, worldRow);
+        int hash = (spot.x * 73856093) ^ (level * 19349663) ^ (spot.y * 83492791);
         hash = (hash ^ (hash >> 13)) * 0x5bd1e995;
         bool darker = ((hash >> 15) & 1) == 1;
         if (darker && block != PlanetOne.SideBlock.Ship) color *= 0.965f;
