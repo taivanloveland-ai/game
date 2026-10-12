@@ -122,6 +122,9 @@ public class PlanetOne : MonoBehaviour
         new[] { new[] { 4, 12, 5, 1, 2 }, new[] { 8, 8, 3, -1, 2 } },
         new[] { new[] { 12, 5, 2, 1, 1 } },
     };
+    // Snow comes in three looks: Taivan's two pictures and this plain white.
+    const int SnowLooks = 3;
+    static readonly Color32 PlainSnow = new Color32(255, 255, 255, 255);
     static readonly Color32 SnowRim = new Color32(200, 214, 228, 255), SnowFace = new Color32(176, 194, 214, 255), SnowFoot = new Color32(152, 173, 197, 255);
     static readonly Color32 IceRim = new Color32(200, 232, 246, 255), IceFace = new Color32(104, 166, 206, 255), IceFoot = new Color32(84, 144, 188, 255);
     static readonly Color32 RockEdge = new Color32(138, 152, 170, 255);
@@ -164,7 +167,7 @@ public class PlanetOne : MonoBehaviour
         public int Width, Height;
     }
 
-    BlockPicture snowPicture, icePicture;
+    BlockPicture snowPicture, snowPicture2, icePicture;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -214,6 +217,7 @@ public class PlanetOne : MonoBehaviour
 
         // Drawn pictures, where they exist, are used for the top of tiles here and for blocks in mining mode.
         snowPicture = LoadBlockPicture("Art/SnowBlock");
+        snowPicture2 = LoadBlockPicture("Art/SnowBlock2");
         icePicture = LoadBlockPicture("Art/IceBlock");
         IceSideSprites = MakeIceSideSprites();
 
@@ -681,6 +685,7 @@ public class PlanetOne : MonoBehaviour
         bool pictured = PictureFor(material) != null;
         int looks = material == Ice ? IceMarks.Length : 3;
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(Hash(WrapX(x), WrapY(y), variantSeed) * looks) : 0;
+        if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -780,7 +785,8 @@ public class PlanetOne : MonoBehaviour
         var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (variant << 19) | (glassy ? 1 << 23 : 0)), faceBlocks);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
-        BlockPicture picture = PictureFor(material);
+        // Snow has three looks, picked square by square: Taivan's two snow pictures, and plain white.
+        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : PictureFor(material);
         bool pictured = picture != null;
         Color32 topColor, rimColor;
         switch (material)
@@ -789,7 +795,7 @@ public class PlanetOne : MonoBehaviour
             case Rock: topColor = RockColors[variant % RockColors.Length]; rimColor = RockEdge; break;
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
             case Stone: topColor = StoneColor; rimColor = StoneRim; break;
-            default: topColor = SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
+            default: topColor = material == Snow && snowPicture != null && !pictured ? PlainSnow : SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
         }
 
         int facePixels = drop * FacePixels;
@@ -856,6 +862,25 @@ public class PlanetOne : MonoBehaviour
             sprites[i] = PaintSprite(size, size, new Vector2(0.5f, 0.5f), size, true, (x, y) => IcePixel(0, look, x, y));
         }
         return sprites;
+    }
+
+    // Which of the three looks a block of snow has: 0 and 1 are Taivan's two snow pictures, 2 is plain white.
+    // It is picked at random for each block, but always the same for the same block.
+    public int SnowLookAt(int x, int y, int level)
+    {
+        return Mathf.Min(SnowLooks - 1, (int)(Hash(WrapX(x), WrapY(y), variantSeed + 7919 * (level + 64)) * SnowLooks));
+    }
+
+    // The picture for a look of snow, or null for plain white.
+    public Sprite SnowLookSprite(int look)
+    {
+        return SnowPicture(look)?.Sprite;
+    }
+
+    BlockPicture SnowPicture(int look)
+    {
+        // If the second picture is missing, its share of the snow uses the first one.
+        return look == 0 ? snowPicture : look == 1 ? snowPicture2 ?? snowPicture : null;
     }
 
     // The drawn picture for a kind of ground, or null if that kind is drawn as flat colour.
