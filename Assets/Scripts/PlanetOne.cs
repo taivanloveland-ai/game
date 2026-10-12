@@ -13,8 +13,8 @@ using UnityEngine.Tilemaps;
 public class PlanetOne : MonoBehaviour
 {
     // The size of the planet in squares. Not saved in the scene, so these numbers are always the ones used.
-    [System.NonSerialized] public int width = 1440;
-    [System.NonSerialized] public int height = 1440;
+    [System.NonSerialized] public int width = 2880;
+    [System.NonSerialized] public int height = 2880;
     // The world is different every time the game starts. Untick this to always build the world from the seed below.
     public bool randomWorld = true;
     // The number the world is built from. The same seed always gives the same world.
@@ -370,7 +370,8 @@ public class PlanetOne : MonoBehaviour
         top = new sbyte[width, height];
         mined.Clear();
         placed.Clear();
-        for (int y = 0; y < height; y++)
+        // The rows are worked out side by side on all the computer's cores, since each spot only depends on itself.
+        System.Threading.Tasks.Parallel.For(0, height, y =>
         {
             for (int x = 0; x < width; x++)
             {
@@ -383,7 +384,7 @@ public class PlanetOne : MonoBehaviour
                 // Patches of ground one block higher. The crash site itself stays at ground level.
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
-        }
+        });
         // The wrecked ship sits just above the spot where the player starts.
         for (int y = cy + 1; y < cy + 3; y++)
         {
@@ -427,7 +428,7 @@ public class PlanetOne : MonoBehaviour
         // where the map joins its bottom edge again.
         int start = cy + MountainsBeginNorth, end = height - 1;
         int middle = (start + end) / 2, halfDepth = (end - start) / 2;
-        for (int dy = -halfDepth; dy <= halfDepth; dy++)
+        System.Threading.Tasks.Parallel.For(-halfDepth, halfDepth + 1, dy =>
         {
             int y = WrapY(middle + dy);
             // Full height through the middle of the range, falling away to nothing at its north and south edges.
@@ -439,7 +440,7 @@ public class PlanetOne : MonoBehaviour
                 // Kept for now as how far in from the foot of the mountain a spot this tall has to be.
                 mountain[x, y] = (byte)RunTo(tall);
             }
-        }
+        });
 
         // Wear the mountains into shape: no spot may be more than one square (six sixths) further in from the foot than the
         // spot next to it. Sweeping forwards and then backwards a few times settles the whole range.
@@ -1054,7 +1055,8 @@ public class PlanetOne : MonoBehaviour
             }
         }
 
-        for (int y = 0; y < height; y++)
+        // Rows are worked out side by side on all the computer's cores, since each spot only depends on itself.
+        System.Threading.Tasks.Parallel.For(0, height, y =>
         {
             for (int x = 0; x < width; x++)
             {
@@ -1062,7 +1064,7 @@ public class PlanetOne : MonoBehaviour
                 // Snow is 4 or 5 blocks deep, changing gently from place to place.
                 snowDepth[x, y] = (byte)(LoopingNoise(x, y, DepthBlobSize, depthSeed, 1) > 0.5f ? 5 : 4);
             }
-        }
+        });
     }
 
     // Brings a position back into the planet. Going off one side comes back on the other.
