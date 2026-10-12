@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 // Small things on the ground the player can collect: plants on the snow and sharp ice shards on the ice.
 // They show in both views. Left clicking one collects it if the player is at most a block away;
@@ -30,6 +31,15 @@ public class Gatherables : MonoBehaviour
     const float FernFootUp = 0.088f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
+    // Where the middle of the icicle's base is in Taivan's picture: across from the left edge as a share of the width,
+    // and up from the bottom in pixels. How many rows at the top of the picture are left out, and how wide and
+    // tall the icicle itself is, in pixels.
+    const float IcicleFootAcross = 44.5f / 128f, IcicleFootUp = 7f;
+    const int IcicleTopRowsLeftOut = 1;
+    // The soft shadow drawn beside a thing that would otherwise blend into the ground: where it sits, and its colour.
+    static readonly Vector3 ShadowOffset = new Vector3(0.09f, -0.03f, 0f);
+    static readonly Color ShadowColor = new Color(0.25f, 0.42f, 0.6f, 0.6f);
+    const float IcicleWidePixels = 44f, IcicleTallPixels = 100f;
     // Where in its square a thing stands, measured up from the near edge.
     const float BaseOffset = 0.3f;
     // "A block away at max": the thing is in the player's square or one next to it.
@@ -105,6 +115,8 @@ public class Gatherables : MonoBehaviour
         public int[] DropCounts;
         // True for things that can only be collected with the ice axe equipped.
         public bool NeedsAxe;
+        // True for things drawn with a soft shadow beside them, so they show against ground of the same colour.
+        public bool Shadow;
     }
 
 
@@ -179,6 +191,24 @@ public class Gatherables : MonoBehaviour
             plant.Width = fernPicture.width / pixelsPerUnit;
         }
         Kind shard = MakeKind("Ice shard", ShardPixelsWide, ShardPixelsTall, ShardPixelsPerUnit, true, ShardPixel);
+        // Standing on the ice, a shard looks like Taivan's icicle picture, used exactly as drawn at the fine scale.
+        // The picture's top row has a stray mark in one corner, so only the rows below it are used.
+        var iciclePicture = Resources.Load<Texture2D>("Art/Icicle");
+        if (iciclePicture != null)
+        {
+            var below = new Rect(0, 0, iciclePicture.width, iciclePicture.height - IcicleTopRowsLeftOut);
+            float pictureHeight = below.height / ShardPixelsPerUnit;
+            for (int level = 0; level < shard.Sprites.Length; level++)
+            {
+                // The pivot is the middle of its base. Dropping it draws the icicle higher, for raised ground.
+                var pivot = new Vector2(IcicleFootAcross, IcicleFootUp / below.height - level * PlanetOne.HeightScale / pictureHeight);
+                shard.Sprites[level] = Sprite.Create(iciclePicture, below, pivot, ShardPixelsPerUnit);
+            }
+            shard.Width = IcicleWidePixels / ShardPixelsPerUnit;
+            shard.Height = IcicleTallPixels / ShardPixelsPerUnit;
+            // The icicle is the same blue as the ice it stands on, so it casts a soft shadow to stand out against it.
+            shard.Shadow = true;
+        }
         // Once it has been knocked loose, an ice shard looks like the drawn picture, both on the ground and in the inventory.
         var shardPicture = Resources.Load<Texture2D>("Art/IceShardItem");
         if (shardPicture != null)
@@ -416,6 +446,19 @@ public class Gatherables : MonoBehaviour
         renderer.sprite = kind.Sprites[planet.GroundAt(cell.x, cell.y)];
         // Sorted by its foot, so the player walks in front of or behind it correctly.
         renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+        if (kind.Shadow)
+        {
+            // The shadow is the same picture in a darker blue, a little to the side, drawn just behind the thing.
+            // The two are put in order as one, at the thing's foot, so the shadow is never in front of anything else.
+            go.AddComponent<SortingGroup>();
+            renderer.sortingOrder = 1;
+            var shade = new GameObject("Shadow");
+            shade.transform.SetParent(go.transform, false);
+            shade.transform.localPosition = ShadowOffset;
+            var shaded = shade.AddComponent<SpriteRenderer>();
+            shaded.sprite = renderer.sprite;
+            shaded.color = ShadowColor;
+        }
 
         // Its reflection: the same picture upside down beneath its foot, drawn under the land. It shows wherever the
         // ground there is ice, as with an ice shard, or a bush growing at the edge of a frozen lake.
