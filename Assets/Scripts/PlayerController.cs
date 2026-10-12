@@ -207,6 +207,13 @@ public class PlayerController : MonoBehaviour
             Teleport(new Vector2(across.x, across.y + Height / 2f - FeetDepth / 2f));
             return;
         }
+        // Far round the planet to the east or west, the player is moved back by a whole planet width, which looks
+        // exactly the same, so positions never grow big enough to lose their exactness.
+        if (feet.x < -planet.width || feet.x > planet.width * 2f)
+        {
+            Teleport(new Vector2(position.x - Mathf.Floor(feet.x / planet.width) * planet.width, position.y));
+            return;
+        }
         body.MovePosition(position);
     }
 
