@@ -22,10 +22,12 @@ public class PlanetOne : MonoBehaviour
     // For testing only, and off in the real game: set this to true to begin with an ice pickaxe already made.
     // Like the planet's size, these two are not saved in the scene, so the values here are always the ones used.
     // (When they were saved, the open editor kept the old test values after the code was changed.)
-    [System.NonSerialized] public bool startWithPickaxe = false;
+    // TEMPORARY (asked 2026-10-11): on for testing.
+    [System.NonSerialized] public bool startWithPickaxe = true;
     // For testing only, and 0 in the real game: begin with this many of each block (snow, ice and stone), already
     // on the hotbar.
-    [System.NonSerialized] public int startWithBlocks = 0;
+    // TEMPORARY (asked 2026-10-11): 999 for testing.
+    [System.NonSerialized] public int startWithBlocks = 999;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship }
