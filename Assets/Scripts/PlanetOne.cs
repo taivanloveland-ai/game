@@ -47,28 +47,20 @@ public class PlanetOne : MonoBehaviour
     // The tallest south face a square is ever drawn with, in blocks.
     const int MaxFaceBlocks = 21;
 
-    // A range of mountains covers the whole northern part of the planet, as the map shows it: from a little way north
-    // of the crash site all the way up to the top edge of the map. Its peaks are this many blocks tall.
-    const int MountainHeight = 24;
-    // The range begins this many squares north of the ship, and fades in and out over this many squares at its
-    // southern edge and at the top edge of the map.
-    const int MountainsBeginNorth = 100, MountainEdge = 40;
+    // A range of mountains covers the top quarter of the planet, as the map shows it: from three quarters of the way up
+    // the map to its top edge, far from the crash site. Its peaks are this many blocks tall.
+    const int MountainHeight = 25;
+    // The range is this share of the map (1 in 4), and fades in and out over this many squares at its southern edge
+    // and at the top edge of the map.
+    const int MountainShare = 4, MountainEdge = 40;
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
     const float MountainBlobSize = 84f, MountainAbove = 0.4f, MountainRise = 0.4f;
-    // Mountains get steeper toward the top, and much steeper near the peak. This is how wide each step of a slope
-    // is, from the first block up to the last, in sixths of a square: broad and gentle at the foot (4 squares a
-    // block), a block a square in the middle, then two blocks a square, and three near the peak. The lower slopes
-    // can be climbed by jumping; the steep tops cannot, without digging or building steps.
-    const int SlopeUnitsPerSquare = 6;
-    static readonly int[] StepWidths =
-    {
-        24, 18, 18, 18,
-        12, 12, 12, 12,
-        6, 6, 6, 6, 6, 6,
-        3, 3, 3, 3, 3, 3,
-        2, 2, 2, 2,
-    };
+    // Mountains are sheer: a cliff 3 or 5 blocks tall at the foot, then ledges each 2 or 4 blocks above the last, both
+    // changing slowly over about this many squares. Every ledge is an odd number of blocks high, so no two ledges
+    // side by side are ever less than 2 blocks apart, and a 1.5 block jump never gets up one.
+    static readonly int[] Feet = { 3, 5 }, Steps = { 2, 4 };
+    const float TerraceBlobSize = 120f;
     // Mountains this tall or taller have snow on top.
     const int SnowCapFrom = 16;
     const int TilePixels = 16;
@@ -391,7 +383,7 @@ public class PlanetOne : MonoBehaviour
             for (int x = cx - 2; x < cx + 3; x++) kind[x, y] = Ship;
         }
 
-        RaiseMountains(cy, mountainSeed);
+        RaiseMountains(mountainSeed);
 
         for (int y = 0; y < height; y++)
         {
@@ -419,77 +411,41 @@ public class PlanetOne : MonoBehaviour
         ComputeGroundDepths(depthSeed);
     }
 
-    // Works out how tall the mountains are everywhere and turns the land under them to rock. The slopes are gentle at
-    // the foot and steep near the top; see StepWidths.
-    void RaiseMountains(int cy, int mountainSeed)
+    // Works out how tall the mountains are everywhere and turns the land under them to rock. They rise in sheer
+    // terraces: a cliff 3 or 5 blocks tall at the foot, then ledges, each 2 or 4 blocks above the last, up to the
+    // peak. A jump only reaches 1.5 blocks, so the only way up is to dig steps with the pickaxe (or build them).
+    void RaiseMountains(int mountainSeed)
     {
         mountain = new byte[width, height];
-        // The range covers the whole northern part of the map: from a little way north of the ship up to the top edge,
-        // where the map joins its bottom edge again.
-        int start = cy + MountainsBeginNorth, end = height - 1;
+        int start = height - height / MountainShare, end = height - 1;
         int middle = (start + end) / 2, halfDepth = (end - start) / 2;
         System.Threading.Tasks.Parallel.For(-halfDepth, halfDepth + 1, dy =>
         {
             int y = WrapY(middle + dy);
-            // Full height through the middle of the range, falling away to nothing at its north and south edges.
+            // Full height through the middle of the range, falling away toward its southern edge and the top of the map.
             float strength = Mathf.Clamp01((halfDepth - Mathf.Abs(dy)) / (float)MountainEdge);
             for (int x = 0; x < width; x++)
             {
                 float rise = (LoopingNoise(x, y, MountainBlobSize, mountainSeed, 2) - MountainAbove) / MountainRise * strength;
-                int tall = Mathf.Clamp(Mathf.RoundToInt(rise * MountainHeight), 0, MountainHeight);
-                // Kept for now as how far in from the foot of the mountain a spot this tall has to be.
-                mountain[x, y] = (byte)RunTo(tall);
+                float wanted = rise * MountainHeight;
+                if (wanted < 0.5f) continue;
+                // How tall the cliff at the foot is, and how tall each step above it is, change slowly from mountain
+                // to mountain.
+                int foot = Feet[LoopingNoise(x, y, TerraceBlobSize, mountainSeed + 1, 1) < 0.5f ? 0 : 1];
+                int step = Steps[LoopingNoise(x, y, TerraceBlobSize, mountainSeed + 2, 1) < 0.5f ? 0 : 1];
+                int tall = wanted <= foot ? foot : foot + (int)((wanted - foot) / step) * step;
+                mountain[x, y] = (byte)Mathf.Min(tall, MountainHeight);
             }
         });
 
-        // Wear the mountains into shape: no spot may be more than one square (six sixths) further in from the foot than the
-        // spot next to it. Sweeping forwards and then backwards a few times settles the whole range.
-        bool changed = true;
-        for (int pass = 0; pass < 8 && changed; pass++)
-        {
-            changed = false;
-            for (int dy = -halfDepth; dy <= halfDepth; dy++)
-            {
-                int y = WrapY(middle + dy), south = WrapY(y - 1);
-                for (int x = 0; x < width; x++) changed |= WearDown(x, y, WrapX(x - 1), south);
-            }
-            for (int dy = halfDepth; dy >= -halfDepth; dy--)
-            {
-                int y = WrapY(middle + dy), north = WrapY(y + 1);
-                for (int x = width - 1; x >= 0; x--) changed |= WearDown(x, y, WrapX(x + 1), north);
-            }
-        }
-
-        // Turn how far in each spot is into how tall it is, and the land under the mountains into rock.
         for (int dy = -halfDepth; dy <= halfDepth; dy++)
         {
             int y = WrapY(middle + dy);
             for (int x = 0; x < width; x++)
             {
-                int tall = 0;
-                while (tall < MountainHeight && RunTo(tall + 1) <= mountain[x, y]) tall++;
-                mountain[x, y] = (byte)tall;
-                if (tall > 0) kind[x, y] = Rock;
+                if (mountain[x, y] > 0) kind[x, y] = Rock;
             }
         }
-    }
-
-    // How many squares in from the foot of a mountain its slope has to go to be a number of blocks tall.
-    static int RunTo(int tall)
-    {
-        int run = 0;
-        for (int i = 0; i < tall; i++) run += StepWidths[i];
-        return run;
-    }
-
-    // Lowers a spot of mountain to at most one square further in than its lower neighbour to the side or above or
-    // below.
-    bool WearDown(int x, int y, int sideX, int nextY)
-    {
-        int limit = Mathf.Min(mountain[sideX, y], mountain[x, nextY]) + SlopeUnitsPerSquare;
-        if (mountain[x, y] <= limit) return false;
-        mountain[x, y] = (byte)limit;
-        return true;
     }
 
     // How much of the walkable land can be reached on foot from the crash site, from 0 to 1.
