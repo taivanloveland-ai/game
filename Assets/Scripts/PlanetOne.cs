@@ -35,7 +35,7 @@ public class PlanetOne : MonoBehaviour
     [System.NonSerialized] public bool caveByCrashSite = true;
 
     // What one block of a row looks like from the side in mining mode.
-    public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship }
+    public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship, Water }
 
     // How far up the screen one block of height is drawn in the top-down view, in tiles.
     public const float HeightScale = 0.5f;
@@ -45,6 +45,8 @@ public class PlanetOne : MonoBehaviour
     public const int BuildLimit = 48;
 
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3, Stone = 4;
+    // The South Pole's ice cap: a block of snow on top with ice under it. And the freezing ocean round it.
+    const byte SnowOverIce = 5, Water = 6;
     // How many blocks deep the ground goes. The very bottom layer cannot be mined.
     public const int GroundDepth = 14;
     // A cliff face in the top-down view is never drawn taller than this many blocks; deeper holes look the same from above.
@@ -57,8 +59,17 @@ public class PlanetOne : MonoBehaviour
     // On the map, which is flat, the ice shows as a strip along the top and another along the bottom.
     const int CapRadius = 120, CapWobble = 30;
     const float CapBlobSize = 200f;
-    // A ring of mountains like the Himalayas stands round each ice sheet, this many squares deep. Its peaks are this
-    // many blocks tall.
+    // The South Pole's ice cap is snowy: snow over ice, with patches of bare ice about this many squares across where
+    // their noise is above the second number. Under its one block of snow the ice goes this many blocks deep.
+    const float CapBareIceBlobSize = 18f, CapBareIceAbove = 0.64f;
+    const int CapIceDepth = 4;
+    // A freezing ocean surrounds the South Pole's ice cap, about this many squares wide, give or take the second
+    // number, its far shore wandering in bumps about the third number of squares across. The water is this many
+    // blocks deep, with stone under it.
+    const int OceanWidth = 150, OceanWobble = 25, OceanDepth = 4;
+    const float OceanBlobSize = 160f;
+    // A ring of mountains like the Himalayas stands round the North Pole's ice sheet, this many squares deep. Its
+    // peaks are this many blocks tall. (Round the South Pole, the ocean is where the mountains were.)
     const int RingDepth = 300;
     const int MountainHeight = 30;
     // The ring fades in and out over this many squares at its inner and outer edges.
@@ -161,6 +172,15 @@ public class PlanetOne : MonoBehaviour
     static readonly Color32 ShipRim = new Color32(150, 158, 170, 255);
     // Bare stone, as seen from above where the snow or ice over it has been dug away.
     static readonly Color32 StoneColor = new Color32(70, 80, 96, 255), StoneRim = new Color32(98, 110, 128, 255);
+    // The freezing ocean: dark, cold blue, with lighter ripples. A ripple is { x, y, length } on the 16-pixel tile.
+    public static readonly Color32 WaterColor = new Color32(38, 78, 122, 255), WaterLight = new Color32(78, 128, 176, 255);
+    static readonly Color32 WaterRim = new Color32(96, 146, 190, 255), WaterFace = new Color32(28, 60, 98, 255), WaterFoot = new Color32(20, 46, 78, 255);
+    static readonly int[][][] WaterRipples =
+    {
+        new int[0][],
+        new[] { new[] { 2, 4, 4 }, new[] { 9, 11, 5 } },
+        new[] { new[] { 6, 7, 4 }, new[] { 1, 13, 3 }, new[] { 11, 2, 3 } },
+    };
     // Ice is reflective in the top-down view. Reflections are drawn at this sorting order, under the land, and
     // show through the top of the ice, which is this solid (out of 255).
     public const int ReflectionOrder = -3;
@@ -242,6 +262,8 @@ public class PlanetOne : MonoBehaviour
 
     // How far each pole's ice sheet reaches at each column of the map, in squares from the pole.
     int[] northCap, southCap;
+    // How far the ocean round the South Pole reaches at each column of the map, in squares from the pole.
+    int[] southOcean;
 
     // The squares of land being drawn around the player right now, in unwrapped positions.
     public RectInt LandWindow => window;
@@ -399,10 +421,12 @@ public class PlanetOne : MonoBehaviour
         // How far each ice sheet reaches, column by column.
         northCap = new int[width];
         southCap = new int[width];
+        southOcean = new int[width];
         for (int x = 0; x < width; x++)
         {
             northCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, height / 2, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, 0, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
+            southOcean[x] = southCap[x] + OceanWidth + Mathf.RoundToInt((LoopingNoise(x, 0, OceanBlobSize, capSeed + 7, 2) * 2f - 1f) * OceanWobble);
         }
 
         kind = new byte[width, height];
@@ -416,10 +440,18 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < width; x++)
             {
-                // Round each pole: flat ice, at ground level.
+                // Round each pole, flat at ground level: plain ice in the north, snow over ice in the south with
+                // patches of bare ice.
+                bool south = y < height / 2;
                 if (FromPole(x, y) < CapAt(x, y))
                 {
-                    kind[x, y] = Ice;
+                    kind[x, y] = south && LoopingNoise(x, y, CapBareIceBlobSize, capSeed + 9, 2) <= CapBareIceAbove ? SnowOverIce : Ice;
+                    continue;
+                }
+                // And round the South Pole's ice cap, the freezing ocean.
+                if (south && y < southOcean[x])
+                {
+                    kind[x, y] = Water;
                     continue;
                 }
                 float fromCrash = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
@@ -472,14 +504,11 @@ public class PlanetOne : MonoBehaviour
     void RaiseMountains(int mountainSeed)
     {
         mountain = new byte[width, height];
-        // The rows the rings can reach: the ones nearest the bottom of the map, then the ones nearest the top.
+        // The rows the ring can reach, nearest the top of the map. There are none round the South Pole, where the
+        // ocean is.
         int reach = CapRadius + CapWobble + RingDepth + 1;
-        var rows = new int[reach * 2];
-        for (int i = 0; i < reach; i++)
-        {
-            rows[i] = i;
-            rows[reach + i] = height - reach + i;
-        }
+        var rows = new int[reach];
+        for (int i = 0; i < reach; i++) rows[i] = height - reach + i;
 
         System.Threading.Tasks.Parallel.For(0, rows.Length, i =>
         {
@@ -947,6 +976,7 @@ public class PlanetOne : MonoBehaviour
             case Rock: topColor = RockColors[variant % RockColors.Length]; rimColor = RockEdge; break;
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
             case Stone: topColor = StoneColor; rimColor = StoneRim; break;
+            case Water: topColor = WaterColor; rimColor = WaterRim; break;
             default: topColor = material == Snow && snowPicture != null && !pictured ? PlainSnow : SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
         }
 
@@ -972,6 +1002,7 @@ public class PlanetOne : MonoBehaviour
             bool rim =((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
             if (pictured) return PicturePixel(picture, fineX, fineY);
+            if (material == Water) return WaterPixel(variant, x, y);
             if (material != Ice) return topColor;
             // The top of ice is a little see-through when it is glassy, so reflections drawn beneath it show.
             Color32 ice = IcePixel(groundLevel, variant, fineX, fineY);
@@ -1101,6 +1132,16 @@ public class PlanetOne : MonoBehaviour
         return pixels;
     }
 
+    // One pixel of the top of the ocean: dark, cold water, with a few short lighter ripples on two of its three looks.
+    static Color32 WaterPixel(int variant, int x, int y)
+    {
+        foreach (int[] ripple in WaterRipples[variant])
+        {
+            if (y == ripple[1] && x >= ripple[0] && x < ripple[0] + ripple[2]) return WaterLight;
+        }
+        return WaterColor;
+    }
+
     // The south-facing side of a raised block. y counts down from the top of the face.
     static Color32 PaintFace(byte material, int x, int y, int facePixels)
     {
@@ -1109,6 +1150,7 @@ public class PlanetOne : MonoBehaviour
         {
             case Ice: return foot ? IceFoot : IceFace;
             case Ship: return ShipSideColor;
+            case Water: return foot ? WaterFoot : WaterFace;
             case Rock:
             case Stone:
                 if (y < 2) return RockEdge;
@@ -1181,10 +1223,10 @@ public class PlanetOne : MonoBehaviour
         public CaveHole Exit;
     }
 
-    // How many caves there are, half of them in each pole's ring of mountains, and how far apart their mouths are
+    // How many caves there are, all in the ring of mountains round the North Pole, and how far apart their mouths are
     // at the least, in squares.
     public const int CaveCount = 6;
-    const int CaveSpacing = 500;
+    const int CaveSpacing = 350;
     // Cave mouths are on the inner side of the ring of mountains, at most this many squares out from the edge of the
     // pole's ice sheet.
     const int CaveNearIce = 70;
@@ -1277,11 +1319,11 @@ public class PlanetOne : MonoBehaviour
             (spots[i], spots[j]) = (spots[j], spots[i]);
         }
 
-        // Half the caves in the south and half in the north, well apart from each other.
+        // All the caves are in the northern mountains (the south has the ocean instead), well apart from each other.
         var mouths = new List<Vector2Int>();
-        foreach (bool north in new[] { false, true })
+        foreach (bool north in new[] { true })
         {
-            int wanted = mouths.Count + CaveCount / 2;
+            int wanted = mouths.Count + CaveCount;
             foreach (Vector2Int spot in spots)
             {
                 if (mouths.Count >= wanted) break;
@@ -1605,6 +1647,7 @@ public class PlanetOne : MonoBehaviour
         switch (SurfaceMaterial(x, y))
         {
             case Stone: return StoneColor;
+            case Water: return WaterColor;
             case Ice: return IceBase[ground[x, y]];
             case Rock: return RockColors[0];
             case Ship: return ShipColor;
@@ -1623,6 +1666,12 @@ public class PlanetOne : MonoBehaviour
     {
         Vector2Int spot = Wrap(x, y);
         return kind[spot.x, spot.y] == Ice;
+    }
+
+    // True where the top of the land is the ocean: the player is swimming there.
+    public bool IsWater(Vector2 position)
+    {
+        return SurfaceMaterial(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y)) == Water;
     }
 
     public bool IsIce(Vector2 position)
@@ -1667,6 +1716,8 @@ public class PlanetOne : MonoBehaviour
         if (level >= surface) return SideBlock.Ship;
 
         int depth = surface - level;
+        if (k == Water) return depth <= OceanDepth ? SideBlock.Water : SideBlock.Stone;
+        if (k == SnowOverIce) return depth == 1 ? SideBlock.Snow : depth <= 1 + CapIceDepth ? SideBlock.Ice : SideBlock.Stone;
         if (k == Ice && depth <= iceDepth[x, row]) return SideBlock.Ice;
         return depth <= snowDepth[x, row] ? SideBlock.Snow : SideBlock.Stone;
     }
@@ -1705,6 +1756,7 @@ public class PlanetOne : MonoBehaviour
             case SideBlock.Ice: return Ice;
             case SideBlock.Ship: return Ship;
             case SideBlock.Stone: return Stone;
+            case SideBlock.Water: return Water;
             default: return Rock;
         }
     }
@@ -1714,7 +1766,7 @@ public class PlanetOne : MonoBehaviour
     public SideBlock Mine(int x, int row, int level)
     {
         SideBlock was = SideBlockAt(x, row, level);
-        if (was == SideBlock.Air || was == SideBlock.Ship || level <= -GroundDepth) return SideBlock.Air;
+        if (was == SideBlock.Air || was == SideBlock.Ship || was == SideBlock.Water || level <= -GroundDepth) return SideBlock.Air;
 
         Vector2Int spot = Wrap(x, row);
         // A block the player placed is simply taken away again. A block of the land is recorded as mined.

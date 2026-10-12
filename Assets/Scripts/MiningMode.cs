@@ -45,6 +45,7 @@ public class MiningMode : MonoBehaviour
     // What the game's own ice blocks are multiplied by at their deepest, taking the surface blue down to the deep blue.
     static readonly Color IceDepthTint = new Color(0.63f, 0.74f, 0.85f);
     static readonly Color Stone = new Color32(70, 80, 96, 255);
+    static readonly Color WaterDeep = new Color32(14, 34, 62, 255);
 
     // Drawing order, back to front: the rows behind (furthest first, with 0 for one sliding in at the back), each with
     // the things standing on it just above it, then the front row, its darkness, a row sliding in at the front and
@@ -556,6 +557,8 @@ public class MiningMode : MonoBehaviour
             case PlanetOne.SideBlock.Snow: color = Color.Lerp(SnowTop, SnowDeep, (depth - 1) / 4f); break;
             case PlanetOne.SideBlock.Ice: color = Color.Lerp(IceTop, IceDeep, (depth - 1) / 3f); break;
             case PlanetOne.SideBlock.Rock: color = PlanetOne.RockColors[0]; break;
+            // The ocean gets darker toward its bed.
+            case PlanetOne.SideBlock.Water: color = Color.Lerp(PlanetOne.WaterColor, WaterDeep, (depth - 1) / 3f); break;
             case PlanetOne.SideBlock.Ship: color = level == surface ? PlanetOne.ShipSideColor : PlanetOne.ShipColor; break;
             default: color = Stone; break;
         }
