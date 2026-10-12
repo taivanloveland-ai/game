@@ -10,11 +10,6 @@ public class PlayerController : MonoBehaviour
     public const float Height = 0.9f;
     // In the top-down view only the player's feet touch the ground: the bottom part of the rectangle.
     const float FeetDepth = 0.4f;
-    // Top-down, the player is drawn no lower than this many blocks, however deep they are, and reaches their
-    // darkest shade this many blocks further down.
-    const float LowestDrawn = -1f;
-    const float DarkestDepth = 4f;
-    const float DeepestLight = 0.45f;
 
     // Squares per second at a full walk. This is three fifths of the original 5.
     public float speed = 3f;
@@ -123,30 +118,26 @@ public class PlayerController : MonoBehaviour
     void LateUpdate()
     {
         // Top-down, height is shown by drawing the player further up the screen, with a shadow left on the ground.
-        // Down a hole, the player is never drawn more than a block below the ground, or they would vanish behind
-        // the land in front. They are drawn darker the deeper they are, to show they are down in it.
+        // Down a hole or a tunnel the player is drawn as far down the screen as they really are, and the ground in
+        // front of them turns see-through so they can still be seen (the land does that part).
         float ground = sideView ? 0f : FloorUnder(transform.position, altitude);
-        float lift = sideView ? 0f : Mathf.Max(altitude, LowestDrawn) * PlanetOne.HeightScale;
-        // In a tunnel the ground overhead is drawn see-through, and the player is drawn on their own square beneath it.
+        float lift = sideView ? 0f : altitude * PlanetOne.HeightScale;
         Vector2Int square = Vector2Int.FloorToInt(GroundPosition);
         bool underRoof = !sideView && planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(altitude + 0.01f));
-        if (underRoof) lift = 0f;
-        // The camera follows the ground the player is on, not each jump.
-        CameraLift = sideView || underRoof ? 0f : Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale;
+        // The camera follows the ground the player is on, not each jump, down into holes as well as up mountains.
+        float floorLift = ground * PlanetOne.HeightScale;
+        CameraLift = sideView ? 0f : floorLift;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
-        shadow.localPosition = new Vector3(0f, 0.1f + Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale, 0f);
+        shadow.localPosition = new Vector3(0f, 0.1f + floorLift, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
 
         // The reflection hangs upside down from the ground under the player, as far below it as they are above it.
-        // It only shows where the ground is ice. Under a roof there is none.
-        reflection.gameObject.SetActive(!sideView && !underRoof);
-        float floorLift = Mathf.Max(ground, LowestDrawn) * PlanetOne.HeightScale;
+        // It only shows where the ground is ice. Under a roof, or down in the ground, there is none.
+        reflection.gameObject.SetActive(!sideView && !underRoof && altitude > -0.5f);
         float gap = Mathf.Max(0f, altitude - ground) * PlanetOne.HeightScale;
         reflection.localPosition = new Vector3(0f, -Height / 2f + floorLift - gap - Height * PlanetOne.ReflectionSquash / 2f, 0f);
 
-        float depth = sideView ? 0f : Mathf.Clamp01((LowestDrawn - altitude) / DarkestDepth);
-        float light = Mathf.Lerp(1f, DeepestLight, depth);
-        bodyRenderer.color = new Color(baseColor.r * tint.r * light, baseColor.g * tint.g * light, baseColor.b * tint.b * light, baseColor.a);
+        bodyRenderer.color = new Color(baseColor.r * tint.r, baseColor.g * tint.g, baseColor.b * tint.b, baseColor.a);
     }
 
     void MoveTopDown()

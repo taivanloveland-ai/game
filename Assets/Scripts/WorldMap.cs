@@ -2,16 +2,19 @@ using UnityEngine;
 
 // The maps. A mini map in the top right corner shows the land around the player, with markers for the player and
 // the ship. Everything the mini map has ever shown is remembered, and pressing M opens a world map of all of it.
-// Both maps are top-down, whichever view the game is in. Ferns and ice shards are not shown.
+// Both maps are top-down, whichever view the game is in. Ferns and ice shards are not shown. Scrolling over the
+// mini map zooms it, and dragging it moves it around; "Back to me" puts it back on the player.
 //
 // The planet has no edges, so the mini map carries straight on past the edge of the world map picture and shows
 // the land from its opposite side. On the world map, going off the top brings your marker back in at the bottom.
 public class WorldMap : MonoBehaviour
 {
-    // How many squares across the mini map shows, and how big it is on screen.
+    // How many squares across the mini map shows to begin with, and how big it is on screen.
     const int MiniMapSquares = 40;
     const float MiniMapSize = 190f;
     const float Margin = 14f;
+    // The mini map can be zoomed to show between this few and this many squares across, a notch of the wheel at a time.
+    const float FewestSquares = 10f, MostSquares = 400f, ZoomStep = 1.25f;
 
     static readonly Color32 Unexplored = new Color32(12, 16, 26, 255);
     static readonly Color PlayerMark = new Color32(240, 138, 46, 255);
@@ -32,12 +35,17 @@ public class WorldMap : MonoBehaviour
     bool[,] explored;
     Vector2Int lastCell = new Vector2Int(int.MinValue, int.MinValue);
     GUIStyle titleStyle;
+    // How many squares across the mini map is showing, and how far the spot in its middle is from the player, in squares.
+    float viewSquares = MiniMapSquares;
+    Vector2 viewOffset;
+    bool dragging;
 
     public void Setup(PlanetOne planet, PlayerController player, Vector2 ship)
     {
         this.planet = planet;
         this.player = player;
         this.ship = ship;
+        GameInput.PointerOverMap = PointerOverMiniMap;
 
         explored = new bool[planet.width, planet.height];
         picture = new Texture2D(planet.width, planet.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
@@ -94,19 +102,21 @@ public class WorldMap : MonoBehaviour
 
     void DrawMiniMap()
     {
-        var frame = new Rect(Screen.width - MiniMapSize - Margin, Margin, MiniMapSize, MiniMapSize);
+        var frame = MiniMapFrame();
+        HandleMiniMapMouse(Event.current, frame);
         GUI.Box(new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + 8f), GUIContent.none);
         GUI.color = (Color)Unexplored;
         GUI.DrawTexture(frame, Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        // The whole world picture is drawn inside the frame, shifted so the player sits in the middle; the frame cuts
-        // off everything outside the squares around them. Near an edge of the picture, copies of it are drawn
-        // alongside so the mini map shows the land that lies across the join.
-        float scale = MiniMapSize / MiniMapSquares;
+        // The whole world picture is drawn inside the frame, shifted so the spot being looked at sits in the middle;
+        // the frame cuts off everything outside it. That spot is the player, unless the map has been dragged away.
+        // Near an edge of the picture, copies of it are drawn alongside so the mini map shows the land across the join.
+        float scale = MiniMapSize / viewSquares;
         Vector2 at = PlayerOnPlanet();
+        Vector2 middle = at + viewOffset;
         float worldWidth = planet.width * scale, worldHeight = planet.height * scale;
-        float left = MiniMapSize / 2f - at.x * scale, top = MiniMapSize / 2f - (planet.height - at.y) * scale;
+        float left = MiniMapSize / 2f - middle.x * scale, top = MiniMapSize / 2f - (planet.height - middle.y) * scale;
         GUI.BeginGroup(frame);
         for (int copyY = -1; copyY <= 1; copyY++)
         {
@@ -117,13 +127,62 @@ public class WorldMap : MonoBehaviour
             }
         }
         // The ship's marker shows the shortest way home, and stays on the edge of the mini map when the ship is out of range.
-        Vector2 toShip = planet.Nearest(ship, at) - at;
-        var shipSpot = new Vector2(MiniMapSize / 2f + toShip.x * scale, MiniMapSize / 2f - toShip.y * scale);
-        shipSpot.x = Mathf.Clamp(shipSpot.x, 5f, MiniMapSize - 5f);
-        shipSpot.y = Mathf.Clamp(shipSpot.y, 5f, MiniMapSize - 5f);
-        DrawMark(shipSpot, 8f, ShipMark);
-        DrawMark(new Vector2(MiniMapSize / 2f, MiniMapSize / 2f), 7f, PlayerMark);
+        // So does the player's, when the map has been dragged away from them.
+        DrawMark(MiniMapSpot(planet.Nearest(ship, middle) - middle, scale), 8f, ShipMark);
+        DrawMark(MiniMapSpot(-viewOffset, scale), 7f, PlayerMark);
         GUI.EndGroup();
+
+        if (viewOffset != Vector2.zero && GUI.Button(new Rect(frame.x, frame.yMax + 8f, frame.width, 22f), "Back to me")) viewOffset = Vector2.zero;
+    }
+
+    // Where on the mini map a place this far from its middle is drawn, kept inside its edges.
+    static Vector2 MiniMapSpot(Vector2 fromMiddle, float scale)
+    {
+        var spot = new Vector2(MiniMapSize / 2f + fromMiddle.x * scale, MiniMapSize / 2f - fromMiddle.y * scale);
+        return new Vector2(Mathf.Clamp(spot.x, 5f, MiniMapSize - 5f), Mathf.Clamp(spot.y, 5f, MiniMapSize - 5f));
+    }
+
+    static Rect MiniMapFrame()
+    {
+        return new Rect(Screen.width - MiniMapSize - Margin, Margin, MiniMapSize, MiniMapSize);
+    }
+
+    // Scrolling over the mini map zooms it in and out around its middle; dragging it with the left button moves it.
+    void HandleMiniMapMouse(Event e, Rect frame)
+    {
+        if (e.type == EventType.ScrollWheel && frame.Contains(e.mousePosition))
+        {
+            viewSquares = Mathf.Clamp(viewSquares * (e.delta.y > 0f ? ZoomStep : 1f / ZoomStep), FewestSquares, MostSquares);
+            e.Use();
+        }
+        else if (e.type == EventType.MouseDown && e.button == 0 && frame.Contains(e.mousePosition))
+        {
+            dragging = true;
+            e.Use();
+        }
+        else if (e.type == EventType.MouseDrag && dragging)
+        {
+            // The land follows the mouse, so the spot looked at moves the other way. Up the screen is north.
+            float scale = MiniMapSize / viewSquares;
+            viewOffset += new Vector2(-e.delta.x, e.delta.y) / scale;
+            e.Use();
+        }
+        else if (e.type == EventType.MouseUp && e.button == 0 && dragging)
+        {
+            dragging = false;
+            e.Use();
+        }
+    }
+
+    // True while the mouse is over the mini map or dragging it, so the click does not also land in the world.
+    bool PointerOverMiniMap()
+    {
+        if (dragging) return true;
+        Vector2 pointer = GameInput.PointerPosition();
+        pointer.y = Screen.height - pointer.y;
+        Rect frame = MiniMapFrame();
+        var area = new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + (viewOffset != Vector2.zero ? 38f : 8f));
+        return area.Contains(pointer);
     }
 
     void DrawWorldMap()
