@@ -47,11 +47,12 @@ public class PlanetOne : MonoBehaviour
     // The tallest south face a square is ever drawn with, in blocks.
     const int MaxFaceBlocks = 21;
 
-    // A range of mountains crosses the far side of the planet from the crash site, running east to west: as far
-    // north of the ship as it is possible to go, which is also as far south. Its peaks are this many blocks tall.
+    // A range of mountains covers the whole northern part of the planet, as the map shows it: from a little way north
+    // of the crash site all the way up to the top edge of the map. Its peaks are this many blocks tall.
     const int MountainHeight = 24;
-    // The range reaches this many squares north and south of its middle, fading out over the last so many.
-    const int MountainHalfDepth = 140, MountainEdge = 50;
+    // The range begins this many squares north of the ship, and fades in and out over this many squares at its
+    // southern edge and at the top edge of the map.
+    const int MountainsBeginNorth = 100, MountainEdge = 40;
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
     const float MountainBlobSize = 84f, MountainAbove = 0.4f, MountainRise = 0.4f;
@@ -422,12 +423,15 @@ public class PlanetOne : MonoBehaviour
     void RaiseMountains(int cy, int mountainSeed)
     {
         mountain = new byte[width, height];
-        int middle = cy + height / 2;
-        for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
+        // The range covers the whole northern part of the map: from a little way north of the ship up to the top edge,
+        // where the map joins its bottom edge again.
+        int start = cy + MountainsBeginNorth, end = height - 1;
+        int middle = (start + end) / 2, halfDepth = (end - start) / 2;
+        for (int dy = -halfDepth; dy <= halfDepth; dy++)
         {
             int y = WrapY(middle + dy);
             // Full height through the middle of the range, falling away to nothing at its north and south edges.
-            float strength = Mathf.Clamp01((MountainHalfDepth - Mathf.Abs(dy)) / (float)MountainEdge);
+            float strength = Mathf.Clamp01((halfDepth - Mathf.Abs(dy)) / (float)MountainEdge);
             for (int x = 0; x < width; x++)
             {
                 float rise = (LoopingNoise(x, y, MountainBlobSize, mountainSeed, 2) - MountainAbove) / MountainRise * strength;
@@ -443,12 +447,12 @@ public class PlanetOne : MonoBehaviour
         for (int pass = 0; pass < 8 && changed; pass++)
         {
             changed = false;
-            for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
+            for (int dy = -halfDepth; dy <= halfDepth; dy++)
             {
                 int y = WrapY(middle + dy), south = WrapY(y - 1);
                 for (int x = 0; x < width; x++) changed |= WearDown(x, y, WrapX(x - 1), south);
             }
-            for (int dy = MountainHalfDepth; dy >= -MountainHalfDepth; dy--)
+            for (int dy = halfDepth; dy >= -halfDepth; dy--)
             {
                 int y = WrapY(middle + dy), north = WrapY(y + 1);
                 for (int x = width - 1; x >= 0; x--) changed |= WearDown(x, y, WrapX(x + 1), north);
@@ -456,7 +460,7 @@ public class PlanetOne : MonoBehaviour
         }
 
         // Turn how far in each spot is into how tall it is, and the land under the mountains into rock.
-        for (int dy = -MountainHalfDepth; dy <= MountainHalfDepth; dy++)
+        for (int dy = -halfDepth; dy <= halfDepth; dy++)
         {
             int y = WrapY(middle + dy);
             for (int x = 0; x < width; x++)
@@ -501,11 +505,13 @@ public class PlanetOne : MonoBehaviour
         while (queue.Count > 0)
         {
             Vector2Int p = queue.Dequeue();
-            reached++;
+            // Only land that is walked on counts toward how much can be reached, not the mountains crossed on the way.
+            if (mountain[p.x, p.y] == 0) reached++;
             foreach (Vector2Int step in steps)
             {
                 Vector2Int n = Wrap(p + step);
-                if (seen[n.x, n.y] || kind[n.x, n.y] == Rock || kind[n.x, n.y] == Ship) continue;
+                // Mountains can be climbed or dug through, so they do not wall anything off.
+                if (seen[n.x, n.y] || (kind[n.x, n.y] == Rock && mountain[n.x, n.y] == 0) || kind[n.x, n.y] == Ship) continue;
                 seen[n.x, n.y] = true;
                 queue.Enqueue(n);
             }
