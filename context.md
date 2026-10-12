@@ -12,6 +12,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Each request gets its own git branch, made away from the folder Unity has open, so his game does not change while Claude is still working.
 - When a request is done and checked, the branch is merged into `main`, `main` is pushed to GitHub, and the new version is loaded into his open Unity editor.
 - **Never interrupt his game** (asked 2026-10-11: "whenever youre working on something, and im playing, the came crashes. make it so it doesnt crash, and if i want the update, i stop and press play again."). While the game is playing, the editor now picks up no changed files at all, and Unity is set to wait until play stops before recompiling. When he stops, everything that changed loads, and pressing Play again plays the new version. Claude also no longer brings the Unity window to the front. (`Assets/Editor/ExternalRefresh.cs`.)
+- **Full screen** (asked 2026-10-11: "make it fullscreen"): pressing Play in the editor now makes the Game view fill the whole Unity window (Unity's "Play Maximized"), so with the Unity window maximised the game fills the screen. A built copy of the game was already set to open full screen. (`Assets/Editor/PlayMaximized.cs`.)
 
 ## Taivan's shorthand
 
