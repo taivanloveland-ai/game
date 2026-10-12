@@ -206,25 +206,25 @@ public static class GameInput
 #endif
     }
 
-    // R switches between the top-down view and mining mode.
+    // F switches between the top-down view and mining mode along the row. (It was R until 2026-10-11.)
     public static bool ToggleViewPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        return k != null && k.fKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.F);
+#endif
+    }
+
+    // R switches to mining mode looking along a column of the world instead of a row. (It was G until 2026-10-11.)
+    public static bool ToggleColumnPressed()
     {
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.rKey.wasPressedThisFrame;
 #else
         return Input.GetKeyDown(KeyCode.R);
-#endif
-    }
-
-    // G switches to mining mode looking along a column of the world instead of a row.
-    public static bool ToggleColumnPressed()
-    {
-#if ENABLE_INPUT_SYSTEM
-        Keyboard k = Keyboard.current;
-        return k != null && k.gKey.wasPressedThisFrame;
-#else
-        return Input.GetKeyDown(KeyCode.G);
 #endif
     }
 }
