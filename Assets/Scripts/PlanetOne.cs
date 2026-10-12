@@ -49,32 +49,33 @@ public class PlanetOne : MonoBehaviour
 
     // A range of mountains like the Himalayas covers the top quarter of the planet, as the map shows it: from three
     // quarters of the way up the map to its top edge, far from the crash site. Its peaks are this many blocks tall.
-    const int MountainHeight = 40;
+    const int MountainHeight = 30;
     // The range is this share of the map (1 in 4), and fades in and out over this many squares at its southern edge
     // and at the top edge of the map.
     const int MountainShare = 4, MountainEdge = 40;
     // Roughly how many squares across a mountain is. Mountains stand where their noise is above the first number,
     // and reach full height where it is above that by the second.
-    const float MountainBlobSize = 84f, MountainAbove = 0.4f, MountainRise = 0.4f;
+    const float MountainBlobSize = 60f, MountainAbove = 0.4f, MountainRise = 0.4f;
     // Ridges and peaks: roughly how many squares apart the ridges are.
-    const float RidgeBlobSize = 40f;
+    const float RidgeBlobSize = 30f;
     // Along the ridges, peaks are about this many squares apart, and how much they stand above the saddles between.
-    const float PeakBlobSize = 28f, PeakShare = 0.6f;
+    const float PeakBlobSize = 20f, PeakShare = 0.6f;
     // How a mountain rises, after his sketch and his photo of the Himalayas: a long, gentle rise at the foot that gets
     // steeper and steeper, up to a narrow spire at the peak. For each band of height, this is how wide each block of
-    // rise is, in sixths of a square: 3 squares a block at the foot, then 2, then 1, then two blocks a square, three,
-    // and at the very top six blocks a square. No spot rises faster than this from the spot next to it.
+    // rise is, in sixths of a square: 2 squares a block at the foot, then 1, then two blocks every three squares,
+    // two a square, three a square, and at the very top six a square. No spot rises faster than this from the spot
+    // next to it.
     const int SlopeUnitsPerSquare = 6;
-    static readonly int[] SlopeBandTops = { 5, 10, 16, 24, 32, 40 };
-    static readonly int[] SlopeBandWidths = { 18, 12, 6, 3, 2, 1 };
+    static readonly int[] SlopeBandTops = { 4, 8, 14, 20, 26, 30 };
+    static readonly int[] SlopeBandWidths = { 12, 6, 4, 3, 2, 1 };
     // Between these heights the mountainside is broken into flat ledges this many blocks apart, with sheer cliff faces
     // between them: good places for cave mouths later. A cliff of 4 cannot be jumped up.
-    const int LedgesFrom = 10, LedgesTo = 22, LedgeStep = 4;
+    const int LedgesFrom = 8, LedgesTo = 20, LedgeStep = 4;
     // Here and there, in small patches about this many squares across, the ledges are not cut, so the slope there
     // happens to give a way up to the next ledge. Patches stand where their noise is above this.
     const float WayUpBlobSize = 14f, WayUpAbove = 0.8f;
     // Mountains this tall or taller have snow on top.
-    const int SnowCapFrom = 22;
+    const int SnowCapFrom = 18;
     const int TilePixels = 16;
     const int FacePixels = 8;
     // A drawn picture is painted with this many pixels for every ordinary tile pixel (8 x 16 = 128 across a tile).
