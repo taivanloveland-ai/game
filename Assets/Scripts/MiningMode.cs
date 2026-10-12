@@ -538,12 +538,20 @@ public class MiningMode : MonoBehaviour
         color.a = 1f;
 
         // Snow and ice blocks use their drawn pictures when there are any, exactly as drawn: no colouring and no flipping.
-        Sprite picture = block == PlanetOne.SideBlock.Snow ? planet.SnowSprite : block == PlanetOne.SideBlock.Ice ? planet.IceSprite : null;
+        // Snow has three looks, picked block by block: Taivan's two pictures, and plain white.
+        Sprite picture = block == PlanetOne.SideBlock.Ice ? planet.IceSprite : null;
+        int iceLook = 0;
+        if (block == PlanetOne.SideBlock.Snow && planet.SnowSprite != null)
+        {
+            int look = planet.SnowLookAt(x, worldRow, level);
+            picture = planet.SnowLookSprite(look) ?? planet.Square;
+            // Kept apart from one another in the key below by their look.
+            iceLook = look + 1;
+        }
         if (picture != null) color = Color.white;
 
         // Ice without a drawn picture uses the game's own finely drawn ice blocks. Most are plain; about one in three
         // carries a glint or a crack. The block is tinted toward a deeper blue the further down it is.
-        int iceLook = 0;
         if (picture == null && block == PlanetOne.SideBlock.Ice)
         {
             int roll = (hash >> 17) & 15;
