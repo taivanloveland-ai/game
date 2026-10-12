@@ -16,6 +16,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 - **sc** = the side-scroller view (mining mode on planet 1).
 - **td** = the top-down view.
+- **poup** = "please open up project": open the game project in the Unity editor (added 2026-10-11).
 
 ## The game
 
@@ -231,7 +232,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - `IceShardItem.png`: the loose ice shard (see above).
 - `Fern.png`: the fiddlehead fern, redrawn by Claude from his sketch (see above).
 - `SnowBlock.png`: a white square with faint grey streaks, supplied 2026-10-10 "for the snow blocks". It is used for the top of snow tiles in td and for snow blocks in sc (both views confirmed 2026-10-10: "make the snow in the top down too"). It is shown exactly as he drew it: one picture per block, same way up, same colours. Claude's first version tinted and flipped it, and through an import problem it did not show in td at all; he objected ("the snow isnt what i made!"). Lesson: use his art unaltered unless he asks for changes.
-- `SnowBlock2.png`: a second snow picture, white with a few longer grey streaks, supplied 2026-10-11: "make it random between this sprite, the other sprite, and just a white block." Every block of snow now picks one of three looks at random (the same block always keeps its look): `SnowBlock.png`, `SnowBlock2.png`, or plain white, each about a third of the time. This is in td and sc. Both pictures are used exactly as drawn. ThornamBush.png: his thornam bush (see that section).
+- `SnowBlock2.png`: a second snow picture, white with a few longer grey streaks, supplied 2026-10-11: "make it random between this sprite, the other sprite, and just a white block." He sent a redone version the same day ("redo new snow sprite"), which replaced the first. Every block of snow now picks one of three looks at random (the same block always keeps its look): `SnowBlock.png`, `SnowBlock2.png`, or plain white, each about a third of the time. This is in td and sc. Both pictures are used exactly as drawn. ThornamBush.png: his thornam bush (see that section).
 - `IceBlock.png` (no longer in the folder or the game): a bright blue square with pale diagonal streaks, supplied 2026-10-10 as "ice for sc and td". It was used like the snow picture for a short while, then he called it ugly and asked for the ice blocks to look good, so the game draws the ice itself now (see below). The picture is in git history.
 - Art sent so far is 128 by 128 pixels with hard pixel edges.
 
