@@ -1194,7 +1194,9 @@ public class PlanetOne : MonoBehaviour
     {
         across = point;
         if (point.y >= 0f && point.y < height) return false;
-        across = new Vector2(point.x + width / 2f, point.y < 0f ? -point.y : height * 2f - point.y);
+        // The position across the pole is brought back onto the map from east to west. Positions that only grow
+        // lose their exactness, and crossing back and forth many times made everything shake.
+        across = new Vector2(Mathf.Repeat(point.x + width / 2f, width), point.y < 0f ? -point.y : height * 2f - point.y);
         return true;
     }
 
