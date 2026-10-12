@@ -257,6 +257,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Ice is a little slippery** (asked 2026-10-09).
 - **Walking in snow is a little slower,** only a little (asked 2026-10-09). Currently 90% of full speed; ice is full speed.
 - **Player speed is 3/5 of the original** (asked 2026-10-10): 3 squares a second at a full walk, down from 5. Before settling on this he tried 5 times speed for a while to get around the big planet. He then asked for 4/5 and cancelled it ("nvm"), so it stays at 3/5.
+- **Player speed is now 4/5 of the original, permanently** (asked 2026-10-11: "4/5 speed permanent"): 4 squares a second at a full walk, up from 3. (He had asked for 4/5 once before on 2026-10-10 and then said "nvm".)
 - **Deeper blocks are gradually shaded in the side-scroller, and after the first 1.5 blocks it turns black** (asked 2026-10-09). This is for mining mode only, not the top-down view. It took three tries: Claude first shaded the low ground in top-down, then made a gentle shade that never reached black; Taivan corrected both.
 - **No ore or crystals in the world for now.** Taivan asked for the placeholder ones to be taken away (2026-10-09). Reason not given.
 
@@ -268,7 +269,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **The planet:** 1440 x 1440 squares, made at random each play, with no edges: it loops in every direction. Snow, slippery ice lakes with reflective ice in td, grey rocks, raised patches one block higher, and the crashed ship in the middle. On the far side (720 squares north or south of the ship) is a range of climbable grey-rock mountains up to 14 blocks tall, gentle at the foot and steeper near the top, with snow caps.
 - **Snow** uses his three snow pictures at random, block by block. **Ice** is drawn by the game in blues.
 - **Views:** td is the main view. R switches to sc along the player's row, G to sc along the column (looking west, north on the right). In sc, W and S step between rows; ten rows behind fade off as a gradient; underground is dark past 1.5 blocks from open air.
-- **Moving:** WASD or arrows, 3 squares a second (a little slower on snow, slippery on ice). Space jumps 1.5 blocks in both views. Ferns, icicles and bushes block their square.
+- **Moving:** WASD or arrows, 4 squares a second (a little slower on snow, slippery on ice). Space jumps 1.5 blocks in both views. Ferns, icicles and bushes block their square.
 - **Day and night:** 24 minutes, 12 of day and 12 of night. In the G view the red sun and the black hole cross the sky on a Terraria-style arc; the black hole tips with its path and is level at midnight. The R view looks north and shows only stars. Nights are tinted dark blue.
 - **Things to collect** (left click; you walk over if they are further than a block): fiddlehead ferns on snow; ice shards, standing as his icicle (taller and recoloured to look natural) on ice, 5 for every 8 ferns; thornam bushes (his picture) on snow next to ice, 1 for every 13 ferns, which need the ice axe and drop 3 thorns, 3 thornam bush vines and 1 thornam stick.
 - **Inventory:** Tab opens Items. The hotbar has 10 slots (1 to 9 and 0, or the mouse wheel); tools go there when made, and blocks can be dragged there to build with. A block that runs out keeps its slot.
