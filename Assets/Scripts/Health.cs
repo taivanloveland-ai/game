@@ -12,6 +12,9 @@ public class Health : MonoBehaviour
     const float FadeOutSeconds = 0.7f, FadeInSeconds = 1.1f, SafeSeconds = 3f;
     // Dropped items slide back to the player from this far away, and loose blocks are drawn this small.
     const float DropPullRadius = 2f, BlockScale = 0.35f, ItemScale = 0.8f;
+    // The ocean round the South Pole is freezing: swimming in it takes this much health every this many seconds.
+    // Crossing it at the normal walking speed costs most of the player's health.
+    const float FreezeDamage = 2f, FreezeSeconds = 1.5f;
 
     static readonly Color BarBack = new Color(0.08f, 0.09f, 0.12f, 0.8f), BarFill = new Color(0.84f, 0.2f, 0.22f), BarLow = new Color(1f, 0.45f, 0.3f);
 
@@ -31,6 +34,9 @@ public class Health : MonoBehaviour
     Vector2 home;
     float lastHurtAt = -100f, safeUntil, fellAt = -1f;
     bool woken;
+    // How long the player has been in the freezing water since it last hurt them, and whether they were in it last frame.
+    float freezing;
+    bool wasSwimming;
     GUIStyle barStyle;
 
     public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Inventory inventory, Pickups pickups, Hud hud, Vector2 home)
@@ -64,6 +70,19 @@ public class Health : MonoBehaviour
             if (since >= FadeOutSeconds + FadeInSeconds) fellAt = -1f;
             return;
         }
+        // The freezing ocean.
+        if (player.Swimming)
+        {
+            if (!wasSwimming) hud.Say("The water is freezing! Get out quickly.", 3f);
+            freezing += Time.deltaTime;
+            if (freezing >= FreezeSeconds)
+            {
+                freezing -= FreezeSeconds;
+                Hurt(FreezeDamage);
+            }
+        }
+        else freezing = 0f;
+        wasSwimming = player.Swimming;
         if (Current < Max && Time.time - lastHurtAt >= RegenDelay) Current = Mathf.Min(Max, Current + RegenPerSecond * Time.deltaTime);
     }
 

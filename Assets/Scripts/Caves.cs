@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// The frost caves. Their mouths are natural holes dug out of real blocks in the cliffs of the mountains round the
-// poles, dark inside with icicles hanging at the top, on ledges that cannot be reached without digging or building.
+// The frost caves. Their mouths are natural holes dug out of real blocks in the cliffs of the mountains round the North
+// Pole, dark inside with icicles hanging at the top, on ledges that cannot be reached without digging or building.
 // Walking into one fades the screen to black and then into the cave: stone tunnels and rooms, seen without a roof,
 // zoomed in twice as close, with the mini map dark. "FROST CAVE" comes up across the screen and the cave is marked
 // on the maps. The way out is a hole like it in the cave wall where the player arrives, back onto the ledge.
