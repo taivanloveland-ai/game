@@ -84,6 +84,8 @@ public class PlanetOne : MonoBehaviour
     const int SeeThroughRadius = 2;
     // A room's roof turns see-through at most this many squares from the player.
     const int RoomReach = 14;
+    // Below the ground, blocks drawn this close to the player turn see-through, in blocks.
+    const float CoverMargin = 0.3f;
     static readonly Color RoofTint = new Color(1f, 1f, 1f, 0.2f);
     // Under a see-through roof, the squares the walls stand on are drawn this much darker than the floor.
     static readonly Color WallFootprintTint = new Color(0.55f, 0.58f, 0.66f);
@@ -559,6 +561,8 @@ public class PlanetOne : MonoBehaviour
 
         int level = Mathf.FloorToInt(player.FeetHeight + 0.01f);
         Vector2Int at = Vector2Int.FloorToInt(player.GroundPosition);
+        // Down in the ground, the blocks drawn over the player turn see-through.
+        if (level < 0) ShowCovering(at, level);
         if (!IsTunnel(at.x, at.y, level)) return;
 
         // The room is every covered, open square that can be walked to from the player's without leaving cover.
@@ -599,8 +603,38 @@ public class PlanetOne : MonoBehaviour
                     SideBlock block = SideBlockAt(x, y, level);
                     if (block == SideBlock.Air) continue;
                     roomWalls.Add(wall);
-                    Fade(wall, TerrainTile(MaterialOf(block), 0, 0, 0, 0, 0), WallFootprintTint);
+                    Fade(wall, TerrainTile(MaterialOf(block), 0, level + 1, 0, 0, 0), WallFootprintTint);
                 }
+            }
+        }
+    }
+
+    // Below the ground, in a hole or a tunnel, the player is drawn as deep as they really are, so the higher ground
+    // just south of them, which is drawn in front, would cover them. The blocks that cover them turn see-through,
+    // and beneath each one the land is shown cut through at the player's depth: open space as its floor, solid
+    // ground as a darker block, so the player can see the sides of the hole or tunnel they are in.
+    void ShowCovering(Vector2Int at, int level)
+    {
+        // Where the player is drawn on screen, with a little room round it.
+        Vector2 ground = player.GroundPosition;
+        float bottom = ground.y - 0.2f + player.FeetHeight * HeightScale - CoverMargin;
+        float topEdge = bottom + PlayerController.Height + CoverMargin * 2f;
+        float leftEdge = ground.x - PlayerController.Width / 2f - CoverMargin, rightEdge = ground.x + PlayerController.Width / 2f + CoverMargin;
+
+        // Only squares south of the player are drawn in front of them. A square's picture reaches from the foot of
+        // its south face to the far edge of its top.
+        for (int y = at.y - 1; y >= at.y - GroundDepth; y--)
+        {
+            for (int x = Mathf.FloorToInt(leftEdge); x <= Mathf.FloorToInt(rightEdge); x++)
+            {
+                int top = DrawnTopAt(x, y);
+                if (top <= level) continue;
+                float from = y + (top - FaceDrop(top, DrawnTopAt(x, y - 1))) * HeightScale, to = y + 1f + top * HeightScale;
+                if (to <= bottom || from >= topEdge) continue;
+                var cell = new Vector2Int(x, y);
+                SideBlock block = SideBlockAt(x, y, level);
+                if (block == SideBlock.Air) Fade(cell, TunnelFloorTile(x, y, level + 1), Color.white);
+                else Fade(cell, TerrainTile(MaterialOf(block), 0, level + 1, 0, 0, 0), WallFootprintTint);
             }
         }
     }
@@ -648,7 +682,8 @@ public class PlanetOne : MonoBehaviour
     {
         int floor = level - 1;
         while (floor > -GroundDepth && SideBlockAt(x, y, floor) == SideBlock.Air) floor--;
-        return TerrainTile(MaterialOf(SideBlockAt(x, y, floor)), 0, 0, 0, 0, 0);
+        // It is drawn at the height of its own top, down in the ground, so the player stands on it.
+        return TerrainTile(MaterialOf(SideBlockAt(x, y, floor)), 0, floor + 1, 0, 0, 0);
     }
 
     // Makes sure the tiles around a square are on the tilemap, and takes away the ones that have fallen out of range.

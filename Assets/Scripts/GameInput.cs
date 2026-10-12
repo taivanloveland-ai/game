@@ -50,12 +50,20 @@ public static class GameInput
 
     // Set by the on-screen inventory: true while the mouse is over it, so clicks there do not also land on the world.
     public static System.Func<bool> PointerOverInventory;
+    // Set by the maps: true while the mouse is over the mini map, or dragging it.
+    public static System.Func<bool> PointerOverMap;
+
+    // True while the mouse is over something on screen that takes its own clicks and scrolling.
+    static bool PointerOverPanel()
+    {
+        return (PointerOverInventory != null && PointerOverInventory()) || (PointerOverMap != null && PointerOverMap());
+    }
 
     // Left mouse button, on the frame it is pressed. Pointing at a fern or ice shard, it collects it; pointing at a
     // block in the side-scroller, it is one hit with the pickaxe; with a block equipped, it places the block.
     public static bool LeftClickPressed()
     {
-        if (PointerOverInventory != null && PointerOverInventory()) return false;
+        if (PointerOverPanel()) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
 #else
@@ -66,7 +74,7 @@ public static class GameInput
     // Left mouse button, for as long as it is held down: keeps the pickaxe swinging.
     public static bool LeftClickHeld()
     {
-        if (PointerOverInventory != null && PointerOverInventory()) return false;
+        if (PointerOverPanel()) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.isPressed;
 #else
@@ -133,6 +141,7 @@ public static class GameInput
     }
 
     // The mouse wheel, as whole steps this frame: +1 for a notch scrolled down (toward the player), -1 for a notch up.
+    // Over the mini map or the inventory the wheel is theirs, so it does not also move along the hotbar.
     public static int ScrollSteps()
     {
 #if ENABLE_INPUT_SYSTEM
@@ -140,6 +149,7 @@ public static class GameInput
 #else
         float wheel = Input.mouseScrollDelta.y;
 #endif
+        if (PointerOverPanel()) return 0;
         return wheel < 0f ? 1 : wheel > 0f ? -1 : 0;
     }
 
