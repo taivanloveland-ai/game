@@ -1114,7 +1114,7 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Reads the pixels of a picture whether or not Unity imported it as readable, by drawing it and reading the drawing back.
-    static Color32[] ReadPixels(Texture2D picture)
+    public static Color32[] ReadPixels(Texture2D picture)
     {
         RenderTexture previous = RenderTexture.active;
         RenderTexture target = RenderTexture.GetTemporary(picture.width, picture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
