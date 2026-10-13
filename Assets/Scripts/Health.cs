@@ -49,6 +49,12 @@ public class Health : MonoBehaviour
         this.home = home;
     }
 
+    // Sets the player's health, from a saved game.
+    public void Restore(float health)
+    {
+        Current = Mathf.Clamp(health, 1f, Max);
+    }
+
     // Takes health away. Nothing can hurt the player while they are down or have only just woken up.
     public void Hurt(float amount)
     {

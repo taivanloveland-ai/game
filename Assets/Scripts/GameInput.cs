@@ -6,9 +6,24 @@ using UnityEngine.InputSystem;
 // Keyboard controls in one place. Works whichever of Unity's two input systems the project has switched on.
 public static class GameInput
 {
+    // True while the game is paused: then none of the game's keys or clicks do anything.
+    public static bool Blocked;
+
+    // Escape, on the frame it is pressed, even while the game is paused: opens and closes the pause screen.
+    public static bool PausePressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        return k != null && k.escapeKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.Escape);
+#endif
+    }
+
     // WASD or the arrow keys, as a direction with x and y each -1, 0 or 1.
     public static Vector2 Move()
     {
+        if (Blocked) return Vector2.zero;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         if (k == null) return Vector2.zero;
@@ -28,6 +43,7 @@ public static class GameInput
     // Space, on the frame it is pressed.
     public static bool JumpPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.spaceKey.wasPressedThisFrame;
@@ -66,6 +82,7 @@ public static class GameInput
     // block in the side-scroller, it is one hit with the pickaxe; with a block equipped, it places the block.
     public static bool LeftClickPressed()
     {
+        if (Blocked) return false;
         if (PointerOverPanel()) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
@@ -78,6 +95,7 @@ public static class GameInput
     // which take clicks on themselves; everything in the world uses LeftClickPressed and LeftClickHeld instead.
     public static bool MouseButtonPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
 #else
@@ -87,6 +105,7 @@ public static class GameInput
 
     public static bool MouseButtonHeld()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.isPressed;
 #else
@@ -98,6 +117,7 @@ public static class GameInput
     // less than 0 for toward them (down). For the maps.
     public static float MouseWheel()
     {
+        if (Blocked) return 0f;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
 #else
@@ -108,6 +128,7 @@ public static class GameInput
     // Left mouse button, for as long as it is held down: keeps the pickaxe swinging.
     public static bool LeftClickHeld()
     {
+        if (Blocked) return false;
         if (PointerOverPanel()) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.leftButton.isPressed;
@@ -119,6 +140,7 @@ public static class GameInput
     // Right mouse button, on the frame it is pressed: use what the mouse is pointing at, such as the crafting nook.
     public static bool RightClickPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         return Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
 #else
@@ -139,6 +161,7 @@ public static class GameInput
     // Tab opens and closes the list of carried items.
     public static bool ItemsPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.tabKey.wasPressedThisFrame;
@@ -151,6 +174,7 @@ public static class GameInput
     // from 0, or -1 if none was pressed this frame.
     public static int HotbarSlotPressed()
     {
+        if (Blocked) return -1;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         if (k == null) return -1;
@@ -178,6 +202,7 @@ public static class GameInput
     // Over the mini map or the inventory the wheel is theirs, so it does not also move along the hotbar.
     public static int ScrollSteps()
     {
+        if (Blocked) return 0;
 #if ENABLE_INPUT_SYSTEM
         float wheel = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
 #else
@@ -190,6 +215,7 @@ public static class GameInput
     // M opens and closes the world map.
     public static bool MapPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.mKey.wasPressedThisFrame;
@@ -201,6 +227,7 @@ public static class GameInput
     // Escape closes whatever menu is open.
     public static bool CancelPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.escapeKey.wasPressedThisFrame;
@@ -212,6 +239,7 @@ public static class GameInput
     // F switches between the top-down view and mining mode along the row. (It was R until 2026-10-11.)
     public static bool ToggleViewPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.fKey.wasPressedThisFrame;
@@ -223,6 +251,7 @@ public static class GameInput
     // R switches to mining mode looking along a column of the world instead of a row. (It was G until 2026-10-11.)
     public static bool ToggleColumnPressed()
     {
+        if (Blocked) return false;
 #if ENABLE_INPUT_SYSTEM
         Keyboard k = Keyboard.current;
         return k != null && k.rKey.wasPressedThisFrame;

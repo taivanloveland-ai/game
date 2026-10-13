@@ -301,6 +301,13 @@ public class PlanetOne : MonoBehaviour
         icePicture = LoadBlockPicture("Art/IceBlock");
         IceSideSprites = MakeIceSideSprites();
 
+        // A fresh start, whether the game has just opened or has come back to the title screen from a game.
+        Time.timeScale = 1f;
+        GameInput.Blocked = false;
+        GameInput.PointerOverInventory = null;
+        GameInput.PointerOverMap = null;
+        GameInput.PointerOverTools = null;
+
         cam = Camera.main;
         if (cam == null)
         {
@@ -318,11 +325,15 @@ public class PlanetOne : MonoBehaviour
 
         // The game opens on the title screen, and the world is made once a mode has been picked there. (Started
         // with -skipTitle on the command line, as the automatic checks are, it goes straight into survival mode;
-        // with -creative as well, into creative mode.)
+        // with -creative as well, into creative mode. "-slot 3" plays in the third save slot, and -load with it
+        // carries on the game saved there.)
         string[] arguments = System.Environment.GetCommandLineArgs();
         if (System.Array.IndexOf(arguments, "-skipTitle") >= 0)
         {
             bool creative = System.Array.IndexOf(arguments, "-creative") >= 0;
+            int at = System.Array.IndexOf(arguments, "-slot");
+            saveSlot = at >= 0 && at + 1 < arguments.Length ? int.Parse(arguments[at + 1]) - 1 : -1;
+            if (saveSlot >= 0 && System.Array.IndexOf(arguments, "-load") >= 0) loading = SaveGame.Load(creative, saveSlot);
             MakeWorld(creative);
             FinishSetup(creative);
             return;
@@ -337,9 +348,17 @@ public class PlanetOne : MonoBehaviour
     // In creative mode, the colour of every square of the planet, for a map that starts fully drawn.
     Color32[] wholeMap;
 
-    // Begins a game from the title screen: survival, or creative.
-    public void StartGame(bool creative)
+    // The save slot this game is played in, counting from 0, or -1 for none; and the saved game being carried on, if
+    // this is not a new one.
+    int saveSlot = -1;
+    SaveGame.Loaded loading;
+
+    // Begins a game from the title screen: survival, or creative, in a save slot. Given a saved game, it carries that
+    // game on; otherwise it starts a new one.
+    public void StartGame(bool creative, int slot = -1, SaveGame.Loaded saved = null)
     {
+        saveSlot = slot;
+        loading = saved;
         StartCoroutine(Load(creative));
     }
 
@@ -365,11 +384,14 @@ public class PlanetOne : MonoBehaviour
         CrashSite = new Vector2Int(cx, cy - 1);
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var picker = new System.Random();
-        if (randomWorld) seed = picker.Next(1, 1000000);
+        // A saved game's world is made again from its own seed. A new game's world is picked at random.
+        bool pick = randomWorld && loading == null;
+        if (loading != null) seed = loading.Seed;
+        if (pick) seed = picker.Next(1, 1000000);
         GenerateLand(cx, cy);
         float reachable = ReachableShare(cx, cy);
         // A random world is thrown away and picked again if rock walls off too much of it from the crash site.
-        for (int tries = 0; randomWorld && tries < 5 && reachable < MinReachableShare; tries++)
+        for (int tries = 0; pick && tries < 5 && reachable < MinReachableShare; tries++)
         {
             seed = picker.Next(1, 1000000);
             GenerateLand(cx, cy);
@@ -465,6 +487,15 @@ public class PlanetOne : MonoBehaviour
         caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
         health.BeforeWaking = caves.LeaveNow;
         hud.HideHotbar = () => worldMap.Open;
+
+        // Saved games and the pause screen. A saved game is put back now that everything is in place. A new game is
+        // saved straight away, so its slot is taken.
+        var saves = gameObject.AddComponent<SaveGame>();
+        saves.Setup(this, controller, mining, dayNight, inventory, pickups, gatherables, nook, pickaxeWork, health, spiders, worldMap, caves, saveSlot, creative);
+        gameObject.AddComponent<PauseMenu>().Setup(this, saves, cam, hud, worldMap, nook);
+        if (loading != null) saves.Apply(loading);
+        else if (saveSlot >= 0) saves.Save();
+        loading = null;
         Ready = true;
     }
 
@@ -1750,6 +1781,12 @@ public class PlanetOne : MonoBehaviour
         caveIndex = cave;
 
         // Everything drawn was the other land's, so it all goes and is drawn again.
+        RedrawAll();
+    }
+
+    // Takes every tile off the screen, so the land round the player is drawn afresh.
+    void RedrawAll()
+    {
         foreach (Vector2Int cell in seeThrough) terrain.SetColor((Vector3Int)cell, Color.white);
         seeThrough.Clear();
         terrain.ClearAllTiles();
@@ -1758,6 +1795,96 @@ public class PlanetOne : MonoBehaviour
         iceBeneath.ClearAllTiles();
         algaeGlow.ClearAllTiles();
         window = new RectInt();
+    }
+
+    // Writes, for a saved game, every block that has been dug out or built: on the surface, and in each cave that
+    // has been visited. (The blocks dug out when the world was made, for the cave mouths, are among them.)
+    public void WriteChanges(System.IO.BinaryWriter w)
+    {
+        w.Write(caveLands.Length);
+        for (int land = -1; land < caveLands.Length; land++)
+        {
+            // The land the player is in is the one whose blocks are in use right now.
+            Dictionary<Vector2Int, HashSet<int>> dug = land == caveIndex ? mined : land < 0 ? surface.Mined : caveLands[land]?.Mined;
+            Dictionary<Vector2Int, Dictionary<int, SideBlock>> built = land == caveIndex ? placed : land < 0 ? surface.Placed : caveLands[land]?.Placed;
+            w.Write(dug != null);
+            if (dug == null) continue;
+            w.Write(dug.Count);
+            foreach (KeyValuePair<Vector2Int, HashSet<int>> spot in dug)
+            {
+                w.Write(spot.Key.x);
+                w.Write(spot.Key.y);
+                w.Write(spot.Value.Count);
+                foreach (int level in spot.Value) w.Write((short)level);
+            }
+            w.Write(built.Count);
+            foreach (KeyValuePair<Vector2Int, Dictionary<int, SideBlock>> spot in built)
+            {
+                w.Write(spot.Key.x);
+                w.Write(spot.Key.y);
+                w.Write(spot.Value.Count);
+                foreach (KeyValuePair<int, SideBlock> block in spot.Value)
+                {
+                    w.Write((short)block.Key);
+                    w.Write((byte)block.Value);
+                }
+            }
+        }
+    }
+
+    // Reads them back into a world newly made from the same seed, with the player on the surface.
+    public void ReadChanges(System.IO.BinaryReader r)
+    {
+        int caves = r.ReadInt32();
+        for (int land = -1; land < caves; land++)
+        {
+            if (!r.ReadBoolean()) continue;
+            var dug = new Dictionary<Vector2Int, HashSet<int>>();
+            int spots = r.ReadInt32();
+            for (int i = 0; i < spots; i++)
+            {
+                var spot = new Vector2Int(r.ReadInt32(), r.ReadInt32());
+                var levels = new HashSet<int>();
+                int count = r.ReadInt32();
+                for (int j = 0; j < count; j++) levels.Add(r.ReadInt16());
+                dug[spot] = levels;
+            }
+            var built = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>();
+            spots = r.ReadInt32();
+            for (int i = 0; i < spots; i++)
+            {
+                var spot = new Vector2Int(r.ReadInt32(), r.ReadInt32());
+                var blocks = new Dictionary<int, SideBlock>();
+                int count = r.ReadInt32();
+                for (int j = 0; j < count; j++)
+                {
+                    int level = r.ReadInt16();
+                    blocks[level] = (SideBlock)r.ReadByte();
+                }
+                built[spot] = blocks;
+            }
+            if (land >= caveLands.Length) continue;
+
+            // A cave's blocks are put back with that cave as the land in use, which also makes it if need be.
+            if (land >= 0) UseLand(land);
+            mined = dug;
+            placed = built;
+            // The top of every changed spot is worked out again: the highest block still there.
+            var changed = new HashSet<Vector2Int>(dug.Keys);
+            changed.UnionWith(built.Keys);
+            foreach (Vector2Int spot in changed)
+            {
+                int highest = baseTop[spot.x, spot.y];
+                if (built.TryGetValue(spot, out Dictionary<int, SideBlock> put))
+                {
+                    foreach (int level in put.Keys) highest = Mathf.Max(highest, level + 1);
+                }
+                while (highest > -GroundDepth && SideBlockAt(spot.x, spot.y, highest - 1) == SideBlock.Air) highest--;
+                top[spot.x, spot.y] = (sbyte)highest;
+            }
+            if (land >= 0) UseLand(-1);
+        }
+        RedrawAll();
     }
 
     Land SaveLand()

@@ -67,6 +67,8 @@ public class Spiders : MonoBehaviour
     {
         // Where it is within the planet, and which way it faces.
         public Vector2 Position;
+        // The square it started on, which is the same every time a world is made from its seed.
+        public Vector2Int Origin;
         public Vector2 Heading = Vector2.up;
         // How far through a cycle of its legs it is, from 0 to 1.
         public float Gait;
@@ -100,6 +102,26 @@ public class Spiders : MonoBehaviour
 
     public int Count => spiders.Count;
     // What a dead spider leaves behind.
+    // The starting squares of the spiders that have been killed, for saved games.
+    readonly HashSet<Vector2Int> killed = new HashSet<Vector2Int>();
+
+    public void Write(System.IO.BinaryWriter w)
+    {
+        w.Write(killed.Count);
+        foreach (Vector2Int cell in killed)
+        {
+            w.Write(cell.x);
+            w.Write(cell.y);
+        }
+    }
+
+    public void Read(System.IO.BinaryReader r)
+    {
+        int count = r.ReadInt32();
+        for (int i = 0; i < count; i++) killed.Add(new Vector2Int(r.ReadInt32(), r.ReadInt32()));
+        spiders.RemoveAll(spider => killed.Contains(spider.Origin));
+    }
+
     public Item SilkItem { get; private set; }
     public Item LegItem { get; private set; }
     public Item FangItem { get; private set; }
@@ -150,7 +172,7 @@ public class Spiders : MonoBehaviour
                 if (rand.NextDouble() >= Density) continue;
                 if (Mathf.Abs(x - start.x) <= ClearOfStart && Mathf.Abs(y - start.y) <= ClearOfStart) continue;
                 if (!CanStand(new Vector2Int(x, y), planet.TopAt(x, y))) continue;
-                spiders.Add(new Spider { Position = new Vector2(x + 0.5f, y + 0.5f), Heading = RandomDirection() });
+                spiders.Add(new Spider { Position = new Vector2(x + 0.5f, y + 0.5f), Origin = new Vector2Int(x, y), Heading = RandomDirection() });
             }
         }
     }
@@ -300,6 +322,7 @@ public class Spiders : MonoBehaviour
             pickups.Drop(FangItem, at + new Vector2(0f, -0.25f), level, DropPullRadius, DropScale);
             Destroy(struck.Sorting.gameObject);
             spiders.Remove(struck);
+            killed.Add(struck.Origin);
             return Strike.Killed;
         }
 

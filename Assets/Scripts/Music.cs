@@ -2,14 +2,16 @@ using UnityEngine;
 
 // Taivan's day and night themes for Planet 1 (in Assets/Resources/Music). The day theme plays by day and the night
 // theme by night, each over and over. When it gets dark or light, one fades out as the other fades in.
+// How loud they are is the music volume in the settings.
 public class Music : MonoBehaviour
 {
-    // How loud the music plays, from 0 to 1, and how many seconds the fade from one theme to the other takes.
-    const float Volume = 0.7f;
+    // How many seconds the fade from one theme to the other takes.
     const float FadeSeconds = 4f;
 
     DayNight dayNight;
     AudioSource day, night;
+    // How far each theme is faded in, from 0 to 1. What is heard is this times the music volume in the settings.
+    float dayLevel, nightLevel;
 
     public void Setup(DayNight dayNight)
     {
@@ -17,12 +19,9 @@ public class Music : MonoBehaviour
         day = MakeSource("Music/Planet 1 Day Theme");
         night = MakeSource("Music/Planet 1 Night Theme");
         // The game starts on whichever theme suits the time of day, already at full volume.
-        AudioSource now = IsNight ? night : day;
-        if (now != null)
-        {
-            now.volume = Volume;
-            now.Play();
-        }
+        if (IsNight) nightLevel = 1f;
+        else dayLevel = 1f;
+        Update();
     }
 
     // It counts as night from halfway through dusk to halfway through dawn, as the sky gets dark.
@@ -43,25 +42,20 @@ public class Music : MonoBehaviour
     void Update()
     {
         bool isNight = IsNight;
-        Fade(day, !isNight);
-        Fade(night, isNight);
+        dayLevel = Fade(day, dayLevel, !isNight);
+        nightLevel = Fade(night, nightLevel, isNight);
     }
 
-    // Turns a theme up toward full volume if it should be playing, or down to silence if not. A theme starts again
-    // from the beginning each time it comes back.
-    void Fade(AudioSource source, bool wanted)
+    // Turns a theme up toward full if it should be playing, or down to silence if not. A theme starts again from the
+    // beginning each time it comes back. The fade goes on while the game is paused, so the volume slider on the pause
+    // screen can be heard.
+    float Fade(AudioSource source, float level, bool wanted)
     {
-        if (source == null) return;
-        float step = Volume * Time.deltaTime / FadeSeconds;
-        if (wanted)
-        {
-            if (!source.isPlaying) source.Play();
-            source.volume = Mathf.MoveTowards(source.volume, Volume, step);
-        }
-        else if (source.isPlaying)
-        {
-            source.volume = Mathf.MoveTowards(source.volume, 0f, step);
-            if (source.volume <= 0f) source.Stop();
-        }
+        if (source == null) return level;
+        level = Mathf.MoveTowards(level, wanted ? 1f : 0f, Time.unscaledDeltaTime / FadeSeconds);
+        if (wanted && !source.isPlaying) source.Play();
+        else if (!wanted && level <= 0f && source.isPlaying) source.Stop();
+        source.volume = level * GameSettings.MusicVolume;
+        return level;
     }
 }
