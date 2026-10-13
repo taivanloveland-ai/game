@@ -1322,6 +1322,8 @@ public class PlanetOne : MonoBehaviour
     const int CaveMouthFrom = 12, CaveMouthTo = 22, CaveCliff = 3;
     // Nothing may stand in front of a mouth, as seen from above, for this many squares south of its ledge.
     const int CaveClearView = 8;
+    // The cave that is always due north of the crash site has its crag this many squares out from the North Pole's ice.
+    const int CragFromIce = 8;
     // A cave is this many squares across, and its stone walls are this many blocks tall: too tall to jump.
     const int CaveSize = 160, CaveWallHeight = 4;
     // The cave is dug by a few tunnels that wander from the way in, branching now and then and opening out into
@@ -1438,10 +1440,12 @@ public class PlanetOne : MonoBehaviour
         }
 
         // All the caves are in the northern mountains (the south has the ocean instead), well apart from each other.
-        var mouths = new List<Vector2Int>();
+        // One of them is always in the same place: due north of the crash site, right at the edge of the North Pole's
+        // ice. It comes first, so the others keep their distance from it.
+        var mouths = new List<Vector2Int> { MakeNorthCrag() };
         foreach (bool north in new[] { true })
         {
-            int wanted = mouths.Count + CaveCount;
+            int wanted = CaveCount;
             foreach (Vector2Int spot in spots)
             {
                 if (mouths.Count >= wanted) break;
@@ -1470,6 +1474,12 @@ public class PlanetOne : MonoBehaviour
                 walkable |= after[ledge.x, ledge.y];
             }
             if (!walkable) continue;
+            // The one due north of the crash site is always kept: its crag is built to stand clear of everything.
+            if (i == 0)
+            {
+                Debug.LogWarning("Frost caves: the cave due north of the crash site can be walked to");
+                continue;
+            }
             mouths.RemoveAt(i);
             levels.RemoveAt(i);
             leftOut++;
@@ -1509,6 +1519,42 @@ public class PlanetOne : MonoBehaviour
             }
         }
         return mouth;
+    }
+
+    // Builds the crag for the cave that is always due north of the crash site: a tower of rock standing just outside
+    // the North Pole's ice, with a ledge set into its south side and a cliff over it for the mouth. The ledge is
+    // at least 12 blocks up, and at least 3 blocks above everything round the crag, so nothing can be walked or
+    // jumped onto it. Gives the mouth's square: the western of the two in the middle of the ledge.
+    Vector2Int MakeNorthCrag()
+    {
+        int x0 = CrashSite.x;
+        // The crag is 4 rows deep, its north end a few squares short of the ice.
+        int y0 = height - 1 - (northCap[x0] + CragFromIce);
+        int around = 0;
+        for (int y = y0 - 2; y <= y0 + 5; y++)
+        {
+            for (int x = x0 - 4; x <= x0 + 5; x++)
+            {
+                Vector2Int spot = Wrap(x, y);
+                around = Mathf.Max(around, top[spot.x, spot.y]);
+            }
+        }
+        int level = Mathf.Max(CaveMouthFrom, around + 3);
+        for (int y = y0; y <= y0 + 3; y++)
+        {
+            for (int x = x0 - 2; x <= x0 + 3; x++)
+            {
+                // The ledge is the middle four squares of the south row; the rest of the crag stands over it.
+                bool ledge = y == y0 && x >= x0 - 1 && x <= x0 + 2;
+                int tall = ledge ? level : level + 4;
+                Vector2Int spot = Wrap(x, y);
+                kind[spot.x, spot.y] = Rock;
+                mountain[spot.x, spot.y] = (byte)tall;
+                baseTop[spot.x, spot.y] = (byte)tall;
+                top[spot.x, spot.y] = (sbyte)tall;
+            }
+        }
+        return new Vector2Int(x0, y0);
     }
 
     // Makes room for a cave mouth: the ledge in front is made four squares wide at its own level, and the cliff
