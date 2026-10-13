@@ -33,7 +33,7 @@ public class PlanetOne : MonoBehaviour
     [System.NonSerialized] public bool caveByCrashSite = false;
 
     // What one block of a row looks like from the side in mining mode.
-    public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship, Water }
+    public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship, Water, Algae }
 
     // How far up the screen one block of height is drawn in the top-down view, in tiles.
     public const float HeightScale = 0.5f;
@@ -45,6 +45,20 @@ public class PlanetOne : MonoBehaviour
     const byte Snow = 0, Ice = 1, Rock = 2, Ship = 3, Stone = 4;
     // The South Pole's ice cap: a block of snow on top with ice under it. And the freezing ocean round it.
     const byte SnowOverIce = 5, Water = 6;
+    // Algae, as what a block is drawn as from above. (It shares its number with SnowOverIce, which is only ever a
+    // kind of land and never what a block is drawn as.)
+    const byte Algae = 5;
+
+    // The algae biome: one big region on the equator where teal-green algae covers the snow and ice, and glows at
+    // night. It is this many squares east or west of the crash site (which one depends on the world's seed), and
+    // roughly this many squares from its middle to its edge, which wanders in and out in bumps about the third
+    // number of squares across.
+    const int AlgaeAway = 1000, AlgaeRadius = 300;
+    const float AlgaeEdgeBlobSize = 90f;
+    // How strongly the algae glows in the middle of the night: how solid its bright copy is, drawn over the dark.
+    const float AlgaeGlow = 0.6f;
+    public static readonly Color32 AlgaeColor = new Color32(46, 160, 142, 255), AlgaeLight = new Color32(126, 218, 194, 255), AlgaeDark = new Color32(30, 122, 114, 255);
+    static readonly Color32 AlgaeRim = new Color32(112, 204, 184, 255), AlgaeFace = new Color32(28, 108, 102, 255), AlgaeFoot = new Color32(20, 84, 82, 255);
     // How many blocks deep the ground goes. The very bottom layer cannot be mined.
     public const int GroundDepth = 14;
     // A cliff face in the top-down view is never drawn taller than this many blocks; deeper holes look the same from above.
@@ -241,6 +255,11 @@ public class PlanetOne : MonoBehaviour
     byte[,] snowDepth;
     // How many blocks tall the mountain is at each spot, or 0 where there is none.
     byte[,] mountain;
+    // 1 where algae covers the top of the ground. Null in a cave.
+    byte[,] algae;
+    Tilemap algaeGlow;
+    DayNight sky;
+    float glowShown = -1f;
     GameObject topDownRoot;
     Tilemap terrain;
     Tilemap underground;
@@ -392,6 +411,7 @@ public class PlanetOne : MonoBehaviour
 
         var mining = gameObject.AddComponent<MiningMode>();
         var dayNight = gameObject.AddComponent<DayNight>();
+        sky = dayNight;
         mining.Setup(this, controller, follow, cam, dayNight);
         dayNight.Setup(cam, mining, Square);
         gameObject.AddComponent<Music>().Setup(dayNight);
@@ -415,7 +435,9 @@ public class PlanetOne : MonoBehaviour
         pickaxeWork.Setup(this, controller, mining, inventory, hud, pickups, nook, gatherables, cam);
         if (startBlocks > 0)
         {
-            var blocks = new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem };
+            var blocks = creative
+                ? new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem }
+                : new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem };
             foreach (Item block in blocks)
             {
                 inventory.Add(block, startBlocks);
@@ -492,6 +514,9 @@ public class PlanetOne : MonoBehaviour
         variantSeed = rand.Next();
         int mountainSeed = rand.Next();
         int capSeed = rand.Next();
+        int algaeSeed = rand.Next();
+        // East of the crash site in some worlds, west in others.
+        int algaeX = cx + (rand.Next(2) == 0 ? AlgaeAway : -AlgaeAway);
 
         // How far each ice sheet reaches, column by column.
         northCap = new int[width];
@@ -508,6 +533,7 @@ public class PlanetOne : MonoBehaviour
         ground = new byte[width, height];
         baseTop = new byte[width, height];
         top = new sbyte[width, height];
+        algae = new byte[width, height];
         mined.Clear();
         placed.Clear();
         // The rows are worked out side by side on all the computer's cores, since each spot only depends on itself.
@@ -530,6 +556,14 @@ public class PlanetOne : MonoBehaviour
                     continue;
                 }
                 float fromCrash = Vector2.Distance(new Vector2(x, y), new Vector2(cx, cy));
+                // The algae biome, on the equator.
+                float algaeAcross = Mathf.Abs(x - algaeX), algaeUp = y - height / 2;
+                algaeAcross = Mathf.Min(algaeAcross, width - algaeAcross);
+                if (algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
+                {
+                    float reach = AlgaeRadius * (0.7f + 0.6f * LoopingNoise(x, y, AlgaeEdgeBlobSize, algaeSeed, 2));
+                    if (algaeAcross * algaeAcross + algaeUp * algaeUp < reach * reach) algae[x, y] = 1;
+                }
                 float e = LoopingNoise(x, y, LandBlobSize, landSeed, 3);
                 // Flatten the land around the crash site so the start is open snow.
                 e = 0.5f + (e - 0.5f) * Mathf.Clamp01((fromCrash - 6f) / 6f);
@@ -752,6 +786,11 @@ public class PlanetOne : MonoBehaviour
         // The solid ice under the see-through ice, with reflections drawn between the two.
         iceBeneath = MakeTilemap(grid, "Ice Beneath", ReflectionOrder - 1);
         iceBeneath.tileAnchor = terrain.tileAnchor;
+
+        // Algae glows at night: a bright copy of its top is drawn over the dark of night, as solid as the night is deep.
+        algaeGlow = MakeTilemap(grid, "Algae Glow", 101);
+        algaeGlow.tileAnchor = terrain.tileAnchor;
+        algaeGlow.color = new Color(1f, 1f, 1f, 0f);
     }
 
     void Update()
@@ -759,6 +798,12 @@ public class PlanetOne : MonoBehaviour
         if (topDownRoot == null || !topDownRoot.activeSelf) return;
         ShowLandAround(Vector2Int.FloorToInt(player.GroundPosition));
         ShowUnderRoof();
+        float glow = sky != null && !InCave ? Mathf.Round(sky.Night * 32f) / 32f * AlgaeGlow : 0f;
+        if (glow != glowShown)
+        {
+            glowShown = glow;
+            algaeGlow.color = new Color(1f, 1f, 1f, glow);
+        }
     }
 
     // True if a spot is open at a level but has ground over it: the inside of a tunnel or a cave.
@@ -924,6 +969,7 @@ public class PlanetOne : MonoBehaviour
             terrain.SetTile((Vector3Int)cell, null);
             doorFloors.SetTile((Vector3Int)cell, null);
             iceBeneath.SetTile((Vector3Int)cell, null);
+            algaeGlow.SetTile((Vector3Int)cell, null);
         }
         foreach (Vector2Int cell in wanted.allPositionsWithin)
         {
@@ -1031,7 +1077,9 @@ public class PlanetOne : MonoBehaviour
     {
         // Ice is reflective. Its tile is slightly see-through, with a solid copy of itself beneath, and reflections
         // are drawn in between the two. They show on the ice and nowhere else, since no other ground is see-through.
-        byte surface = MaterialOf(SideBlockAt(cell.x, cell.y, DrawnTopAt(cell.x, cell.y) - 1));
+        int drawnTop = DrawnTopAt(cell.x, cell.y);
+        byte surface = MaterialOf(SideBlockAt(cell.x, cell.y, drawnTop - 1));
+        algaeGlow.SetTile((Vector3Int)cell, surface == Algae ? TerrainTile(Algae, Mathf.Clamp(drawnTop, 0, 1), drawnTop, 0, 0, 0) : null);
         bool ice = surface == Ice;
         terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y, ice));
         // The ocean is see-through too, with its stone bed drawn beneath it.
@@ -1064,6 +1112,7 @@ public class PlanetOne : MonoBehaviour
             case Ship: topColor = ShipColor; rimColor = ShipRim; break;
             case Stone: topColor = StoneColor; rimColor = StoneRim; break;
             case Water: topColor = WaterColor; rimColor = WaterRim; break;
+            case Algae: topColor = AlgaeColor; rimColor = AlgaeRim; break;
             default: topColor = material == Snow && snowPicture != null && !pictured ? PlainSnow : SnowColors[groundLevel][pictured ? 0 : variant]; rimColor = SnowRim; break;
         }
 
@@ -1090,6 +1139,7 @@ public class PlanetOne : MonoBehaviour
             if (rim) return rimColor;
             if (pictured) return PicturePixel(picture, fineX, fineY);
             if (material == Water) return WaterPixel(variant, x, y);
+            if (material == Algae) return AlgaePixel(variant, x, y);
             if (material != Ice) return topColor;
             // The top of ice is a little see-through when it is glassy, so reflections drawn beneath it show.
             Color32 ice = IcePixel(groundLevel, variant, fineX, fineY);
@@ -1229,6 +1279,17 @@ public class PlanetOne : MonoBehaviour
         return WaterClear;
     }
 
+    // One pixel of the top of a block of algae: teal-green, mottled with lighter and darker flecks. Each of its
+    // three looks has its flecks in different places.
+    public static Color32 AlgaePixel(int variant, int x, int y)
+    {
+        // The flecks are two pixels across.
+        int h = (x / 2 * 73856093) ^ (y / 2 * 19349663) ^ (variant * 83492791);
+        h = (h ^ (h >> 13)) * 0x5bd1e995;
+        int roll = (h >> 15) & 31;
+        return roll < 2 ? AlgaeLight : roll < 6 ? AlgaeDark : AlgaeColor;
+    }
+
     // The south-facing side of a raised block. y counts down from the top of the face.
     static Color32 PaintFace(byte material, int x, int y, int facePixels)
     {
@@ -1238,6 +1299,7 @@ public class PlanetOne : MonoBehaviour
             case Ice: return foot ? IceFoot : IceFace;
             case Ship: return ShipSideColor;
             case Water: return foot ? WaterFoot : WaterFace;
+            case Algae: return y < 2 ? AlgaeRim : foot ? AlgaeFoot : AlgaeFace;
             case Rock:
             case Stone:
                 if (y < 2) return RockEdge;
@@ -1302,7 +1364,7 @@ public class PlanetOne : MonoBehaviour
     class Land
     {
         public int Width, Height;
-        public byte[,] Kind, Ground, BaseTop, IceDepth, SnowDepth, Mountain;
+        public byte[,] Kind, Ground, BaseTop, IceDepth, SnowDepth, Mountain, Algae;
         public sbyte[,] Top;
         public Dictionary<Vector2Int, HashSet<int>> Mined;
         public Dictionary<Vector2Int, Dictionary<int, SideBlock>> Placed;
@@ -1694,6 +1756,7 @@ public class PlanetOne : MonoBehaviour
         underground.ClearAllTiles();
         doorFloors.ClearAllTiles();
         iceBeneath.ClearAllTiles();
+        algaeGlow.ClearAllTiles();
         window = new RectInt();
     }
 
@@ -1702,7 +1765,7 @@ public class PlanetOne : MonoBehaviour
         return new Land
         {
             Width = width, Height = height, Kind = kind, Ground = ground, BaseTop = baseTop, Top = top,
-            IceDepth = iceDepth, SnowDepth = snowDepth, Mountain = mountain, Mined = mined, Placed = placed,
+            IceDepth = iceDepth, SnowDepth = snowDepth, Mountain = mountain, Algae = algae, Mined = mined, Placed = placed,
         };
     }
 
@@ -1716,6 +1779,7 @@ public class PlanetOne : MonoBehaviour
         top = land.Top;
         iceDepth = land.IceDepth;
         snowDepth = land.SnowDepth;
+        algae = land.Algae;
         mountain = land.Mountain;
         mined = land.Mined;
         placed = land.Placed;
@@ -1901,6 +1965,7 @@ public class PlanetOne : MonoBehaviour
         {
             case Stone: return StoneColor;
             case Water: return WaterColor;
+            case Algae: return AlgaeColor;
             case Ice: return IceBase[ground[x, y]];
             case Rock: return RockColors[0];
             case Ship: return ShipColor;
@@ -1928,6 +1993,12 @@ public class PlanetOne : MonoBehaviour
     }
 
     // True where the top of the land is the ocean.
+    // True where the top of the land is algae.
+    public bool IsAlgae(int x, int y)
+    {
+        return SurfaceMaterial(x, y) == Algae;
+    }
+
     public bool IsWater(Vector2 position)
     {
         return SurfaceMaterial(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y)) == Water;
@@ -1976,6 +2047,8 @@ public class PlanetOne : MonoBehaviour
 
         int depth = surface - level;
         if (k == Water) return depth <= OceanDepth ? SideBlock.Water : SideBlock.Stone;
+        // In the algae biome the top block of the ground is algae, with the usual snow, ice and stone under it.
+        if (depth == 1 && algae != null && algae[x, row] != 0) return SideBlock.Algae;
         if (k == SnowOverIce) return depth == 1 ? SideBlock.Snow : depth <= 1 + CapIceDepth ? SideBlock.Ice : SideBlock.Stone;
         if (k == Ice && depth <= iceDepth[x, row]) return SideBlock.Ice;
         return depth <= snowDepth[x, row] ? SideBlock.Snow : SideBlock.Stone;
@@ -2018,6 +2091,7 @@ public class PlanetOne : MonoBehaviour
             case SideBlock.Ship: return Ship;
             case SideBlock.Stone: return Stone;
             case SideBlock.Water: return Water;
+            case SideBlock.Algae: return Algae;
             default: return Rock;
         }
     }

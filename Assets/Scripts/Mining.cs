@@ -35,6 +35,7 @@ public class Mining : MonoBehaviour
     public Item SnowItem { get; private set; }
     public Item IceItem { get; private set; }
     public Item StoneItem { get; private set; }
+    public Item AlgaeItem { get; private set; }
 
     PlanetOne planet;
     PlayerController player;
@@ -68,6 +69,7 @@ public class Mining : MonoBehaviour
 
         SnowItem = new Item("Snow", planet.SnowSprite != null ? planet.SnowSprite : planet.Square, PlanetOne.SideBlock.Snow);
         IceItem = new Item("Ice", planet.IceSprite != null ? planet.IceSprite : planet.IceSideSprites[0], PlanetOne.SideBlock.Ice);
+        AlgaeItem = new Item("Algae", PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0.5f), 16, (x, y) => PlanetOne.AlgaePixel(0, x, y)), PlanetOne.SideBlock.Algae);
         StoneItem = new Item("Stone", PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, StonePixel), PlanetOne.SideBlock.Stone);
 
         crackSprites = new Sprite[CrackStages];
@@ -128,12 +130,13 @@ public class Mining : MonoBehaviour
 
     static int HitsFor(PlanetOne.SideBlock block)
     {
-        return block == PlanetOne.SideBlock.Snow ? SnowHits : block == PlanetOne.SideBlock.Ice ? IceHits : StoneHits;
+        // Algae is as soft as snow.
+        return block == PlanetOne.SideBlock.Snow || block == PlanetOne.SideBlock.Algae ? SnowHits : block == PlanetOne.SideBlock.Ice ? IceHits : StoneHits;
     }
 
     Item ItemFor(PlanetOne.SideBlock block)
     {
-        return block == PlanetOne.SideBlock.Snow ? SnowItem : block == PlanetOne.SideBlock.Ice ? IceItem : StoneItem;
+        return block == PlanetOne.SideBlock.Snow ? SnowItem : block == PlanetOne.SideBlock.Ice ? IceItem : block == PlanetOne.SideBlock.Algae ? AlgaeItem : StoneItem;
     }
 
     // Handles a left click at a point on screen (given in world units): one hit with the pickaxe on the block there.

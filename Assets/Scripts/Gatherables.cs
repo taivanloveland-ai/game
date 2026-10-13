@@ -12,6 +12,10 @@ public class Gatherables : MonoBehaviour
     // How much of the snow has a plant on it, and how much of the ice has a shard.
     const double PlantDensity = 0.004;
     const double ShardDensity = 0.009;
+    // In the algae biome, the chance that a square has a clump of algae growing on it.
+    const double ClumpDensity = 0.012;
+    // A clump of algae is painted this many pixels wide and tall, 16 to a block.
+    const int ClumpWide = 18, ClumpTall = 12;
     // Across the whole planet there are this many ice shards for every this many ferns.
     const int FernsPerSet = 8, ShardsPerSet = 5;
     // There is one thornam bush for every this many ferns. Bushes only grow on snow that is right next to ice.
@@ -131,6 +135,7 @@ public class Gatherables : MonoBehaviour
 
 
     public Item PlantItem { get; private set; }
+    public Item ClumpItem { get; private set; }
     public Item ShardItem { get; private set; }
     public Item ThornItem { get; private set; }
     public Item VineItem { get; private set; }
@@ -252,6 +257,10 @@ public class Gatherables : MonoBehaviour
         PlantItem = plant.Item;
         ShardItem = shard.Item;
 
+        Kind clump = MakeKind("Algae clump", ClumpWide, ClumpTall, 16f, false, ClumpPixel);
+        // A soft shadow beside it helps it show against the ground.
+        clump.Shadow = true;
+        ClumpItem = clump.Item;
         var rand = new System.Random(planet.seed + 1);
         for (int y = 0; y < planet.height; y++)
         {
@@ -261,6 +270,8 @@ public class Gatherables : MonoBehaviour
                 // Nothing grows right where the player starts, since things on the ground cannot be walked through.
                 if (Mathf.Abs(x - planet.CrashSite.x) <= 1 && Mathf.Abs(y - planet.CrashSite.y) <= 1) continue;
                 if (planet.IsSnow(x, y) && roll < PlantDensity) things[new Vector2Int(x, y)] = plant;
+                // In the algae biome, clumps of algae grow among the ferns.
+                else if (roll < PlantDensity + ClumpDensity && planet.IsAlgae(x, y)) things[new Vector2Int(x, y)] = clump;
                 else if (planet.IsIce(new Vector2(x + 0.5f, y + 0.5f)) && roll < ShardDensity) things[new Vector2Int(x, y)] = shard;
             }
         }
@@ -379,6 +390,30 @@ public class Gatherables : MonoBehaviour
     static bool IsFernGreen(Color32 c)
     {
         return c.a > 128 && c.g > c.r + 25;
+    }
+
+    // One pixel of a clump of algae, with (0, 0) at the top left: three mounds side by side, a deeper green than the
+    // algae on the ground so they stand out on it, with a dark outline, bright tips and a dark foot.
+    static readonly Color32 ClumpBody = new Color32(22, 118, 106, 255), ClumpDeep = new Color32(14, 84, 82, 255);
+    static readonly Color32 ClumpEdge = new Color32(8, 52, 56, 255), ClumpTip = new Color32(176, 242, 218, 255);
+    static Color32 ClumpPixel(int x, int y)
+    {
+        float[] middleX = { 4.5f, 9.5f, 13.5f }, middleY = { 7.5f, 6f, 8.5f }, radius = { 4f, 5.2f, 3.4f };
+        bool edge = false;
+        for (int i = 0; i < middleX.Length; i++)
+        {
+            float dx = x + 0.5f - middleX[i], dy = y + 0.5f - middleY[i];
+            float away = Mathf.Sqrt(dx * dx + dy * dy);
+            if (away > radius[i])
+            {
+                edge |= away <= radius[i] + 1f;
+                continue;
+            }
+            if (y >= ClumpTall - 2) return ClumpDeep;
+            if (dy < -radius[i] * 0.45f && dx < radius[i] * 0.35f && dx > -radius[i] * 0.6f) return ClumpTip;
+            return dy > radius[i] * 0.3f ? ClumpDeep : ClumpBody;
+        }
+        return edge && y < ClumpTall ? ClumpEdge : Clear;
     }
 
     // The same icicle picture for other things to use, such as the icicles hanging in a cave mouth: the picture, and
