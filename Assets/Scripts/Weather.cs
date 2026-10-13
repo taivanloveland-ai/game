@@ -62,6 +62,9 @@ public class Weather : MonoBehaviour
     float nextHailAt;
     bool warned;
 
+    // Set from creative mode's panel: snow or hail falls on the player wherever they are, cloud or no cloud.
+    public bool ForceSnow, ForceHail;
+
     // How hard it is snowing and hailing on the player right now, from 0 (not at all) to 1.
     public float Snowing { get; private set; }
     public float Hailing { get; private set; }
@@ -150,7 +153,8 @@ public class Weather : MonoBehaviour
     {
         // A new day: yesterday's clouds that never came are forgotten, and the day's weather is decided.
         float time = dayNight.time;
-        if (time < lastTime)
+        // (A jump back of half a day is creative mode switching night to day, not a new day.)
+        if (time < lastTime - 0.9f)
         {
             clouds.RemoveAll(cloud => !cloud.Come);
             RollTheDay(0f);
@@ -182,6 +186,9 @@ public class Weather : MonoBehaviour
             else snow = Mathf.Max(snow, strength);
         }
         // Nothing falls in a cave.
+        // In creative mode snow and hail can be turned on by hand, wherever the player is.
+        if (ForceSnow) snow = 1f;
+        if (ForceHail) hail = 1f;
         if (planet.InCave) snow = hail = 0f;
         Snowing = snow;
         Hailing = hail;
