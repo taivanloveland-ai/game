@@ -494,6 +494,7 @@ public class PlanetOne : MonoBehaviour
         caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
         health.BeforeWaking = caves.LeaveNow;
         hud.HideHotbar = () => worldMap.Open;
+        gameObject.AddComponent<Weather>().Setup(this, controller, cam, dayNight, health, hud, Square);
 
         // Saved games and the pause screen. A saved game is put back now that everything is in place. A new game is
         // saved straight away, so its slot is taken.

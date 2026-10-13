@@ -428,3 +428,13 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Game font** (2026-10-13). His words: "for now put this font in as all fonts", with his file Show font game from his Documents folder (a TrueType font with no file ending; it has all the letters, numbers and usual symbols). It is in the game unchanged as Assets/Resources/Fonts/GameFont.ttf, and all the writing on screen uses it: title screen, slots, loading, pause and settings, hotbar, messages, health, maps, workbench. "For now": he may swap it later; replacing that one file changes it everywhere.
 
 - **"zoom out the cave a bit"** (2026-10-13): a cave is now seen 1.5 times as close as the surface (it was 2 times), so about a third more of the cave fits on screen. It still follows the Zoom setting.
+
+## Weather (asked 2026-10-13)
+- His words: "weather 1/2 chance in a day that a cloud of snow snows down about the size of teh algae biome that moves across the planet in random direction. (you cant actually see the cloud but you can see the snow falling.) 1/10 chance of hail which damages you if not under a block. damage is rapid hits of hail from 1-5 damage each. moves and acts the same otherwise like snow."
+- His picks: a cloud is **aimed to pass near you**; snow is **just the look**.
+- As built:
+  - At the start of each day (and when a game starts) the weather is rolled: a **1 in 2** chance of a snow cloud and a **1 in 10** chance of a hail cloud. The two rolls are separate, so now and then a day has both.
+  - A cloud is about 560 squares across (the algae biome's size). It arrives at some point in the first 60% of the day, its edge 150 squares from the player, and drifts in a straight line in a random direction at walking speed (4 squares a second), its middle passing within half its radius of where the player was. So it takes about 40 seconds to reach you and a couple of minutes to pass over if you stand still. It is gone after drifting 2400 squares.
+  - The cloud is never drawn. Under it, snowflakes fall across the screen (soft blue-grey and white, so they show on snow) with a faint whiteness; they thin out at the cloud's edge. Snow does nothing else.
+  - Hail looks like fast blue streaks. Out in the open it hits every 0.5 to 1.1 seconds for **1 to 5** health each (about 3 to 5 health a second), with "Hail! Get under a block." the first time. A block anywhere over the player's head stops it. Standing in a full hail cloud with no cover would kill from full health in about 25 to 30 seconds.
+  - No weather in the caves. Weather is not kept in a saved game: loading rolls the day again.
