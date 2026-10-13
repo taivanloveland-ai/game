@@ -282,6 +282,65 @@ public class PlanetOne : MonoBehaviour
         icePicture = LoadBlockPicture("Art/IceBlock");
         IceSideSprites = MakeIceSideSprites();
 
+        cam = Camera.main;
+        if (cam == null)
+        {
+            var camObject = new GameObject("Main Camera") { tag = "MainCamera" };
+            cam = camObject.AddComponent<Camera>();
+            camObject.AddComponent<AudioListener>();
+        }
+        cam.orthographic = true;
+        cam.orthographicSize = 7f;
+        cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = SkyColor;
+        // Things lower on the screen are nearer, so they are drawn over things higher up.
+        cam.transparencySortMode = TransparencySortMode.CustomAxis;
+        cam.transparencySortAxis = Vector3.up;
+
+        // The game opens on the title screen, and the world is made once a mode has been picked there. (Started
+        // with -skipTitle on the command line, as the automatic checks are, it goes straight into survival mode;
+        // with -creative as well, into creative mode.)
+        string[] arguments = System.Environment.GetCommandLineArgs();
+        if (System.Array.IndexOf(arguments, "-skipTitle") >= 0)
+        {
+            bool creative = System.Array.IndexOf(arguments, "-creative") >= 0;
+            MakeWorld(creative);
+            FinishSetup(creative);
+            return;
+        }
+        gameObject.AddComponent<TitleScreen>().Setup(this, cam);
+    }
+
+    Camera cam;
+    // What is being made right now, for the loading screen, and whether the game has begun.
+    public volatile string LoadingStage = "";
+    public bool Ready { get; private set; }
+    // In creative mode, the colour of every square of the planet, for a map that starts fully drawn.
+    Color32[] wholeMap;
+
+    // Begins a game from the title screen: survival, or creative.
+    public void StartGame(bool creative)
+    {
+        StartCoroutine(Load(creative));
+    }
+
+    // The world is worked out away from the main thread, so the loading screen keeps moving while it is made.
+    System.Collections.IEnumerator Load(bool creative)
+    {
+        var making = System.Threading.Tasks.Task.Run(() => MakeWorld(creative));
+        while (!making.IsCompleted) yield return null;
+        if (making.IsFaulted) Debug.LogException(making.Exception);
+        LoadingStage = "Waking up at the ship";
+        // Two frames, so that line is on screen before the last of the setting up, which holds the screen still.
+        yield return null;
+        yield return null;
+        FinishSetup(creative);
+    }
+
+    // Works out the whole world: its land, its mountains and its caves. Nothing here draws anything or touches the
+    // scene, so it can run away from the main thread.
+    void MakeWorld(bool creative)
+    {
         // The ship came down in the southern half of the planet, half way between the equator and the South Pole.
         int cx = width / 2, cy = height / 4;
         CrashSite = new Vector2Int(cx, cy - 1);
@@ -299,23 +358,26 @@ public class PlanetOne : MonoBehaviour
         }
         // Logged so a world worth keeping can be built again by typing its seed in and unticking Random World.
         Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(reachable * 100f) + "% of its snow and ice can be walked to, worked out in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds)");
+        LoadingStage = "Digging the frost caves";
         FindCaveEntrances();
-        BuildTerrain();
-
-        Camera cam = Camera.main;
-        if (cam == null)
+        if (creative)
         {
-            var camObject = new GameObject("Main Camera") { tag = "MainCamera" };
-            cam = camObject.AddComponent<Camera>();
-            camObject.AddComponent<AudioListener>();
+            // In creative mode the whole map is drawn from the start.
+            LoadingStage = "Drawing the map";
+            var colours = new Color32[width * height];
+            System.Threading.Tasks.Parallel.For(0, height, y =>
+            {
+                for (int x = 0; x < width; x++) colours[y * width + x] = MapColorAt(x, y);
+            });
+            wholeMap = colours;
         }
-        cam.orthographic = true;
-        cam.orthographicSize = 7f;
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = SkyColor;
-        // Things lower on the screen are nearer, so they are drawn over things higher up.
-        cam.transparencySortMode = TransparencySortMode.CustomAxis;
-        cam.transparencySortAxis = Vector3.up;
+    }
+
+    // Puts the world on screen and sets the game going: the land, the player, and everything else in the game.
+    void FinishSetup(bool creative)
+    {
+        int cx = width / 2, cy = height / 4;
+        BuildTerrain();
 
         PlayerController controller = BuildPlayer(new Vector2(cx + 0.5f, cy - 0.5f));
         player = controller;
@@ -344,15 +406,19 @@ public class PlanetOne : MonoBehaviour
         // The crafting nook is set into the middle of the ship's front.
         var nook = gameObject.AddComponent<CraftingNook>();
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
-        if (startWithPickaxe) inventory.AddTool(nook.Pickaxe);
+        // Creative mode starts with both tools and blocks that never run out.
+        if (startWithPickaxe || creative) inventory.AddTool(nook.Pickaxe);
+        if (creative) inventory.AddTool(nook.Axe);
+        inventory.Infinite = creative;
+        int startBlocks = creative ? 999 : startWithBlocks;
         var pickaxeWork = gameObject.AddComponent<Mining>();
         pickaxeWork.Setup(this, controller, mining, inventory, hud, pickups, nook, gatherables, cam);
-        if (startWithBlocks > 0)
+        if (startBlocks > 0)
         {
             var blocks = new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem };
             foreach (Item block in blocks)
             {
-                inventory.Add(block, startWithBlocks);
+                inventory.Add(block, startBlocks);
                 int slot = System.Array.IndexOf(inventory.Hotbar, null);
                 if (slot >= 0) inventory.SetSlot(slot, block);
             }
@@ -368,12 +434,16 @@ public class PlanetOne : MonoBehaviour
         gatherables.Say = text => hud.Say(text, 2f);
         // The maps mark the ship at the middle of its hull.
         var worldMap = gameObject.AddComponent<WorldMap>();
-        worldMap.Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f));
+        worldMap.Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f), wholeMap);
+        wholeMap = null;
+        // Creative mode also has a slider for how fast the player moves.
+        if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller);
         // The frost caves in the mountains. Falling in one, the player wakes up at the ship as usual.
         var caves = gameObject.AddComponent<Caves>();
         caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
         health.BeforeWaking = caves.LeaveNow;
         hud.HideHotbar = () => worldMap.Open;
+        Ready = true;
     }
 
     PlayerController BuildPlayer(Vector2 position)
@@ -416,6 +486,7 @@ public class PlanetOne : MonoBehaviour
     // Nothing is drawn yet.
     void GenerateLand(int cx, int cy)
     {
+        LoadingStage = "Shaping the land";
         var rand = new System.Random(seed);
         int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
         variantSeed = rand.Next();
@@ -474,6 +545,7 @@ public class PlanetOne : MonoBehaviour
             for (int x = cx - 2; x < cx + 3; x++) kind[x, y] = Ship;
         }
 
+        LoadingStage = "Raising the mountains";
         RaiseMountains(mountainSeed);
 
         for (int y = 0; y < height; y++)
@@ -499,7 +571,9 @@ public class PlanetOne : MonoBehaviour
                 top[x, y] = (sbyte)baseTop[x, y];
             }
         }
+        LoadingStage = "Freezing the lakes";
         ComputeGroundDepths(depthSeed);
+        LoadingStage = "Checking the way is clear";
     }
 
     // Works out how tall the mountains are everywhere and turns the land under them to rock. Like the Himalayas:
@@ -682,7 +756,7 @@ public class PlanetOne : MonoBehaviour
 
     void Update()
     {
-        if (!topDownRoot.activeSelf) return;
+        if (topDownRoot == null || !topDownRoot.activeSelf) return;
         ShowLandAround(Vector2Int.FloorToInt(player.GroundPosition));
         ShowUnderRoof();
     }

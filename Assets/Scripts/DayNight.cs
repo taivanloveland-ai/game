@@ -76,6 +76,11 @@ public class DayNight : MonoBehaviour
         Refresh();
     }
 
+    // The same pictures for the title screen: the stars, the sun and the black hole.
+    public static Sprite StarsSprite() { return PlanetOne.PaintSprite(448, 256, new Vector2(0.5f, 0.5f), PaintStars); }
+    public static Sprite SunSprite() { return PlanetOne.PaintSprite(64, 64, new Vector2(0.5f, 0.5f), PaintSun); }
+    public static Sprite BlackHoleSprite() { return PlanetOne.PaintSprite(BlackHoleWidth, BlackHoleHeight, new Vector2(0.5f, 0.5f), FinePixels, false, PaintBlackHole); }
+
     SpriteRenderer MakeSkySprite(string name, Sprite sprite, int sortingOrder)
     {
         var go = new GameObject(name);

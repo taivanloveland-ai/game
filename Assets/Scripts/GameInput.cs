@@ -52,10 +52,13 @@ public static class GameInput
     public static System.Func<bool> PointerOverInventory;
     // Set by the maps: true while the mouse is over the mini map, or dragging it.
     public static System.Func<bool> PointerOverMap;
+    // Set by creative mode's tools: true while the mouse is over its speed slider.
+    public static System.Func<bool> PointerOverTools;
 
     // True while the mouse is over something on screen that takes its own clicks and scrolling.
     static bool PointerOverPanel()
     {
+        if (PointerOverTools != null && PointerOverTools()) return true;
         return (PointerOverInventory != null && PointerOverInventory()) || (PointerOverMap != null && PointerOverMap());
     }
 

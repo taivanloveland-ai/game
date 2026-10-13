@@ -70,7 +70,8 @@ public class WorldMap : MonoBehaviour
     bool draggingMini, draggingWorld;
     Vector2 lastPointer;
 
-    public void Setup(PlanetOne planet, PlayerController player, Vector2 ship)
+    // WholeMap, if given, is the colour of every square of the planet: the map then starts fully drawn (creative mode).
+    public void Setup(PlanetOne planet, PlayerController player, Vector2 ship, Color32[] wholeMap = null)
     {
         this.planet = planet;
         this.player = player;
@@ -84,8 +85,20 @@ public class WorldMap : MonoBehaviour
         explored = new bool[mapWidth, mapHeight];
         // The picture repeats past its east and west edges, as the planet does, so a map can show the land across the join.
         picture = new Texture2D(mapWidth, mapHeight, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp };
-        var pixels = new Color32[mapWidth * mapHeight];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = Unexplored;
+        Color32[] pixels = wholeMap;
+        if (pixels != null)
+        {
+            for (int y = 0; y < mapHeight; y++)
+            {
+                for (int x = 0; x < mapWidth; x++) explored[x, y] = true;
+            }
+            ExploredCount = mapWidth * mapHeight;
+        }
+        else
+        {
+            pixels = new Color32[mapWidth * mapHeight];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = Unexplored;
+        }
         picture.SetPixels32(pixels);
         picture.Apply();
         Explore();
