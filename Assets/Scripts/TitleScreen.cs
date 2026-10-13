@@ -40,6 +40,12 @@ public class TitleScreen : MonoBehaviour
     float blackHoleTurn = -14f;
     bool loading;
     float loadingSince;
+    // Which mode's save slots are showing, if the player has pressed Survival or Creative: 0 for neither, 1 for
+    // survival, 2 for creative. What is in each of those slots, and which one Delete has been pressed on once.
+    int slotsFor;
+    SaveGame.Summary[] slots;
+    int deleting = -1;
+    GUIStyle slotStyle, smallButtonStyle;
     GUIStyle buttonStyle, loadingStyle, stageStyle;
     Texture2D buttonBack, buttonOver;
 
@@ -78,13 +84,14 @@ public class TitleScreen : MonoBehaviour
         return go.transform;
     }
 
-    // Starts a game: survival, or creative. The buttons call this.
-    public void Choose(bool creative)
+    // Starts a game: survival, or creative, in a save slot (counting from 0, or -1 for none). Given a saved game, it
+    // carries that game on. The buttons call this.
+    public void Choose(bool creative, int slot = -1, SaveGame.Loaded saved = null)
     {
         if (loading) return;
         loading = true;
         loadingSince = Time.unscaledTime;
-        planet.StartGame(creative);
+        planet.StartGame(creative, slot, saved);
     }
 
     void Update()
@@ -142,10 +149,76 @@ public class TitleScreen : MonoBehaviour
             GUI.Label(new Rect(left - wide * 0.25f, h * 0.58f, wide * 1.5f, h * 0.06f), planet.LoadingStage, stageStyle);
             return;
         }
+        if (slotsFor != 0)
+        {
+            DrawSlots(w, h);
+            return;
+        }
         float tall = h * 0.1f, gap = h * 0.035f, top = h * 0.42f;
-        if (GUI.Button(new Rect(left, top, wide, tall), "Survival", buttonStyle)) Choose(false);
-        if (GUI.Button(new Rect(left, top + tall + gap, wide, tall), "Creative", buttonStyle)) Choose(true);
+        if (GUI.Button(new Rect(left, top, wide, tall), "Survival", buttonStyle)) ShowSlots(false);
+        if (GUI.Button(new Rect(left, top + tall + gap, wide, tall), "Creative", buttonStyle)) ShowSlots(true);
         if (GUI.Button(new Rect(left, top + (tall + gap) * 2f, wide, tall), "Exit", buttonStyle)) Exit();
+    }
+
+    // Opens the five save slots of a mode.
+    void ShowSlots(bool creative)
+    {
+        slotsFor = creative ? 2 : 1;
+        deleting = -1;
+        slots = new SaveGame.Summary[SaveGame.Slots];
+        for (int i = 0; i < slots.Length; i++) slots[i] = SaveGame.Peek(creative, i);
+    }
+
+    // The save slots of the mode that was picked: each is empty, with a button to start a new game in it, or holds a
+    // saved game, with buttons to carry it on or delete it (Delete has to be pressed twice).
+    void DrawSlots(float w, float h)
+    {
+        bool creative = slotsFor == 2;
+        if (slotStyle == null)
+        {
+            slotStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleLeft };
+            slotStyle.normal.textColor = new Color(0.88f, 0.95f, 1f);
+            smallButtonStyle = new GUIStyle(buttonStyle);
+        }
+        slotStyle.fontSize = Mathf.RoundToInt(h / 36f);
+        smallButtonStyle.fontSize = Mathf.RoundToInt(h / 34f);
+        loadingStyle.fontSize = Mathf.RoundToInt(h / 18f);
+
+        float left = w * 0.5f, wide = w * 0.46f, row = h * 0.085f, gap = h * 0.02f, top = h * 0.3f;
+        GUI.Label(new Rect(left, top - row * 1.5f, wide, row), creative ? "Creative" : "Survival", loadingStyle);
+        for (int i = 0; i < slots.Length; i++)
+        {
+            float y = top + i * (row + gap);
+            GUI.DrawTexture(new Rect(left, y, wide, row), buttonBack);
+            SaveGame.Summary saved = slots[i];
+            string words = "Slot " + (i + 1) + "   " + (saved != null ? "Saved " + saved.Saved.ToString("d MMM yyyy, h:mm tt") : "Empty");
+            GUI.Label(new Rect(left + wide * 0.03f, y, wide * 0.5f, row), words, slotStyle);
+            float buttonWide = wide * 0.21f, inset = row * 0.14f;
+            var first = new Rect(left + wide - buttonWide * 2f - inset * 2f, y + inset, buttonWide, row - inset * 2f);
+            var second = new Rect(left + wide - buttonWide - inset, y + inset, buttonWide, row - inset * 2f);
+            if (saved == null)
+            {
+                if (GUI.Button(second, "New game", smallButtonStyle)) Choose(creative, i);
+                continue;
+            }
+            if (GUI.Button(first, "Continue", smallButtonStyle))
+            {
+                SaveGame.Loaded game = SaveGame.Load(creative, i);
+                if (game != null) Choose(creative, i, game);
+            }
+            if (GUI.Button(second, deleting == i ? "Sure?" : "Delete", smallButtonStyle))
+            {
+                if (deleting == i)
+                {
+                    SaveGame.Delete(creative, i);
+                    slots[i] = null;
+                    deleting = -1;
+                }
+                else deleting = i;
+            }
+        }
+        float backY = top + slots.Length * (row + gap) + gap;
+        if (GUI.Button(new Rect(left + wide * 0.7f, backY, wide * 0.3f, row), "Back", smallButtonStyle)) slotsFor = 0;
     }
 
     static Texture2D Fill(Color color)

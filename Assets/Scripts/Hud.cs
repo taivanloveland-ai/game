@@ -13,6 +13,8 @@ public class Hud : MonoBehaviour
 
     Inventory inventory;
     bool itemsOpen;
+    // True while the list of carried items is open.
+    public bool ItemsOpen => itemsOpen;
     string message;
     float messageUntil;
     GUIStyle countStyle, smallCountStyle, nameStyle, itemNameStyle, titleStyle, messageStyle;

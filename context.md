@@ -408,3 +408,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **At night the algae glows**: in the top-down view it stays bright while everything else goes dark. (Not yet in the side-scroller view.)
   - Mining it gives an **Algae** block (as quick to mine as snow), which can be placed like any block. Creative mode has it on the hotbar.
   - Ferns still grow there. **Algae clumps** grow there too (about 1 square in 80): dark green mounds with bright tips, collected like ferns, giving an "Algae clump" item. No ice shards there. Nothing is made from clumps yet.
+
+## Pause screen, settings and save slots (asked 2026-10-13)
+- His words: "make a pause screen when you press esc. the options are, from top to bottom: [Resume] [Save]  [Settings] which include music volume and other settingsy things [Save and Quit] also make it since saving is an option so that there are 5 save slots you can start on creative and survival."
+- His picks: **5 slots for each mode** (ten in all); settings also have **Show mini map, Zoom, Full screen**; Save and Quit goes **back to the title screen**.
+- As built:
+  - **Esc** pauses the game (everything stands still and the keys do nothing) and shows, top to bottom: **Resume, Save, Settings, Save and Quit**. Esc again resumes. If the world map, the items list or the workbench is open, Esc closes that instead, as before.
+  - **Settings:** music volume (0 to 100%, heard straight away), zoom (0.7x to 1.8x of the usual view; a cave is always twice as close again), mini map on or off, full screen on or off (only does anything in a built copy of the game). They are kept on the computer and are the same for every slot.
+  - **Title screen:** Survival and Creative each open their own list of **5 slots**. An empty slot has **New game**. A used one shows when it was saved and has **Continue** and **Delete** (Delete has to be pressed twice). **Back** returns to the three buttons.
+  - A new game is saved in its slot as soon as it starts. **Save** saves it again; **Save and Quit** saves and returns to the title screen. There is no automatic saving while playing.
+  - **What a save keeps:** the world (its seed, and every block dug or built, in the caves too), where the player is (in a cave too), their health, everything carried and the hotbar, the time of day, what has been harvested, which spiders have been killed, loose items on the ground, the squares the map has seen and the caves found, and creative mode's speed. Spiders go back to where they started.
+  - Save files are in the game's own data folder on the computer (`AppData\LocalLow\DefaultCompany\game\saves`), a few kilobytes each.
+- For Claude's automatic checks: `-skipTitle -slot 3` plays in slot 3, and adding `-load` carries on the game saved there.

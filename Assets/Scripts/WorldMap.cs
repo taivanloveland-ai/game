@@ -141,7 +141,7 @@ public class WorldMap : MonoBehaviour
                 worldMiddle.x = Mathf.Repeat(worldMiddle.x, mapWidth);
             }
         }
-        else
+        else if (GameSettings.ShowMiniMap)
         {
             Rect frame = MiniMapFrame();
             if (wheel != 0f && frame.Contains(pointer)) miniSquares = Mathf.Clamp(miniSquares * (wheel > 0f ? 1f / ZoomStep : ZoomStep), FewestSquares, MostSquares);
@@ -161,9 +161,61 @@ public class WorldMap : MonoBehaviour
     bool PointerOverMap()
     {
         if (Open || draggingMini || draggingWorld) return true;
+        if (!GameSettings.ShowMiniMap) return false;
         Rect frame = MiniMapFrame();
         var area = new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + (miniOffset != Vector2.zero ? 38f : 8f));
         return area.Contains(Pointer());
+    }
+
+    // Writes what a saved game keeps of the maps: the caves found, and which squares have been seen. (In creative
+    // mode every square is seen from the start, so those are not written.)
+    public void Write(System.IO.BinaryWriter w)
+    {
+        w.Write(caves.Count);
+        foreach (Vector2 mouth in caves)
+        {
+            w.Write(mouth.x);
+            w.Write(mouth.y);
+        }
+        bool all = ExploredCount >= mapWidth * mapHeight;
+        w.Write(!all);
+        if (all) return;
+        // One bit for every square.
+        var bits = new byte[(mapWidth * mapHeight + 7) / 8];
+        for (int y = 0; y < mapHeight; y++)
+        {
+            for (int x = 0; x < mapWidth; x++)
+            {
+                if (!explored[x, y]) continue;
+                int i = y * mapWidth + x;
+                bits[i >> 3] |= (byte)(1 << (i & 7));
+            }
+        }
+        w.Write(bits.Length);
+        w.Write(bits);
+    }
+
+    // Reads them back from a saved game, and draws the squares that had been seen.
+    public void Read(System.IO.BinaryReader r)
+    {
+        int found = r.ReadInt32();
+        for (int i = 0; i < found; i++) MarkCave(new Vector2(r.ReadSingle(), r.ReadSingle()));
+        if (!r.ReadBoolean()) return;
+        byte[] bits = r.ReadBytes(r.ReadInt32());
+        Color32[] pixels = picture.GetPixels32();
+        for (int y = 0; y < mapHeight; y++)
+        {
+            for (int x = 0; x < mapWidth; x++)
+            {
+                int i = y * mapWidth + x;
+                if (explored[x, y] || (i >> 3) >= bits.Length || (bits[i >> 3] & (1 << (i & 7))) == 0) continue;
+                explored[x, y] = true;
+                ExploredCount++;
+                pixels[i] = planet.MapColorAt(x, y);
+            }
+        }
+        picture.SetPixels32(pixels);
+        picture.Apply();
     }
 
     // Marks a cave mouth on the maps.
@@ -269,6 +321,8 @@ public class WorldMap : MonoBehaviour
 
     void DrawMiniMap()
     {
+        // The mini map can be turned off in the settings.
+        if (!GameSettings.ShowMiniMap) return;
         Rect frame = MiniMapFrame();
         GUI.Box(new Rect(frame.x - 4f, frame.y - 4f, frame.width + 8f, frame.height + 8f), GUIContent.none);
         // In a cave the mini map goes dark: the way has to be remembered.

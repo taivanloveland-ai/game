@@ -370,6 +370,16 @@ public class PlayerController : MonoBehaviour
         altitude = SurfaceUnder(position);
     }
 
+    // Puts the player at a place on the ground, as seen from above, with their feet at a height: where a saved game
+    // left them.
+    public void PlaceAt(Vector2 ground, float feet)
+    {
+        Teleport(new Vector2(ground.x, ground.y + Height / 2f - FeetDepth / 2f));
+        velocity = Vector2.zero;
+        verticalSpeed = 0f;
+        altitude = feet;
+    }
+
     // Darkens or restores the player's colour; white means their normal colour.
     public void SetTint(Color tint)
     {

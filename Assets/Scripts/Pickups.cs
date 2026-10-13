@@ -21,6 +21,7 @@ public class Pickups : MonoBehaviour
         public Vector2 Position;
         public float Level;
         public float PullRadius;
+        public float Scale;
         public float BornAt;
         // How many of the item this one loose thing stands for.
         public int Count = 1;
@@ -56,6 +57,49 @@ public class Pickups : MonoBehaviour
         if (!dropsByLand.TryGetValue(land, out drops)) drops = new List<Dropped>();
     }
 
+    // Writes every loose thing, in every land, for a saved game.
+    public void Write(System.IO.BinaryWriter w)
+    {
+        dropsByLand[land] = drops;
+        w.Write(dropsByLand.Count);
+        foreach (KeyValuePair<int, List<Dropped>> entry in dropsByLand)
+        {
+            w.Write(entry.Key);
+            w.Write(entry.Value.Count);
+            foreach (Dropped drop in entry.Value)
+            {
+                w.Write(drop.Item.Name);
+                w.Write(drop.Position.x);
+                w.Write(drop.Position.y);
+                w.Write(drop.Level);
+                w.Write(drop.PullRadius);
+                w.Write(drop.Scale);
+                w.Write(drop.Count);
+            }
+        }
+    }
+
+    // Reads them back. Find gives the item of a name, or null if there is none any more.
+    public void Read(System.IO.BinaryReader r, System.Func<string, Item> find)
+    {
+        int here = land;
+        int lands = r.ReadInt32();
+        for (int i = 0; i < lands; i++)
+        {
+            SetLand(r.ReadInt32());
+            int count = r.ReadInt32();
+            for (int j = 0; j < count; j++)
+            {
+                Item item = find(r.ReadString());
+                var position = new Vector2(r.ReadSingle(), r.ReadSingle());
+                float level = r.ReadSingle(), pull = r.ReadSingle(), scale = r.ReadSingle();
+                int howMany = r.ReadInt32();
+                if (item != null) Drop(item, position, level, pull, scale, howMany);
+            }
+        }
+        SetLand(here);
+    }
+
     // Drops something that was standing on the ground, at ground level.
     public void Drop(Item item, Vector2 position)
     {
@@ -72,7 +116,7 @@ public class Pickups : MonoBehaviour
         go.transform.localScale = new Vector3(scale, scale, 1f);
         var renderer = go.AddComponent<SpriteRenderer>();
         renderer.sprite = item.Icon;
-        drops.Add(new Dropped { Item = item, Position = position, Level = level, PullRadius = pullRadius, BornAt = Time.time, Renderer = renderer, Count = count });
+        drops.Add(new Dropped { Item = item, Position = position, Level = level, PullRadius = pullRadius, BornAt = Time.time, Renderer = renderer, Count = count, Scale = scale });
     }
 
     void Update()

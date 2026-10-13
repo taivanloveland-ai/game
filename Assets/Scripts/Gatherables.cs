@@ -134,6 +134,35 @@ public class Gatherables : MonoBehaviour
     }
 
 
+    // The squares whose things have been collected, for saved games: the things grow in the same places every time
+    // a world is made from its seed, so a saved game only has to remember which are gone.
+    readonly HashSet<Vector2Int> collected = new HashSet<Vector2Int>();
+
+    public void Write(System.IO.BinaryWriter w)
+    {
+        w.Write(collected.Count);
+        foreach (Vector2Int cell in collected)
+        {
+            w.Write(cell.x);
+            w.Write(cell.y);
+        }
+    }
+
+    public void Read(System.IO.BinaryReader r)
+    {
+        int count = r.ReadInt32();
+        for (int i = 0; i < count; i++)
+        {
+            var cell = new Vector2Int(r.ReadInt32(), r.ReadInt32());
+            collected.Add(cell);
+            things.Remove(cell);
+        }
+        // What is on screen is worked out again.
+        foreach (GameObject picture in shown.Values) Destroy(picture);
+        shown.Clear();
+        shownWindow = new RectInt();
+    }
+
     public Item PlantItem { get; private set; }
     public Item ClumpItem { get; private set; }
     public Item ShardItem { get; private set; }
@@ -784,6 +813,7 @@ public class Gatherables : MonoBehaviour
         Vector2Int onPlanet = planet.Wrap(cell);
         Kind kind = things[onPlanet];
         things.Remove(onPlanet);
+        if (surfaceThings == null) collected.Add(onPlanet);
         if (shown.TryGetValue(cell, out GameObject picture))
         {
             Destroy(picture);

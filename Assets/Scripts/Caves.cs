@@ -15,8 +15,6 @@ public class Caves : MonoBehaviour
     const float FadeSeconds = 0.6f;
     // How long the name of the cave stays up, and how long it then takes to fade.
     const float TitleSeconds = 3f, TitleFadeSeconds = 1f;
-    // How much of the world the camera shows: half as much in a cave, which zooms in twice as close.
-    const float SurfaceZoom = 7f, CaveZoom = 3.5f;
     // A hole is only drawn when the player is within this many squares of it.
     const float ShowWithin = 60f;
 
@@ -197,6 +195,12 @@ public class Caves : MonoBehaviour
         gatherables.CancelWalk();
     }
 
+    // Goes into a cave straight away, with no fade: for a saved game that was saved in one.
+    public void EnterNow(int cave)
+    {
+        if (cave >= 0 && cave < planet.CaveHoles.Length && !planet.InCave) Go(cave);
+    }
+
     // Leaves a cave straight away, with no fade: for when the player falls in one and wakes up at the ship.
     public void LeaveNow()
     {
@@ -219,7 +223,8 @@ public class Caves : MonoBehaviour
         spiders.Underground = underground;
         pickups.SetLand(to);
         dayNight.Underground = underground;
-        cam.orthographicSize = underground ? CaveZoom : SurfaceZoom;
+        // A cave is seen twice as close as the surface, whatever the zoom is set to.
+        cam.orthographicSize = underground ? GameSettings.Zoom / 2f : GameSettings.Zoom;
         if (underground)
         {
             Vector2 mouth = planet.CaveMouths[to] + new Vector2(0.5f, 0.5f);
