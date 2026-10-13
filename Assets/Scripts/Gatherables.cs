@@ -277,6 +277,19 @@ public class Gatherables : MonoBehaviour
     // and nearly white at the tip. His pale stripe and shaded
     // side are kept, as a bright glint and a deeper blue. The top row of the picture is left out, since it has a stray
     // mark in one corner. Returns null if there is no picture. His file itself is not changed.
+    // The same icicle picture for other things to use, such as the icicles hanging in a cave mouth: the picture, and
+    // a sprite of it one unit tall with its pivot at the middle of the icicle's base. IcicleShare is how much of that
+    // height the icicle itself takes up. Null if there is no picture.
+    static Texture2D sharedIcicle;
+    public static float IcicleShare => IcicleTallPixels / (128f - IcicleTopRowsLeftOut);
+    public static Sprite IcicleSprite()
+    {
+        if (sharedIcicle == null) sharedIcicle = MakeIcicle();
+        if (sharedIcicle == null) return null;
+        var foot = new Vector2(IcicleFootAcross, IcicleFootUp * IcicleStretch / sharedIcicle.height);
+        return Sprite.Create(sharedIcicle, new Rect(0, 0, sharedIcicle.width, sharedIcicle.height), foot, sharedIcicle.height);
+    }
+
     static Texture2D MakeIcicle()
     {
         var picture = Resources.Load<Texture2D>("Art/Icicle");
