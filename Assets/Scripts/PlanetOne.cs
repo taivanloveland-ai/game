@@ -487,14 +487,15 @@ public class PlanetOne : MonoBehaviour
         var worldMap = gameObject.AddComponent<WorldMap>();
         worldMap.Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f), wholeMap);
         wholeMap = null;
-        // Creative mode also has a slider for how fast the player moves.
-        if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller);
         // The frost caves in the mountains. Falling in one, the player wakes up at the ship as usual.
         var caves = gameObject.AddComponent<Caves>();
         caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
         health.BeforeWaking = caves.LeaveNow;
         hud.HideHotbar = () => worldMap.Open;
-        gameObject.AddComponent<Weather>().Setup(this, controller, cam, dayNight, health, hud, Square);
+        var weather = gameObject.AddComponent<Weather>();
+        weather.Setup(this, controller, cam, dayNight, health, hud, Square);
+        // Creative mode also has a panel for the player's speed, the weather and the time of day.
+        if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller, weather, dayNight);
 
         // Saved games and the pause screen. A saved game is put back now that everything is in place. A new game is
         // saved straight away, so its slot is taken.
