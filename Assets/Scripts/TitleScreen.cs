@@ -40,6 +40,7 @@ public class TitleScreen : MonoBehaviour
     float blackHoleTurn = -14f;
     bool loading;
     float loadingSince;
+    TitleMusic music;
     // Which mode's save slots are showing, if the player has pressed Survival or Creative: 0 for neither, 1 for
     // survival, 2 for creative. What is in each of those slots, and which one Delete has been pressed on once.
     int slotsFor;
@@ -58,6 +59,7 @@ public class TitleScreen : MonoBehaviour
         this.cam = cam;
         skyBefore = cam.backgroundColor;
         cam.backgroundColor = Color.black;
+        music = TitleMusic.Play();
 
         Make("Stars", DayNight.StarsSprite(), Vector3.zero, Order);
         sun = Make("Sun", DayNight.SunSprite(), SunAt, Order + 1);
@@ -111,6 +113,8 @@ public class TitleScreen : MonoBehaviour
         if (planet.Ready)
         {
             cam.backgroundColor = skyBefore;
+            // The title theme fades away as the planet's music comes in.
+            if (music != null) music.End();
             Destroy(scene);
             Destroy(this);
         }
