@@ -15,6 +15,13 @@ public class TitleScreen : MonoBehaviour
     const int Order = 500;
     // How fast the black hole turns on the loading screen, in degrees a second.
     const float LoadingTurn = 8f;
+    // The planet turns once in this many seconds: slowly, but enough to see.
+    const float SpinTurnsPerSecond = 1f / 100f;
+    // How far the sun and the black hole drift from their places as they circle, in blocks, and how fast.
+    const float SunDrift = 0.45f, BlackHoleDrift = 0.6f, DriftSpeed = 0.22f;
+    // The planet's lands are worked out once as a flat map this many pixels round and tall, and wrapped onto the
+    // ball afresh each frame as it turns. The lands' noise repeats after this many blobs, so the map joins up.
+    const int MapWide = 768, MapTall = 256, BlobsRound = 35;
 
     // The planet from space. Latitudes, in degrees: the North Pole's ice, the ring of mountains below it, the ocean
     // round the South Pole and its snowy cap. (The bands are drawn wider than they really are, so they can be seen.)
@@ -29,7 +36,8 @@ public class TitleScreen : MonoBehaviour
     Camera cam;
     Color skyBefore;
     GameObject scene;
-    Transform blackHole;
+    Transform blackHole, sun;
+    float blackHoleTurn = -14f;
     bool loading;
     float loadingSince;
     GUIStyle buttonStyle, loadingStyle, stageStyle;
@@ -46,10 +54,14 @@ public class TitleScreen : MonoBehaviour
         cam.backgroundColor = Color.black;
 
         Make("Stars", DayNight.StarsSprite(), Vector3.zero, Order);
-        Make("Sun", DayNight.SunSprite(), SunAt, Order + 1);
+        sun = Make("Sun", DayNight.SunSprite(), SunAt, Order + 1);
         blackHole = Make("Black Hole", DayNight.BlackHoleSprite(), BlackHoleAt, Order + 1);
         blackHole.localRotation = Quaternion.Euler(0f, 0f, -14f);
-        Sprite planetSprite = PlanetOne.PaintSprite(PlanetPixels, PlanetPixels, new Vector2(0.5f, 0.5f), PlanetPixels / PlanetSize, PaintPlanet);
+        MapPlanet();
+        planetPicture = new Texture2D(PlanetPixels, PlanetPixels, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        planetPixels = new Color32[PlanetPixels * PlanetPixels];
+        PaintPlanet();
+        Sprite planetSprite = Sprite.Create(planetPicture, new Rect(0, 0, PlanetPixels, PlanetPixels), new Vector2(0.5f, 0.5f), PlanetPixels / PlanetSize);
         Transform world = Make("Planet 1", planetSprite, PlanetAt, Order + 2);
         // Tipped a little, as planets are.
         world.localRotation = Quaternion.Euler(0f, 0f, -16f);
@@ -77,8 +89,17 @@ public class TitleScreen : MonoBehaviour
 
     void Update()
     {
+        // The planet turns slowly. The sun and the black hole circle each other, a little way, on opposite sides.
+        float time = Time.unscaledTime;
+        spin += SpinTurnsPerSecond * Time.unscaledDeltaTime;
+        PaintPlanet();
+        var swing = new Vector3(Mathf.Cos(time * DriftSpeed), Mathf.Sin(time * DriftSpeed) * 0.6f, 0f);
+        sun.localPosition = SunAt + swing * SunDrift;
+        blackHole.localPosition = BlackHoleAt - swing * BlackHoleDrift;
+        // The black hole's disc rocks gently on the title screen, and turns steadily on the loading screen.
+        if (loading) blackHoleTurn -= LoadingTurn * Time.unscaledDeltaTime;
+        blackHole.localRotation = Quaternion.Euler(0f, 0f, blackHoleTurn + (loading ? 0f : Mathf.Sin(time * 0.35f) * 5f));
         if (!loading) return;
-        blackHole.Rotate(0f, 0f, -LoadingTurn * Time.unscaledDeltaTime);
         // The game has begun: the title scene goes.
         if (planet.Ready)
         {
@@ -145,45 +166,110 @@ public class TitleScreen : MonoBehaviour
 #endif
     }
 
-    // One pixel of Planet 1 seen from space, with (0, 0) at the top left: a ball lit from the sun's side, with the
-    // planet's own lands on it. North is up.
-    static Color32 PaintPlanet(int x, int y)
-    {
-        float half = PlanetPixels / 2f;
-        float nx = (x + 0.5f - half) / half, ny = (half - y - 0.5f) / half;
-        float fromMiddle = nx * nx + ny * ny;
-        if (fromMiddle > 1f) return new Color32(0, 0, 0, 0);
-        float nz = Mathf.Sqrt(1f - fromMiddle);
+    // The planet's lands laid flat, and the same in the dark of its night side.
+    Color32[] landMap, nightMap;
+    // For each pixel of the ball: where it is in the picture, which row of the map it shows and how far round from
+    // the middle of the side facing us (in map pixels), how much sunlight reaches it and how much of the rim of air
+    // shows there (both out of 256).
+    int[] ballPixel, ballRow, ballSun, ballAir;
+    float[] ballRound;
+    Texture2D planetPicture;
+    Color32[] planetPixels;
+    // How far the planet has turned, in whole turns.
+    float spin;
 
-        float latitude = Mathf.Asin(ny) * Mathf.Rad2Deg, longitude = Mathf.Atan2(nx, nz);
-        float around = longitude * 5.5f, up = latitude * Mathf.Deg2Rad * 5.5f;
-        Color land;
-        if (latitude > NorthIceFrom) land = Ice;
-        else if (latitude > MountainsFrom) land = Noise(around * 2.4f, up * 2.4f, 31) > 0.6f ? Peak : Noise(around * 1.6f, up * 1.6f, 47) > 0.36f ? Rock : Snow;
-        else if (latitude < SouthSnowFrom) land = Noise(around * 2f, up * 2f, 59) > 0.72f ? Ice : Snow;
-        else if (latitude < OceanFrom + (Noise(around, 0f, 67) - 0.5f) * 7f) land = Water;
-        else
+    // Works out the planet's lands as a flat map, and for every pixel of the ball what part of the map it shows.
+    // North is up.
+    void MapPlanet()
+    {
+        landMap = new Color32[MapWide * MapTall];
+        nightMap = new Color32[MapWide * MapTall];
+        for (int row = 0; row < MapTall; row++)
         {
-            // The lowlands: snow, lakes of ice and grey rock, as on the ground.
-            float e = Noise(around, up, 11) * 0.65f + Noise(around * 2.7f, up * 2.7f, 23) * 0.35f;
-            land = e > 0.6f ? Rock : e < 0.42f ? Ice : Snow;
+            float latitude = (row + 0.5f) / MapTall * 180f - 90f;
+            float up = latitude * Mathf.Deg2Rad * BlobsRound / (Mathf.PI * 2f);
+            for (int column = 0; column < MapWide; column++)
+            {
+                float around = column * (float)BlobsRound / MapWide;
+                Color land;
+                if (latitude > NorthIceFrom) land = Ice;
+                else if (latitude > MountainsFrom) land = Noise(around * 2.4f, up * 2.4f, 31, 84) > 0.6f ? Peak : Noise(around * 1.6f, up * 1.6f, 47, 56) > 0.36f ? Rock : Snow;
+                else if (latitude < SouthSnowFrom) land = Noise(around * 2f, up * 2f, 59, 70) > 0.72f ? Ice : Snow;
+                else if (latitude < OceanFrom + (Noise(around, 0f, 67, BlobsRound) - 0.5f) * 7f) land = Water;
+                else
+                {
+                    // The lowlands: snow, lakes of ice and grey rock, as on the ground.
+                    float e = Noise(around, up, 11, BlobsRound) * 0.65f + Noise(around * 2.6f, up * 2.6f, 23, 91) * 0.35f;
+                    land = e > 0.6f ? Rock : e < 0.42f ? Ice : Snow;
+                }
+                landMap[row * MapWide + column] = land;
+                nightMap[row * MapWide + column] = Color.Lerp(Night, land, 0.1f);
+            }
         }
 
-        // Day on the side facing the sun, night on the other, with a soft line between. A thin rim of air at the edge.
-        float sunlight = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.12f, 0.3f, nx * ToSun.x + ny * ToSun.y + nz * ToSun.z));
-        Color lit = Color.Lerp(Color.Lerp(Night, land, 0.1f), land, sunlight);
-        if (fromMiddle > 0.93f) lit = Color.Lerp(lit, Air, 0.4f * sunlight * Mathf.InverseLerp(0.93f, 1f, fromMiddle));
-        lit.a = 1f;
-        return lit;
+        var pixel = new System.Collections.Generic.List<int>();
+        var rows = new System.Collections.Generic.List<int>();
+        var round = new System.Collections.Generic.List<float>();
+        var sunlit = new System.Collections.Generic.List<int>();
+        var air = new System.Collections.Generic.List<int>();
+        float half = PlanetPixels / 2f;
+        for (int y = 0; y < PlanetPixels; y++)
+        {
+            for (int x = 0; x < PlanetPixels; x++)
+            {
+                // The picture's rows count up from the bottom.
+                float nx = (x + 0.5f - half) / half, ny = (y + 0.5f - half) / half;
+                float fromMiddle = nx * nx + ny * ny;
+                if (fromMiddle > 1f) continue;
+                float nz = Mathf.Sqrt(1f - fromMiddle);
+                pixel.Add(y * PlanetPixels + x);
+                rows.Add(Mathf.Clamp((int)((Mathf.Asin(ny) * Mathf.Rad2Deg + 90f) / 180f * MapTall), 0, MapTall - 1));
+                round.Add(Mathf.Atan2(nx, nz) / (Mathf.PI * 2f) * MapWide);
+                // Day on the side facing the sun, night on the other, with a soft line between. A thin rim of air at the edge.
+                float sunlight = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.12f, 0.3f, nx * ToSun.x + ny * ToSun.y + nz * ToSun.z));
+                sunlit.Add(Mathf.RoundToInt(sunlight * 256f));
+                air.Add(fromMiddle > 0.93f ? Mathf.RoundToInt(0.4f * sunlight * Mathf.InverseLerp(0.93f, 1f, fromMiddle) * 256f) : 0);
+            }
+        }
+        ballPixel = pixel.ToArray();
+        ballRow = rows.ToArray();
+        ballRound = round.ToArray();
+        ballSun = sunlit.ToArray();
+        ballAir = air.ToArray();
     }
 
-    // Smooth blobs of noise, from 0 to 1.
-    static float Noise(float x, float y, int seed)
+    // Paints the ball as it is now, turned as far as it has spun. The lands move from west to east; the sunlight
+    // stays where it is.
+    void PaintPlanet()
+    {
+        Color32 airColour = Air;
+        float turned = Mathf.Repeat(spin, 1f) * MapWide;
+        for (int i = 0; i < ballPixel.Length; i++)
+        {
+            int column = (int)(ballRound[i] - turned + MapWide * 2) % MapWide;
+            int at = ballRow[i] * MapWide + column;
+            Color32 day = landMap[at], dark = nightMap[at];
+            int light = ballSun[i], rim = ballAir[i];
+            int r = dark.r + ((day.r - dark.r) * light >> 8), g = dark.g + ((day.g - dark.g) * light >> 8), b = dark.b + ((day.b - dark.b) * light >> 8);
+            if (rim > 0)
+            {
+                r += (airColour.r - r) * rim >> 8;
+                g += (airColour.g - g) * rim >> 8;
+                b += (airColour.b - b) * rim >> 8;
+            }
+            planetPixels[ballPixel[i]] = new Color32((byte)r, (byte)g, (byte)b, 255);
+        }
+        planetPicture.SetPixels32(planetPixels);
+        planetPicture.Apply();
+    }
+
+    // Smooth blobs of noise, from 0 to 1, which repeat after a number of blobs across so the map joins up.
+    static float Noise(float x, float y, int seed, int period)
     {
         int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
         float fx = x - x0, fy = y - y0;
         float sx = fx * fx * (3f - 2f * fx), sy = fy * fy * (3f - 2f * fy);
-        return Mathf.Lerp(Mathf.Lerp(Hash(x0, y0, seed), Hash(x0 + 1, y0, seed), sx), Mathf.Lerp(Hash(x0, y0 + 1, seed), Hash(x0 + 1, y0 + 1, seed), sx), sy);
+        return Mathf.Lerp(Mathf.Lerp(Hash(x0 % period, y0, seed), Hash((x0 + 1) % period, y0, seed), sx), Mathf.Lerp(Hash(x0 % period, y0 + 1, seed), Hash((x0 + 1) % period, y0 + 1, seed), sx), sy);
     }
 
     static float Hash(int x, int y, int seed)
