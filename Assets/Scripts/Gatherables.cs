@@ -209,7 +209,8 @@ public class Gatherables : MonoBehaviour
             char c = FernPicture[y][x];
             return c == 'D' ? FernDark : c == 'L' ? FernLight : Clear;
         });
-        // The drawn fern picture replaces the pixel one above, standing in the world as well as loose and in the inventory.
+        // The drawn fern picture replaces the pixel one above, standing in the world. What comes loose when it is
+        // harvested, and goes in the inventory, is only the big fiddlehead from the picture.
         var fernPicture = Resources.Load<Texture2D>("Art/Fern");
         if (fernPicture != null)
         {
@@ -221,7 +222,7 @@ public class Gatherables : MonoBehaviour
                 var pivot = new Vector2(FernFootAcross, FernFootUp - level * PlanetOne.HeightScale / PlantHeight);
                 plant.Sprites[level] = Sprite.Create(fernPicture, whole, pivot, pixelsPerUnit);
             }
-            plant.Item = new Item(plant.Item.Name, plant.Sprites[0]);
+            plant.Item = new Item(plant.Item.Name, BigFiddlehead(fernPicture, pixelsPerUnit) ?? plant.Sprites[0]);
             plant.Width = fernPicture.width / pixelsPerUnit;
         }
         Kind shard = MakeKind("Ice shard", ShardPixelsWide, ShardPixelsTall, ShardPixelsPerUnit, true, ShardPixel);
@@ -277,6 +278,109 @@ public class Gatherables : MonoBehaviour
     // and nearly white at the tip. His pale stripe and shaded
     // side are kept, as a bright glint and a deeper blue. The top row of the picture is left out, since it has a stray
     // mark in one corner. Returns null if there is no picture. His file itself is not changed.
+    // The big fiddlehead on its own, cut out of Taivan's fern picture exactly as he drew it: the picture also has a
+    // small fiddlehead, a patch of snow and a shadow, which stay behind. The fiddleheads are the green parts of the
+    // picture, and the big one is the largest patch of green that joins up. Returns null if there is no green in it.
+    static Sprite BigFiddlehead(Texture2D picture, float pixelsPerUnit)
+    {
+        Color32[] pixels = PlanetOne.ReadPixels(picture);
+        int width = picture.width, height = picture.height;
+        // Each green pixel is marked with the number of the patch it belongs to.
+        var patch = new int[pixels.Length];
+        var stack = new Stack<int>();
+        int patches = 0, biggest = 0, biggestSize = 0;
+        for (int start = 0; start < pixels.Length; start++)
+        {
+            if (patch[start] != 0 || !IsFernGreen(pixels[start])) continue;
+            patches++;
+            int size = 0;
+            patch[start] = patches;
+            stack.Push(start);
+            while (stack.Count > 0)
+            {
+                int at = stack.Pop();
+                size++;
+                int x = at % width, y = at / width;
+                for (int side = 0; side < 4; side++)
+                {
+                    int nx = x + (side == 0 ? -1 : side == 1 ? 1 : 0), ny = y + (side == 2 ? -1 : side == 3 ? 1 : 0);
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    int next = ny * width + nx;
+                    if (patch[next] != 0 || !IsFernGreen(pixels[next])) continue;
+                    patch[next] = patches;
+                    stack.Push(next);
+                }
+            }
+            if (size > biggestSize)
+            {
+                biggestSize = size;
+                biggest = patches;
+            }
+        }
+        if (biggest == 0) return null;
+
+        // Marks drawn inside the fiddlehead that are not green, such as the dark flecks in its curl, belong to it too.
+        // Whatever is not the fiddlehead and can be reached from the edge of the picture is outside it; the rest is inside.
+        var outside = new bool[pixels.Length];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            int x = i % width, y = i / width;
+            if ((x != 0 && y != 0 && x != width - 1 && y != height - 1) || patch[i] == biggest || outside[i]) continue;
+            outside[i] = true;
+            stack.Push(i);
+            while (stack.Count > 0)
+            {
+                int at = stack.Pop();
+                int ax = at % width, ay = at / width;
+                for (int side = 0; side < 4; side++)
+                {
+                    int nx = ax + (side == 0 ? -1 : side == 1 ? 1 : 0), ny = ay + (side == 2 ? -1 : side == 3 ? 1 : 0);
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    int next = ny * width + nx;
+                    if (outside[next] || patch[next] == biggest) continue;
+                    outside[next] = true;
+                    stack.Push(next);
+                }
+            }
+        }
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (!outside[i]) patch[i] = biggest;
+        }
+
+        // Everything else is made see-through, and the picture is trimmed to the fiddlehead.
+        int left = width, right = -1, bottom = height, top = -1;
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (patch[i] != biggest)
+            {
+                pixels[i] = Clear;
+                continue;
+            }
+            int x = i % width, y = i / width;
+            left = Mathf.Min(left, x);
+            right = Mathf.Max(right, x);
+            bottom = Mathf.Min(bottom, y);
+            top = Mathf.Max(top, y);
+        }
+        int trimmedWidth = right - left + 1, trimmedHeight = top - bottom + 1;
+        var trimmed = new Color32[trimmedWidth * trimmedHeight];
+        for (int y = 0; y < trimmedHeight; y++)
+        {
+            for (int x = 0; x < trimmedWidth; x++) trimmed[y * trimmedWidth + x] = pixels[(bottom + y) * width + left + x];
+        }
+        var alone = new Texture2D(trimmedWidth, trimmedHeight, TextureFormat.RGBA32, false) { filterMode = picture.filterMode, wrapMode = TextureWrapMode.Clamp };
+        alone.SetPixels32(trimmed);
+        alone.Apply();
+        return Sprite.Create(alone, new Rect(0, 0, trimmedWidth, trimmedHeight), new Vector2(0.5f, 0f), pixelsPerUnit);
+    }
+
+    // True for a pixel of a fiddlehead: solid, and green or teal. The snow is white and the shadow is grey-blue.
+    static bool IsFernGreen(Color32 c)
+    {
+        return c.a > 128 && c.g > c.r + 25;
+    }
+
     // The same icicle picture for other things to use, such as the icicles hanging in a cave mouth: the picture, and
     // a sprite of it one unit tall with its pivot at the middle of the icicle's base. IcicleShare is how much of that
     // height the icicle itself takes up. Null if there is no picture.
