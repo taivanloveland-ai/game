@@ -1339,7 +1339,9 @@ public class PlanetOne : MonoBehaviour
     // Nothing may stand in front of a mouth, as seen from above, for this many squares south of its ledge.
     const int CaveClearView = 8;
     // The cave that is always due north of the crash site has its crag this many squares out from the North Pole's ice.
-    const int CragFromIce = 8;
+    const int CragFromIce = 10;
+    // That crag is roughly this many squares from its middle to its edge, east to west and north to south.
+    const float CragHalfWidth = 7.5f, CragHalfDepth = 6f;
     // A cave is this many squares across, and its stone walls are this many blocks tall: too tall to jump.
     const int CaveSize = 160, CaveWallHeight = 4;
     // The cave is dug by a few tunnels that wander from the way in, branching now and then and opening out into
@@ -1544,32 +1546,56 @@ public class PlanetOne : MonoBehaviour
         return mouth;
     }
 
-    // Builds the crag for the cave that is always due north of the crash site: a tower of rock standing just outside
-    // the North Pole's ice, with a ledge set into its south side and a cliff over it for the mouth. The ledge is
-    // at least 12 blocks up, and at least 3 blocks above everything round the crag, so nothing can be walked or
-    // jumped onto it. Gives the mouth's square: the western of the two in the middle of the ledge.
+    // Builds the crag for the cave that is always due north of the crash site: a natural-looking outcrop of rock
+    // standing just outside the North Pole's ice. It is roughly round with a ragged edge, and rises in tiers: a low
+    // skirt of rock round the outside, a shoulder above that, and uneven peaks in the middle tall enough to carry
+    // snow. The cave mouth is set into its south face, on a ledge above the skirt.
+    //
+    // Nothing can be walked or jumped onto it: the skirt stands at least 3 blocks above everything round the crag,
+    // all the way round, and the ledge at least 3 above the skirt (and at least 12 blocks up).
+    // Gives the mouth's square: the western of the two in the middle of the ledge.
     Vector2Int MakeNorthCrag()
     {
         int x0 = CrashSite.x;
-        // The crag is 4 rows deep, its north end a few squares short of the ice.
         int y0 = height - 1 - (northCap[x0] + CragFromIce);
+        // The middle of the crag is a little behind the mouth.
+        float middleX = x0 + 1f, middleY = y0 + 1.5f;
+        int reachX = Mathf.CeilToInt(CragHalfWidth) + 1, reachY = Mathf.CeilToInt(CragHalfDepth) + 1;
+
         int around = 0;
-        for (int y = y0 - 2; y <= y0 + 5; y++)
+        for (int y = y0 - reachY - 2; y <= y0 + reachY + 4; y++)
         {
-            for (int x = x0 - 4; x <= x0 + 5; x++)
+            for (int x = x0 - reachX - 2; x <= x0 + reachX + 3; x++)
             {
                 Vector2Int spot = Wrap(x, y);
                 around = Mathf.Max(around, top[spot.x, spot.y]);
             }
         }
-        int level = Mathf.Max(CaveMouthFrom, around + 3);
-        for (int y = y0; y <= y0 + 3; y++)
+        int skirt = around + 3;
+        int level = Mathf.Max(CaveMouthFrom, skirt + 3);
+
+        for (int y = y0 - reachY - 1; y <= y0 + reachY + 3; y++)
         {
-            for (int x = x0 - 2; x <= x0 + 3; x++)
+            for (int x = x0 - reachX - 1; x <= x0 + reachX + 2; x++)
             {
-                // The ledge is the middle four squares of the south row; the rest of the crag stands over it.
-                bool ledge = y == y0 && x >= x0 - 1 && x <= x0 + 2;
-                int tall = ledge ? level : level + 4;
+                // How far out from the middle this square is: 0 at the middle, 1 at the edge. A little is added or
+                // taken away square by square, which makes the edge and the tiers ragged.
+                float dx = (x + 0.5f - middleX) / CragHalfWidth, dy = (y + 0.5f - middleY) / CragHalfDepth;
+                float away = Mathf.Sqrt(dx * dx + dy * dy) + (Hash(x, y, seed + 23) - 0.5f) * 0.2f;
+                if (away > 1f) continue;
+
+                int tall;
+                // The peaks: uneven, and tall enough for snow.
+                if (away < 0.5f) tall = level + 5 + Mathf.RoundToInt(LoopingNoise(x, y, 4f, seed + 29, 1) * 4f);
+                // The shoulder, as high as the ledge or a block or two more.
+                else if (away < 0.78f) tall = level + Mathf.RoundToInt(Hash(x, y, seed + 31) * 2f);
+                else tall = skirt + (Hash(x, y, seed + 37) > 0.7f ? 1 : 0);
+
+                // In front of the mouth the rock steps down to the skirt, so the mouth can be seen and nothing stands
+                // over its ledge.
+                bool inFront = y < y0 && x >= x0 - 2 && x <= x0 + 3;
+                if (inFront) tall = Mathf.Min(tall, y == y0 - 1 ? level - 2 : skirt + 1);
+
                 Vector2Int spot = Wrap(x, y);
                 kind[spot.x, spot.y] = Rock;
                 mountain[spot.x, spot.y] = (byte)tall;
@@ -1577,6 +1603,7 @@ public class PlanetOne : MonoBehaviour
                 top[spot.x, spot.y] = (sbyte)tall;
             }
         }
+        // The ledge itself, and the cliff over it, are finished off with every other mouth (see ShapeMouth).
         return new Vector2Int(x0, y0);
     }
 
