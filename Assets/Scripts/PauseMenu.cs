@@ -71,10 +71,10 @@ public class PauseMenu : MonoBehaviour
         GameSettings.Keep();
     }
 
-    // The camera is as close as the settings say: twice as close again in a cave.
+    // The camera is as close as the settings say, and closer again in a cave.
     void ApplyZoom()
     {
-        cam.orthographicSize = planet.InCave ? GameSettings.Zoom / 2f : GameSettings.Zoom;
+        cam.orthographicSize = planet.InCave ? GameSettings.Zoom / GameSettings.CaveCloseness : GameSettings.Zoom;
     }
 
     void Save()
