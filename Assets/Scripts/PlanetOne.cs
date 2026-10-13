@@ -373,6 +373,7 @@ public class PlanetOne : MonoBehaviour
         var caves = gameObject.AddComponent<Caves>();
         caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
         health.BeforeWaking = caves.LeaveNow;
+        hud.HideHotbar = () => worldMap.Open;
     }
 
     PlayerController BuildPlayer(Vector2 position)
