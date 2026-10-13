@@ -398,3 +398,13 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"the frost cave is very ugly. make it prettier"** (2026-10-12). Asked which part: **the outside**; the inside "well work on that later". The guaranteed cave north of the crash site used to be in a plain square tower of rock. Now it is a natural-looking crag about 15 squares across with a ragged edge, rising in tiers: a low skirt of rock, a shoulder, and uneven peaks in the middle tall enough for snow, with the mouth set into its south face and the rock stepping down in front so the mouth shows. It still cannot be walked or jumped onto: the skirt is at least 3 blocks above everything round it and the ledge at least 3 above the skirt. The inside of the caves is still to be made prettier (his ideas to pick from were icy walls and floor, icicles and ice pillars, glowing crystals, frozen pools).
 
 - **"undo large ice and snow places"** (2026-10-12): the huge snowfields and ice fields are gone. The lowlands are back to the even mix of snow, ice lakes and rock they had before. (The two spare cave spots added at the same time are kept.)
+
+## Algae biome (asked 2026-10-13)
+- His words: "make an algae biome somewhere around the equator"
+- His picks: shape, "one big region but either east or west of  the spawn depending on world sed"; colour, "teal green glowing at night"; ground, **algae over snow and ice**; things, "Algae block, ferns and clumps of algae and blocks".
+- As built:
+  - One big region on the equator, about 550 to 600 squares across with a wavy edge, centred 1000 squares east or west of the crash site's column (the seed decides which) and about 720 squares north of the ship. It shows on the maps in teal-green.
+  - There, the top block of the snow and ice is a new **algae block**: teal-green with lighter and darker flecks. The usual snow, ice and stone are under it. Grey rocks in the region stay rock. Ice under algae is no longer slippery, since the algae is what you walk on.
+  - **At night the algae glows**: in the top-down view it stays bright while everything else goes dark. (Not yet in the side-scroller view.)
+  - Mining it gives an **Algae** block (as quick to mine as snow), which can be placed like any block. Creative mode has it on the hotbar.
+  - Ferns still grow there. **Algae clumps** grow there too (about 1 square in 80): dark green mounds with bright tips, collected like ferns, giving an "Algae clump" item. No ice shards there. Nothing is made from clumps yet.

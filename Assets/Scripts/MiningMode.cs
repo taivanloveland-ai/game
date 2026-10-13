@@ -565,6 +565,7 @@ public class MiningMode : MonoBehaviour
             case PlanetOne.SideBlock.Snow: color = Color.Lerp(SnowTop, SnowDeep, (depth - 1) / 4f); break;
             case PlanetOne.SideBlock.Ice: color = Color.Lerp(IceTop, IceDeep, (depth - 1) / 3f); break;
             case PlanetOne.SideBlock.Rock: color = PlanetOne.RockColors[0]; break;
+            case PlanetOne.SideBlock.Algae: color = PlanetOne.AlgaeColor; break;
             // The ocean gets darker toward its bed.
             case PlanetOne.SideBlock.Water: color = Color.Lerp(PlanetOne.WaterColor, WaterDeep, (depth - 1) / 3f); break;
             case PlanetOne.SideBlock.Ship: color = level == surface ? PlanetOne.ShipSideColor : PlanetOne.ShipColor; break;
