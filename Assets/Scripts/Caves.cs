@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 // The frost caves. Their mouths are natural holes dug out of real blocks in the cliffs of the mountains round the North
 // Pole, dark inside with icicles hanging at the top, on ledges that cannot be reached without digging or building.
 // Walking into one fades the screen to black and then into the cave: stone tunnels and rooms, seen without a roof,
-// zoomed in twice as close, with the mini map dark. "FROST CAVE" comes up across the screen and the cave is marked
+// zoomed in closer than the surface, with the mini map dark. "FROST CAVE" comes up across the screen and the cave is marked
 // on the maps. The way out is a hole like it in the cave wall where the player arrives, back onto the ledge.
 //
 // A cave is a world of its own (see PlanetOne), so digging and building in it does not change the land above.
@@ -223,8 +223,8 @@ public class Caves : MonoBehaviour
         spiders.Underground = underground;
         pickups.SetLand(to);
         dayNight.Underground = underground;
-        // A cave is seen twice as close as the surface, whatever the zoom is set to.
-        cam.orthographicSize = underground ? GameSettings.Zoom / 2f : GameSettings.Zoom;
+        // A cave is seen closer than the surface, whatever the zoom is set to.
+        cam.orthographicSize = underground ? GameSettings.Zoom / GameSettings.CaveCloseness : GameSettings.Zoom;
         if (underground)
         {
             Vector2 mouth = planet.CaveMouths[to] + new Vector2(0.5f, 0.5f);

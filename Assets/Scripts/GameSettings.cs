@@ -22,7 +22,11 @@ public static class GameSettings
         set => PlayerPrefs.SetInt("ShowMiniMap", value ? 1 : 0);
     }
 
-    // How close the camera is on the planet's surface. In a cave it is twice as close again.
+    // A cave is seen this many times as close as the surface. (It was 2 until 2026-10-13, when Taivan asked for the
+    // cave to be zoomed out a bit.)
+    public const float CaveCloseness = 1.5f;
+
+    // How close the camera is on the planet's surface. In a cave it is closer again, by the number above.
     public static float Zoom
     {
         get => Mathf.Clamp(PlayerPrefs.GetFloat("Zoom", UsualZoom), ClosestZoom, FurthestZoom);
