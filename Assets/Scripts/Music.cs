@@ -18,9 +18,7 @@ public class Music : MonoBehaviour
         this.dayNight = dayNight;
         day = MakeSource("Music/Planet 1 Day Theme");
         night = MakeSource("Music/Planet 1 Night Theme");
-        // The game starts on whichever theme suits the time of day, already at full volume.
-        if (IsNight) nightLevel = 1f;
-        else dayLevel = 1f;
+        // The game starts on whichever theme suits the time of day, which fades in as the title theme fades away.
         Update();
     }
 
