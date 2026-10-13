@@ -422,3 +422,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - For Claude's automatic checks: `-skipTitle -slot 3` plays in slot 3, and adding `-load` carries on the game saved there.
 
 - **Title theme** (2026-10-13). His words: "the title theme to play at the beggininnggg", with his file TitleTheme;D.mp3 from his Documents folder (about 4 and a half minutes). It is in the game unchanged as Assets/Resources/Music/Title Theme.mp3 (only the file's name is different). It plays, looping, on the title screen and the loading screen, and fades away over 3 seconds when the game begins, while the day or night theme fades in over 4. It follows the music volume setting. It plays again after Save and Quit.
+
+- **"you have to name the save before opening it"** (2026-10-13): pressing New game on an empty slot now asks for a name first: a box to type in (up to 18 letters), with Start and Cancel. Start only works once something has been typed; Enter starts it too. The name is kept in the save and shown in the slot list with when it was saved. Saves made before this have no name and show as "Saved game".

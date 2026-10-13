@@ -46,6 +46,11 @@ public class TitleScreen : MonoBehaviour
     int slotsFor;
     SaveGame.Summary[] slots;
     int deleting = -1;
+    // The slot a new game is being named for, or -1, and the name typed so far. A new save has to be given a name
+    // before it can be started.
+    int naming = -1;
+    string typed = "";
+    GUIStyle fieldStyle;
     GUIStyle slotStyle, smallButtonStyle;
     GUIStyle buttonStyle, loadingStyle, stageStyle;
     Texture2D buttonBack, buttonOver;
@@ -88,12 +93,12 @@ public class TitleScreen : MonoBehaviour
 
     // Starts a game: survival, or creative, in a save slot (counting from 0, or -1 for none). Given a saved game, it
     // carries that game on. The buttons call this.
-    public void Choose(bool creative, int slot = -1, SaveGame.Loaded saved = null)
+    public void Choose(bool creative, int slot = -1, SaveGame.Loaded saved = null, string name = "")
     {
         if (loading) return;
         loading = true;
         loadingSince = Time.unscaledTime;
-        planet.StartGame(creative, slot, saved);
+        planet.StartGame(creative, slot, saved, name);
     }
 
     void Update()
@@ -169,6 +174,7 @@ public class TitleScreen : MonoBehaviour
     {
         slotsFor = creative ? 2 : 1;
         deleting = -1;
+        naming = -1;
         slots = new SaveGame.Summary[SaveGame.Slots];
         for (int i = 0; i < slots.Length; i++) slots[i] = SaveGame.Peek(creative, i);
     }
@@ -183,9 +189,11 @@ public class TitleScreen : MonoBehaviour
             slotStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleLeft };
             slotStyle.normal.textColor = new Color(0.88f, 0.95f, 1f);
             smallButtonStyle = new GUIStyle(buttonStyle);
+            fieldStyle = new GUIStyle(GUI.skin.textField) { alignment = TextAnchor.MiddleLeft };
         }
         slotStyle.fontSize = Mathf.RoundToInt(h / 36f);
         smallButtonStyle.fontSize = Mathf.RoundToInt(h / 34f);
+        fieldStyle.fontSize = Mathf.RoundToInt(h / 34f);
         loadingStyle.fontSize = Mathf.RoundToInt(h / 18f);
 
         float left = w * 0.5f, wide = w * 0.46f, row = h * 0.085f, gap = h * 0.02f, top = h * 0.3f;
@@ -195,14 +203,37 @@ public class TitleScreen : MonoBehaviour
             float y = top + i * (row + gap);
             GUI.DrawTexture(new Rect(left, y, wide, row), buttonBack);
             SaveGame.Summary saved = slots[i];
-            string words = "Slot " + (i + 1) + "   " + (saved != null ? "Saved " + saved.Saved.ToString("d MMM yyyy, h:mm tt") : "Empty");
-            GUI.Label(new Rect(left + wide * 0.03f, y, wide * 0.5f, row), words, slotStyle);
+            // Naming a new game: a box to type in, with Start (once something has been typed) and Cancel.
+            if (naming == i)
+            {
+                GUI.Label(new Rect(left + wide * 0.03f, y, wide * 0.14f, row), "Name:", slotStyle);
+                GUI.SetNextControlName("SaveName");
+                typed = GUI.TextField(new Rect(left + wide * 0.16f, y + row * 0.18f, wide * 0.36f, row * 0.64f), typed, SaveGame.LongestName, fieldStyle);
+                GUI.FocusControl("SaveName");
+                bool named = typed.Trim().Length > 0;
+                bool enter = Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter);
+                float nameButton = wide * 0.21f, nameInset = row * 0.14f;
+                GUI.enabled = named;
+                bool start = GUI.Button(new Rect(left + wide - nameButton * 2f - nameInset * 2f, y + nameInset, nameButton, row - nameInset * 2f), "Start", smallButtonStyle);
+                GUI.enabled = true;
+                if (named && (start || enter)) Choose(creative, i, null, typed.Trim());
+                else if (GUI.Button(new Rect(left + wide - nameButton - nameInset, y + nameInset, nameButton, row - nameInset * 2f), "Cancel", smallButtonStyle)) naming = -1;
+                continue;
+            }
+            string title = saved == null ? "Empty" : saved.Name != "" ? saved.Name : "Saved game";
+            string words = (i + 1) + ".  " + title + (saved != null ? "   (" + saved.Saved.ToString("d MMM, h:mm tt") + ")" : "");
+            GUI.Label(new Rect(left + wide * 0.03f, y, wide * 0.52f, row), words, slotStyle);
             float buttonWide = wide * 0.21f, inset = row * 0.14f;
             var first = new Rect(left + wide - buttonWide * 2f - inset * 2f, y + inset, buttonWide, row - inset * 2f);
             var second = new Rect(left + wide - buttonWide - inset, y + inset, buttonWide, row - inset * 2f);
             if (saved == null)
             {
-                if (GUI.Button(second, "New game", smallButtonStyle)) Choose(creative, i);
+                if (GUI.Button(second, "New game", smallButtonStyle))
+                {
+                    naming = i;
+                    typed = "";
+                    deleting = -1;
+                }
                 continue;
             }
             if (GUI.Button(first, "Continue", smallButtonStyle))
