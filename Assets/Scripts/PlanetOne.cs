@@ -115,14 +115,6 @@ public class PlanetOne : MonoBehaviour
     // Where the land noise is above the first number it is rock, and below the second it is ice. Raised ground is where
     // its own noise is above the third.
     const float RockAbove = 0.62f, IceBelow = 0.38f, RaisedAbove = 0.6f;
-    // Across the lowlands there are huge patches, hundreds of squares across, that are nearly all snow, and others
-    // that are nearly all ice, with the usual mix of snow, ice and rock in between. This is roughly how far across
-    // they are. A snowfield is where their noise is above the first pair of numbers (it comes in between the two),
-    // and an ice field where it is below the second pair. Inside one, only land noise above the last number is
-    // still rock.
-    const float HugeBlobSize = 380f;
-    const float SnowfieldFrom = 0.61f, SnowfieldFull = 0.66f, IceFieldFrom = 0.39f, IceFieldFull = 0.34f;
-    const float FieldRockAbove = 0.86f;
 
     // In a passage one square wide, the ground over the player turns see-through this many squares along it.
     const int SeeThroughRadius = 2;
@@ -500,7 +492,6 @@ public class PlanetOne : MonoBehaviour
         variantSeed = rand.Next();
         int mountainSeed = rand.Next();
         int capSeed = rand.Next();
-        int hugeSeed = rand.Next();
 
         // How far each ice sheet reaches, column by column.
         northCap = new int[width];
@@ -543,14 +534,7 @@ public class PlanetOne : MonoBehaviour
                 // Flatten the land around the crash site so the start is open snow.
                 e = 0.5f + (e - 0.5f) * Mathf.Clamp01((fromCrash - 6f) / 6f);
 
-                // The huge patches: in a snowfield hardly anything is rock or ice, and in an ice field nearly
-                // everything is ice. The crash site stays on snow.
-                float huge = LoopingNoise(x, y, HugeBlobSize, hugeSeed, 2);
-                float snowfield = Mathf.InverseLerp(SnowfieldFrom, SnowfieldFull, huge);
-                float iceField = Mathf.InverseLerp(IceFieldFrom, IceFieldFull, huge) * Mathf.Clamp01((fromCrash - 30f) / 40f);
-                float rockAbove = Mathf.Lerp(RockAbove, FieldRockAbove, Mathf.Max(snowfield, iceField));
-                float iceBelow = Mathf.Lerp(Mathf.Lerp(IceBelow, 0.14f, snowfield), FieldRockAbove, iceField);
-                kind[x, y] = e > rockAbove ? Rock : e < iceBelow ? Ice : Snow;
+                kind[x, y] = e > RockAbove ? Rock : e < IceBelow ? Ice : Snow;
                 // Patches of ground one block higher. The crash site itself stays at ground level.
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
