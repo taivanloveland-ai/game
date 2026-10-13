@@ -13,7 +13,10 @@ public class SaveGame : MonoBehaviour
 {
     public const int Slots = 5;
     // Changed whenever the layout of the file changes. A file with another number is not read.
-    const int Version = 1;
+    // (Version 1 had no name; its saves can still be read.)
+    const int Version = 2;
+    // The longest name a save can be given.
+    public const int LongestName = 18;
 
     // What the title screen shows about a slot.
     public class Summary
@@ -21,6 +24,8 @@ public class SaveGame : MonoBehaviour
         public bool Creative;
         public int Seed;
         public System.DateTime Saved;
+        // The name the player gave it. Empty for a save from before saves had names.
+        public string Name = "";
     }
 
     // A saved game read from its file, ready to be played.
@@ -28,6 +33,7 @@ public class SaveGame : MonoBehaviour
     {
         public bool Creative;
         public int Seed;
+        public string Name = "";
         // Everything after the first few lines of the file.
         public byte[] Rest;
     }
@@ -45,6 +51,7 @@ public class SaveGame : MonoBehaviour
     Caves caves;
     int slot;
     bool creative;
+    string saveName;
     // Every kind of item in the game, by name, for putting a saved inventory back.
     readonly Dictionary<string, Item> items = new Dictionary<string, Item>();
 
@@ -52,7 +59,7 @@ public class SaveGame : MonoBehaviour
     public int Slot => slot;
 
     public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight, Inventory inventory, Pickups pickups, Gatherables gatherables,
-        CraftingNook nook, Mining pickaxeWork, Health health, Spiders spiders, WorldMap map, Caves caves, int slot, bool creative)
+        CraftingNook nook, Mining pickaxeWork, Health health, Spiders spiders, WorldMap map, Caves caves, int slot, bool creative, string saveName)
     {
         this.planet = planet;
         this.player = player;
@@ -67,6 +74,7 @@ public class SaveGame : MonoBehaviour
         this.caves = caves;
         this.slot = slot;
         this.creative = creative;
+        this.saveName = saveName ?? "";
         foreach (Item item in new[]
         {
             nook.Pickaxe, nook.Axe, pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
@@ -98,8 +106,11 @@ public class SaveGame : MonoBehaviour
         {
             using (var r = new BinaryReader(new GZipStream(File.OpenRead(path), CompressionMode.Decompress)))
             {
-                if (r.ReadInt32() != Version) return null;
-                return new Summary { Creative = r.ReadBoolean(), Seed = r.ReadInt32(), Saved = new System.DateTime(r.ReadInt64()) };
+                int version = r.ReadInt32();
+                if (version < 1 || version > Version) return null;
+                var summary = new Summary { Creative = r.ReadBoolean(), Seed = r.ReadInt32(), Saved = new System.DateTime(r.ReadInt64()) };
+                if (version >= 2) summary.Name = r.ReadString();
+                return summary;
             }
         }
         catch (System.Exception problem)
@@ -115,9 +126,10 @@ public class SaveGame : MonoBehaviour
         if (Peek(creative, slot) == null) return null;
         using (var r = new BinaryReader(new GZipStream(File.OpenRead(PathFor(creative, slot)), CompressionMode.Decompress)))
         {
-            r.ReadInt32();
+            int version = r.ReadInt32();
             var loaded = new Loaded { Creative = r.ReadBoolean(), Seed = r.ReadInt32() };
             r.ReadInt64();
+            if (version >= 2) loaded.Name = r.ReadString();
             using (var rest = new MemoryStream())
             {
                 r.BaseStream.CopyTo(rest);
@@ -149,6 +161,7 @@ public class SaveGame : MonoBehaviour
                 w.Write(creative);
                 w.Write(planet.seed);
                 w.Write(System.DateTime.Now.Ticks);
+                w.Write(saveName);
 
                 // The player: where they are, in which land, how they are, and the time of day.
                 Vector2 ground = player.GroundPosition;

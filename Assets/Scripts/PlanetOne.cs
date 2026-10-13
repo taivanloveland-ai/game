@@ -334,6 +334,7 @@ public class PlanetOne : MonoBehaviour
             int at = System.Array.IndexOf(arguments, "-slot");
             saveSlot = at >= 0 && at + 1 < arguments.Length ? int.Parse(arguments[at + 1]) - 1 : -1;
             if (saveSlot >= 0 && System.Array.IndexOf(arguments, "-load") >= 0) loading = SaveGame.Load(creative, saveSlot);
+            saveName = loading != null ? loading.Name : "Test";
             MakeWorld(creative);
             FinishSetup(creative);
             return;
@@ -352,13 +353,16 @@ public class PlanetOne : MonoBehaviour
     // this is not a new one.
     int saveSlot = -1;
     SaveGame.Loaded loading;
+    // The name the player gave this game's save.
+    string saveName = "";
 
     // Begins a game from the title screen: survival, or creative, in a save slot. Given a saved game, it carries that
     // game on; otherwise it starts a new one.
-    public void StartGame(bool creative, int slot = -1, SaveGame.Loaded saved = null)
+    public void StartGame(bool creative, int slot = -1, SaveGame.Loaded saved = null, string name = "")
     {
         saveSlot = slot;
         loading = saved;
+        saveName = saved != null ? saved.Name : name;
         StartCoroutine(Load(creative));
     }
 
@@ -491,7 +495,7 @@ public class PlanetOne : MonoBehaviour
         // Saved games and the pause screen. A saved game is put back now that everything is in place. A new game is
         // saved straight away, so its slot is taken.
         var saves = gameObject.AddComponent<SaveGame>();
-        saves.Setup(this, controller, mining, dayNight, inventory, pickups, gatherables, nook, pickaxeWork, health, spiders, worldMap, caves, saveSlot, creative);
+        saves.Setup(this, controller, mining, dayNight, inventory, pickups, gatherables, nook, pickaxeWork, health, spiders, worldMap, caves, saveSlot, creative, saveName);
         gameObject.AddComponent<PauseMenu>().Setup(this, saves, cam, hud, worldMap, nook);
         if (loading != null) saves.Apply(loading);
         else if (saveSlot >= 0) saves.Save();
