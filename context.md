@@ -388,3 +388,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Creative:** starts with the ice pickaxe and ice axe, and snow, ice and stone on the hotbar that never run out (no number shown). A **speed slider** at the top left under the health bar, from 1 to 40 squares a second. The **whole map** is drawn from the start, on the mini map and the world map. Things can still hurt you (he did not ask for that to change).
 - No music on the title screen yet; his themes start when the game does. No way back to the title screen from the game yet.
 - For Claude's automatic checks: starting Unity with `-skipTitle` goes straight into survival, and `-skipTitle -creative` into creative.
+
+- **"make the planet spin a bit and the sun and black hole move a bit"** (2026-10-12): on the title and loading screens Planet 1 now turns slowly (once every 100 seconds, its lands moving west to east while the sunlit side stays put), and the sun and black hole drift a little in slow circles on opposite sides, as if circling each other. The black hole's disc rocks gently on the title screen and still turns steadily while loading.
