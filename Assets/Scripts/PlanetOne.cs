@@ -24,15 +24,13 @@ public class PlanetOne : MonoBehaviour
     // For testing only, and off in the real game: set this to true to begin with an ice pickaxe already made.
     // Like the planet's size, these two are not saved in the scene, so the values here are always the ones used.
     // (When they were saved, the open editor kept the old test values after the code was changed.)
-    // TEMPORARY (asked 2026-10-12): on for testing.
-    [System.NonSerialized] public bool startWithPickaxe = true;
+    [System.NonSerialized] public bool startWithPickaxe = false;
     // For testing only, and 0 in the real game: begin with this many of each block (snow, ice and stone), already
     // on the hotbar.
-    // TEMPORARY (asked 2026-10-12): 999 for testing.
-    [System.NonSerialized] public int startWithBlocks = 999;
-    // TEMPORARY (asked 2026-10-12): an extra frost cave right by the crash site, for testing, in a little rock cliff
-    // a few squares east of the ship.
-    [System.NonSerialized] public bool caveByCrashSite = true;
+    [System.NonSerialized] public int startWithBlocks = 0;
+    // For testing only, and off in the real game: an extra frost cave right by the crash site, in a little rock
+    // cliff a few squares east of the ship.
+    [System.NonSerialized] public bool caveByCrashSite = false;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship, Water }
@@ -1233,8 +1231,10 @@ public class PlanetOne : MonoBehaviour
     // A cave mouth is on a mountain ledge at least this high, which nobody can reach by walking and jumping, with a
     // cliff at least this many blocks tall behind it (to its north), where the hole is.
     const int CaveMouthFrom = 12, CaveMouthTo = 22, CaveCliff = 3;
+    // Nothing may stand in front of a mouth, as seen from above, for this many squares south of its ledge.
+    const int CaveClearView = 8;
     // A cave is this many squares across, and its stone walls are this many blocks tall: too tall to jump.
-    const int CaveSize = 160, CaveWallHeight = 3;
+    const int CaveSize = 160, CaveWallHeight = 4;
     // The cave is dug by a few tunnels that wander from the way in, branching now and then and opening out into
     // rooms. They stay this far from the cave's edges.
     const int CaveMargin = 14, CaveTunnelSteps = 1800, MostCaveTunnels = 14;
@@ -1261,9 +1261,15 @@ public class PlanetOne : MonoBehaviour
     void FindCaveEntrances()
     {
         var timer = System.Diagnostics.Stopwatch.StartNew();
-        // Everywhere that can be reached on foot from the lowlands. From one square to the next the player can go
-        // down any distance, and up at most one block (a jump is one and a half). To be safe this allows two, in
-        // case something like a fern is stood on to get the extra block.
+        bool[,] reached = WalkableFromLowlands();
+        PickCaveEntrances(reached, timer);
+    }
+
+    // Everywhere that can be reached on foot from the lowlands. From one square to the next the player can go
+    // down any distance, and up at most one block (a jump is one and a half). To be safe this allows two, in
+    // case something like a fern is stood on to get the extra block.
+    bool[,] WalkableFromLowlands()
+    {
         var reached = new bool[width, height];
         var queue = new Queue<Vector2Int>();
         for (int y = 0; y < height; y++)
@@ -1294,7 +1300,11 @@ public class PlanetOne : MonoBehaviour
                 queue.Enqueue(n);
             }
         }
+        return reached;
+    }
 
+    void PickCaveEntrances(bool[,] reached, System.Diagnostics.Stopwatch timer)
+    {
         // Every ledge that would do, in a random order that is the same for the same world.
         var spots = new List<Vector2Int>();
         for (int y = 0; y < height; y++)
@@ -1305,9 +1315,28 @@ public class PlanetOne : MonoBehaviour
                 if (reached[x, y] || mountain[x, y] == 0 || level < CaveMouthFrom || level > CaveMouthTo) continue;
                 Vector2Int north = Wrap(x, y + 1), south = Wrap(x, y - 1);
                 if (top[north.x, north.y] < level + CaveCliff || top[south.x, south.y] > level) continue;
-                // Room for the tunnel to go in a second square, under a roof.
-                Vector2Int further = Wrap(x, y + 2);
-                if (top[further.x, further.y] < level + CaveCliff) continue;
+                // The mouth is four squares wide, so the ledge in front of it is made four wide too (see ShapeMouth).
+                // That must not open a way up: nothing that can be walked to may be within a jump of that ledge.
+                bool safe = true;
+                for (int lx = x - 2; lx <= x + 3 && safe; lx++)
+                {
+                    // The squares west, east and south of the four ledge squares.
+                    Vector2Int beside = lx < x - 1 || lx > x + 2 ? Wrap(lx, y) : Wrap(lx, y - 1);
+                    if (reached[beside.x, beside.y] && top[beside.x, beside.y] >= level - 2) safe = false;
+                }
+                if (!safe) continue;
+                // Nothing south of the mouth may stand in front of it on screen: the ground just south of the ledge
+                // no higher than the ledge, and further south no more than two blocks higher for each square away.
+                bool clear = true;
+                for (int lx = x - 1; lx <= x + 2 && clear; lx++)
+                {
+                    for (int away = 1; away <= CaveClearView && clear; away++)
+                    {
+                        Vector2Int inFront = Wrap(lx, y - away);
+                        if (top[inFront.x, inFront.y] > level + 2 * (away - 1)) clear = false;
+                    }
+                }
+                if (!clear) continue;
                 if (FromPole(x, y) - CapAt(x, y) > CaveNearIce) continue;
                 spots.Add(new Vector2Int(x, y));
             }
@@ -1336,11 +1365,36 @@ public class PlanetOne : MonoBehaviour
                 if (apart) mouths.Add(spot);
             }
         }
-        if (caveByCrashSite) mouths.Add(MakeCliffByCrashSite());
+        // The ledge and cliff at each mouth are made wide and tall enough for the opening. Then the whole check is
+        // done again, and any mouth whose ledge can now be walked to after all is left out.
+        var levels = new List<int>();
+        foreach (Vector2Int mouth in mouths) levels.Add(top[mouth.x, mouth.y]);
+        for (int i = 0; i < mouths.Count; i++) ShapeMouth(mouths[i], levels[i]);
+        bool[,] after = WalkableFromLowlands();
+        int leftOut = 0;
+        for (int i = mouths.Count - 1; i >= 0; i--)
+        {
+            bool walkable = false;
+            for (int x = mouths[i].x - 1; x <= mouths[i].x + 2; x++)
+            {
+                Vector2Int ledge = Wrap(x, mouths[i].y);
+                walkable |= after[ledge.x, ledge.y];
+            }
+            if (!walkable) continue;
+            mouths.RemoveAt(i);
+            levels.RemoveAt(i);
+            leftOut++;
+        }
+        if (leftOut > 0) Debug.Log("Frost caves: " + leftOut + " mouths left out because shaping them opened a way up");
+        if (caveByCrashSite)
+        {
+            Vector2Int test = MakeCliffByCrashSite();
+            mouths.Add(test);
+            levels.Add(top[test.x, test.y]);
+            ShapeMouth(test, top[test.x, test.y]);
+        }
         CaveMouths = mouths.ToArray();
-        CaveMouthLevels = new int[mouths.Count];
-        for (int i = 0; i < mouths.Count; i++) CaveMouthLevels[i] = top[mouths[i].x, mouths[i].y];
-        // Each mouth is dug out of the cliff.
+        CaveMouthLevels = levels.ToArray();
         CaveHoles = new CaveHole[mouths.Count];
         Land here = SaveLand();
         for (int i = 0; i < mouths.Count; i++) CaveHoles[i] = CarveHole(here, mouths[i], CaveMouthLevels[i], rand);
@@ -1354,11 +1408,11 @@ public class PlanetOne : MonoBehaviour
     Vector2Int MakeCliffByCrashSite()
     {
         var mouth = new Vector2Int(CrashSite.x + 7, CrashSite.y);
-        for (int x = mouth.x - 1; x <= mouth.x + 1; x++)
+        for (int x = mouth.x - 1; x <= mouth.x + 2; x++)
         {
             for (int y = mouth.y; y <= mouth.y + 3; y++)
             {
-                int tall = y == mouth.y ? 2 : 5;
+                int tall = y == mouth.y ? 2 : 6;
                 kind[x, y] = Rock;
                 mountain[x, y] = (byte)tall;
                 baseTop[x, y] = (byte)tall;
@@ -1366,6 +1420,32 @@ public class PlanetOne : MonoBehaviour
             }
         }
         return mouth;
+    }
+
+    // Makes room for a cave mouth: the ledge in front is made four squares wide at its own level, and the cliff
+    // behind is built up where it is too low to hold the opening and the tunnel under a roof. The square given is
+    // the western of the two middle ones.
+    void ShapeMouth(Vector2Int front, int level)
+    {
+        void SetRock(int x, int y, int tall, bool atLeast)
+        {
+            Vector2Int spot = Wrap(x, y);
+            if (atLeast && top[spot.x, spot.y] >= tall) return;
+            kind[spot.x, spot.y] = Rock;
+            mountain[spot.x, spot.y] = (byte)tall;
+            baseTop[spot.x, spot.y] = (byte)tall;
+            top[spot.x, spot.y] = (sbyte)tall;
+        }
+
+        for (int x = front.x - 1; x <= front.x + 2; x++)
+        {
+            bool middle = x == front.x || x == front.x + 1;
+            SetRock(x, front.y, level, false);
+            // The opening is three blocks tall in the middle and two at the sides, with a block of roof over it.
+            SetRock(x, front.y + 1, level + (middle ? 4 : 3), true);
+            SetRock(x, front.y + 2, level + 3, true);
+            SetRock(x, front.y + 3, level + 2, true);
+        }
     }
 
     // A cave mouth, dug out of real blocks: an uneven opening in the cliff behind a ledge, and a short dark tunnel
@@ -1384,9 +1464,10 @@ public class PlanetOne : MonoBehaviour
         public List<Vector2Int> Squares = new List<Vector2Int>();
     }
 
-    // Digs a cave mouth into the cliff north of a square on a ledge, in an uneven, natural shape: two blocks tall,
-    // sometimes three in the middle and sometimes a block wider at one side, going three squares in, narrowing.
-    // A roof of rock is always left over it.
+    // Digs a cave mouth into the cliff north of a square on a ledge, in the shape Taivan drew: four blocks wide and
+    // two tall at the bottom, with a part two blocks wide and one tall on top of that in the middle. The square given
+    // is the western of the two middle ones. Behind the opening the tunnel goes on into the rock, two squares wide
+    // and then one. A roof of rock is always left over it, so where the cliff is too low a block is left in place.
     static CaveHole CarveHole(Land land, Vector2Int front, int level, System.Random rand)
     {
         var hole = new CaveHole { Front = front, Level = level, Inside = new Vector2Int(front.x, front.y + 2) };
@@ -1408,10 +1489,12 @@ public class PlanetOne : MonoBehaviour
         }
 
         int x0 = front.x, y1 = front.y + 1;
-        Dig(x0, y1, level, level + (rand.NextDouble() < 0.5 ? 2 : 1));
-        if (rand.NextDouble() < 0.5) Dig(x0 - 1, y1, level, level + (rand.NextDouble() < 0.3 ? 1 : 0));
-        if (rand.NextDouble() < 0.5) Dig(x0 + 1, y1, level, level + (rand.NextDouble() < 0.3 ? 1 : 0));
+        Dig(x0 - 1, y1, level, level + 1);
+        Dig(x0, y1, level, level + 2);
+        Dig(x0 + 1, y1, level, level + 2);
+        Dig(x0 + 2, y1, level, level + 1);
         Dig(x0, y1 + 1, level, level + 1);
+        Dig(x0 + 1, y1 + 1, level, level + 1);
         Dig(x0, y1 + 2, level, level);
 
         // The parts of the opening seen from outside: dug blocks with open air (not more of the tunnel) south of them.
@@ -1512,11 +1595,12 @@ public class PlanetOne : MonoBehaviour
         }
         // A little room where the player arrives, with solid wall behind it to the north for the way out.
         Dig(open, arrival, 1.6f, 1.6f);
-        for (int x = arrival.x - 1; x <= arrival.x + 1; x++)
+        for (int x = arrival.x - 2; x <= arrival.x + 3; x++)
         {
             for (int y = arrival.y + 1; y <= arrival.y + 4; y++) open[x, y] = false;
         }
         open[arrival.x, arrival.y] = true;
+        open[arrival.x + 1, arrival.y] = true;
 
         // Any bit of tunnel that filling in the wall cut off from the way in is filled in too.
         var joined = new bool[size, size];

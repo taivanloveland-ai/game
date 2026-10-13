@@ -1,4 +1,4 @@
-﻿# Game context
+# Game context
 
 Running record of what Taivan wants for the game, what has been built, and what is still undecided. Updated as work goes on.
 
@@ -175,8 +175,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Temporary settings to undo later
 
-- **On again since 2026-10-12** ("toggle temporaries", after "undo temporaries" earlier that day turned them off): the player starts with the ice pickaxe and 999 each of snow, ice and stone on the hotbar (`startWithPickaxe`, `startWithBlocks` in `PlanetOne.cs`), and walks at 25 squares a second (`speed` in `PlayerController.cs`). Undo: no pickaxe, 0 blocks, speed **4**.
-- **A test cave right by the crash site** (asked 2026-10-12: "temporarily drop one right by the spawn"). `caveByCrashSite` in `PlanetOne.cs`. Undo: set it to false.
+- Nothing temporary right now. **Undone on 2026-10-12** ("undo temporaries", the second time that day): no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` in `PlanetOne.cs` is off).
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
@@ -369,3 +368,6 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - His picks: the **ocean replaces the southern mountains** (and their caves); the water is **freezing** (you can swim, but it slowly hurts you); about **150 squares wide**; the cap is **snow over ice**.
 - As built: the South Pole's cap is flat, a block of snow on top with ice 4 blocks deep under it, and stone below that. About a fifth of it is patches of bare ice. Around it is the ocean, 150 squares wide (give or take 25, with a wavy far shore): dark cold blue water with ripples, 4 blocks deep, with stone under it, at the same height as the land. On the maps it is a dark blue band. You swim on top at half speed and can't jump. Every 1.5 seconds in the water costs 2 health, so crossing at the normal speed of 4 costs most of your health. "The water is freezing! Get out quickly." shows when you go in. Water cannot be mined, but blocks can be built on it as a bridge.
 - All 6 frost caves are now in the northern mountains. They can now be 350 squares apart (it was 500) so all six fit near the ice. The North Pole is unchanged: a plain ice sheet in its ring of mountains.
+
+- **Cave mouth shape from his sketch** (2026-10-12). He sent a tiny drawing of the opening. His words: "this is what i was thinking for the cave. 2 blocks wide at the top and 2x4 at the bottom and use the icicle sprite and make some smaller icicles too. the cave looks really inviting/ intimidationg." As built: every mouth (and the way out inside each cave) is now 4 blocks wide and 2 tall at the bottom with a part 2 wide and 1 tall on top in the middle, dug out of real blocks, nearly black inside. His icicle picture hangs upside down in it: a big one and two smaller ones on each of the two middle blocks, and smaller ones at the sides. Behind the opening the tunnel is 2 squares wide, then 1. To fit the shape, the ledge at each mouth is made 4 squares wide and the cliff behind is built up where it was too low; the walk-and-jump check is then run again and any mouth that could now be walked to is left out. Mouths are only put where nothing to the south stands in front of them on screen. Cave walls are now 4 blocks tall (they were 3) so the way out fits.
+- **"undo temporaries"** (2026-10-12): off again. No starting pickaxe or blocks, walking speed 4, and no test cave by the ship.
