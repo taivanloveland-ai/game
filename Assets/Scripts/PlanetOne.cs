@@ -301,6 +301,9 @@ public class PlanetOne : MonoBehaviour
         icePicture = LoadBlockPicture("Art/IceBlock");
         IceSideSprites = MakeIceSideSprites();
 
+        // All the writing on screen is in the game's own font.
+        gameObject.AddComponent<GameFont>();
+
         // A fresh start, whether the game has just opened or has come back to the title screen from a game.
         Time.timeScale = 1f;
         GameInput.Blocked = false;
