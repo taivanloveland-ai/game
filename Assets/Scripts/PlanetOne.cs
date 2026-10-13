@@ -172,6 +172,11 @@ public class PlanetOne : MonoBehaviour
     static readonly Color32 StoneColor = new Color32(70, 80, 96, 255), StoneRim = new Color32(98, 110, 128, 255);
     // The freezing ocean: dark, cold blue, with lighter ripples. A ripple is { x, y, length } on the 16-pixel tile.
     public static readonly Color32 WaterColor = new Color32(38, 78, 122, 255), WaterLight = new Color32(78, 128, 176, 255);
+    // The top of the water is see-through, so the seabed and anyone who has sunk show through it.
+    static readonly Color32 WaterClear = new Color32(38, 78, 122, 150), WaterLightClear = new Color32(78, 128, 176, 190);
+    // The seabed seen through the water is drawn this much darker than stone in the open.
+    static readonly Color SeabedTint = new Color(0.5f, 0.58f, 0.72f);
+    Tile seabedTile;
     static readonly Color32 WaterRim = new Color32(96, 146, 190, 255), WaterFace = new Color32(28, 60, 98, 255), WaterFoot = new Color32(20, 46, 78, 255);
     static readonly int[][][] WaterRipples =
     {
@@ -772,6 +777,8 @@ public class PlanetOne : MonoBehaviour
             {
                 int top = DrawnTopAt(x, y);
                 if (top <= level) continue;
+                // Water is see-through already.
+                if (SideBlockAt(x, y, top - 1) == SideBlock.Water) continue;
                 float from = y + (top - FaceDrop(top, DrawnTopAt(x, y - 1))) * HeightScale, to = y + 1f + top * HeightScale;
                 if (to <= bottom || from >= topEdge) continue;
                 var cell = new Vector2Int(x, y);
@@ -949,9 +956,16 @@ public class PlanetOne : MonoBehaviour
     {
         // Ice is reflective. Its tile is slightly see-through, with a solid copy of itself beneath, and reflections
         // are drawn in between the two. They show on the ice and nowhere else, since no other ground is see-through.
-        bool ice = MaterialOf(SideBlockAt(cell.x, cell.y, DrawnTopAt(cell.x, cell.y) - 1)) == Ice;
+        byte surface = MaterialOf(SideBlockAt(cell.x, cell.y, DrawnTopAt(cell.x, cell.y) - 1));
+        bool ice = surface == Ice;
         terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y, ice));
-        iceBeneath.SetTile((Vector3Int)cell, ice ? TileAt(cell.x, cell.y, false) : null);
+        // The ocean is see-through too, with its stone bed drawn beneath it.
+        if (surface == Water)
+        {
+            if (seabedTile == null) seabedTile = MakeTile(SeabedTint, TerrainTile(Stone, 0, 0, 0, 0, 0).sprite, false);
+            iceBeneath.SetTile((Vector3Int)cell, seabedTile);
+        }
+        else iceBeneath.SetTile((Vector3Int)cell, ice ? TileAt(cell.x, cell.y, false) : null);
         doorFloors.SetTile((Vector3Int)cell, FloorInsideAt(cell.x, cell.y));
     }
 
@@ -1135,9 +1149,9 @@ public class PlanetOne : MonoBehaviour
     {
         foreach (int[] ripple in WaterRipples[variant])
         {
-            if (y == ripple[1] && x >= ripple[0] && x < ripple[0] + ripple[2]) return WaterLight;
+            if (y == ripple[1] && x >= ripple[0] && x < ripple[0] + ripple[2]) return WaterLightClear;
         }
-        return WaterColor;
+        return WaterClear;
     }
 
     // The south-facing side of a raised block. y counts down from the top of the face.
@@ -1752,7 +1766,13 @@ public class PlanetOne : MonoBehaviour
         return kind[spot.x, spot.y] == Ice;
     }
 
-    // True where the top of the land is the ocean: the player is swimming there.
+    // True if a block-sized space of the world is water.
+    public bool WaterAt(int x, int y, int level)
+    {
+        return SideBlockAt(x, y, level) == SideBlock.Water;
+    }
+
+    // True where the top of the land is the ocean.
     public bool IsWater(Vector2 position)
     {
         return SurfaceMaterial(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y)) == Water;
@@ -1822,7 +1842,9 @@ public class PlanetOne : MonoBehaviour
     // A thing on the ground fills the one block of space above the ground it stands on.
     public bool SolidAt(int x, int y, int level)
     {
-        return SideBlockAt(x, y, level) != SideBlock.Air || (level == GroundAt(x, y) && ObstacleAt(x, y));
+        SideBlock block = SideBlockAt(x, y, level);
+        // Water is not solid: the player sinks through it.
+        return (block != SideBlock.Air && block != SideBlock.Water) || (level == GroundAt(x, y) && ObstacleAt(x, y));
     }
 
     // The material showing on top of a spot, as the top-down view draws it.
