@@ -134,7 +134,8 @@ public class Hud : MonoBehaviour
             GUI.color = new Color(1f, 1f, 1f, count > 0 ? 1f : 0.3f);
             GUI.DrawTexture(new Rect(slot.x + 6f, slot.y + 6f, slot.width - 12f, slot.height - 12f), item.Icon.texture, ScaleMode.ScaleToFit);
             GUI.color = Color.white;
-            if (!tool) GUI.Label(new Rect(slot.x, slot.y, slot.width - 4f, slot.height - 1f), count.ToString(), smallCountStyle);
+            // In creative mode blocks never run out, so no number is shown.
+            if (!tool && !inventory.Infinite) GUI.Label(new Rect(slot.x, slot.y, slot.width - 4f, slot.height - 1f), count.ToString(), smallCountStyle);
         }
         if (showBar) GUI.Label(new Rect(bar.x - 120f, bar.y - 22f, bar.width + 240f, 20f), "[1-9, 0] or mouse wheel: equip        [Tab] Items: drag blocks onto the bar to build", nameStyle);
 

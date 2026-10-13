@@ -117,9 +117,13 @@ public class Inventory
         EquippedSlot = ((from + steps) % Hotbar.Length + Hotbar.Length) % Hotbar.Length;
     }
 
+    // Creative mode: nothing the player has is ever used up.
+    public bool Infinite;
+
     // Takes a number of one kind of item away. Returns false, taking nothing, if the player has fewer than that.
     public bool Remove(Item item, int count)
     {
+        if (Infinite) return CountOf(item) > 0;
         for (int i = 0; i < Stacks.Count; i++)
         {
             if (Stacks[i].Item != item) continue;
