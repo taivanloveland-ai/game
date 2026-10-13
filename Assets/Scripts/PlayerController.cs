@@ -20,8 +20,10 @@ public class PlayerController : MonoBehaviour
     public float iceGrip = 8f;
     // On ice the player slides a little faster than full speed. 1 would be no faster.
     public float iceSpeedFactor = 1.2f;
-    // In the freezing ocean round the South Pole the player swims, at this share of full speed, and cannot jump.
-    public float swimSpeedFactor = 0.5f;
+    // The ocean round the South Pole is too cold to swim in: the player sinks through the water, this many blocks a
+    // second, and on the seabed can only wade at this share of full speed, with no jumping.
+    public float sinkSpeed = 2.5f;
+    public float waterSpeedFactor = 0.5f;
     // How high a jump reaches, in blocks.
     public float jumpHeight = 1.5f;
     // How strongly the player is pulled down, as a multiple of normal gravity.
@@ -60,8 +62,8 @@ public class PlayerController : MonoBehaviour
     // While true the player stands still and the keys do nothing, as while the screen fades going into a cave.
     public bool Frozen;
 
-    // True while the player is swimming in the ocean.
-    public bool Swimming { get; private set; }
+    // True while the player is in the water of the ocean.
+    public bool InWater { get; private set; }
 
     // True on any frame the player is pressing a movement key or jump.
     public bool HasManualInput { get; private set; }
@@ -161,11 +163,11 @@ public class PlayerController : MonoBehaviour
         // On ice the player speeds up, turns and stops gradually. Everywhere else movement is instant.
         Vector2 feetAt = new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f);
         bool onIce = grounded && planet.IsIce(feetAt);
-        Swimming = grounded && planet.IsWater(feetAt);
-        Vector2 wanted = move * (Swimming ? speed * swimSpeedFactor : onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
+        InWater = planet.WaterAt(Mathf.FloorToInt(feetAt.x), Mathf.FloorToInt(feetAt.y), Mathf.FloorToInt(altitude + 0.4f));
+        Vector2 wanted = move * (InWater ? speed * waterSpeedFactor : onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
         velocity = onIce ? Vector2.MoveTowards(velocity, wanted, iceGrip * dt) : wanted;
 
-        if (jumpQueued && grounded && !Swimming)
+        if (jumpQueued && grounded && !InWater)
         {
             verticalSpeed = JumpSpeed();
             grounded = false;
@@ -173,6 +175,8 @@ public class PlayerController : MonoBehaviour
         if (!grounded)
         {
             verticalSpeed -= Gravity * dt;
+            // Sinking through water is slow.
+            if (InWater) verticalSpeed = Mathf.Max(verticalSpeed, -sinkSpeed);
             float risen = altitude + verticalSpeed * dt;
             if (risen <= floor)
             {
@@ -282,12 +286,14 @@ public class PlayerController : MonoBehaviour
     {
         bool grounded = IsGrounded();
         bool onIce = grounded && planet.IsIce(GroundPosition);
-        Swimming = grounded && planet.IsWater(GroundPosition);
-        float wanted = move.x * (Swimming ? speed * swimSpeedFactor : onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
+        Vector2 at = GroundPosition;
+        InWater = planet.WaterAt(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), Mathf.FloorToInt(FeetHeight + 0.4f));
+        float wanted = move.x * (InWater ? speed * waterSpeedFactor : onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
 
         Vector2 v = body.linearVelocity;
         v.x = onIce ? Mathf.MoveTowards(v.x, wanted, iceGrip * Time.fixedDeltaTime) : wanted;
-        if (jumpQueued && grounded && !Swimming) v.y = JumpSpeed();
+        if (jumpQueued && grounded && !InWater) v.y = JumpSpeed();
+        if (InWater) v.y = Mathf.Max(v.y, -sinkSpeed);
         body.linearVelocity = v;
     }
 

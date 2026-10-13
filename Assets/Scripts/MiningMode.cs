@@ -46,6 +46,7 @@ public class MiningMode : MonoBehaviour
     static readonly Color IceDepthTint = new Color(0.63f, 0.74f, 0.85f);
     static readonly Color Stone = new Color32(70, 80, 96, 255);
     static readonly Color WaterDeep = new Color32(14, 34, 62, 255);
+    const float WaterAlpha = 0.6f;
 
     // Drawing order, back to front: the rows behind (furthest first, with 0 for one sliding in at the back), each with
     // the things standing on it just above it, then the front row, its darkness, a row sliding in at the front and
@@ -406,7 +407,7 @@ public class MiningMode : MonoBehaviour
         PlanetOne.SideBlock block = planet.SideBlockAt(square.x, square.y, level);
         Tile tile = block != PlanetOne.SideBlock.Air ? TileFor(block, square.x, square.y, level) : null;
         rowMap.SetTile(cell, tile);
-        solidMap.SetTile(cell, tile);
+        solidMap.SetTile(cell, block == PlanetOne.SideBlock.Water ? null : tile);
         tileCollider.ProcessTilemapChanges();
         composite.GenerateGeometry();
         PaintDarkness(dark.sprite.texture, 0);
@@ -453,8 +454,8 @@ public class MiningMode : MonoBehaviour
             {
                 // A block can only be shaded if the row in front has a block covering it. With nothing in front it is
                 // in the open, so it stays fully lit and lets light into its neighbours just like air does.
-                covered[x, l] = BlockAt(windowStart + x, back, l - Depth) != PlanetOne.SideBlock.Air &&
-                    BlockAt(windowStart + x, back - 1, l - Depth) != PlanetOne.SideBlock.Air;
+                // Water lets the light through like air does.
+                covered[x, l] = Solid(BlockAt(windowStart + x, back, l - Depth)) && Solid(BlockAt(windowStart + x, back - 1, l - Depth));
             }
         }
 
@@ -498,6 +499,11 @@ public class MiningMode : MonoBehaviour
 
     // True for anything light passes through: air, and blocks with nothing in front of them.
     // Open sky above the drawn area counts too; past the sides and below the bottom does not.
+    static bool Solid(PlanetOne.SideBlock block)
+    {
+        return block != PlanetOne.SideBlock.Air && block != PlanetOne.SideBlock.Water;
+    }
+
     bool IsAir(int x, int l)
     {
         if (l >= covered.GetLength(1)) return true;
@@ -537,7 +543,9 @@ public class MiningMode : MonoBehaviour
                 int level = l - Depth;
                 Vector2Int cell = Cell(windowStart + i, back);
                 PlanetOne.SideBlock block = planet.SideBlockAt(cell.x, cell.y, level);
-                fillBuffer[l * WindowColumns + i] = block != PlanetOne.SideBlock.Air ? TileFor(block, cell.x, cell.y, level) : null;
+                // Water is drawn, but it is not solid: it is left out of the map that things stand on.
+                bool there = block != PlanetOne.SideBlock.Air && !(map == solidMap && block == PlanetOne.SideBlock.Water);
+                fillBuffer[l * WindowColumns + i] = there ? TileFor(block, cell.x, cell.y, level) : null;
             }
         }
         map.SetTilesBlock(new BoundsInt(windowStart, -Depth, 0, WindowColumns, levels, 1), fillBuffer);
@@ -568,7 +576,8 @@ public class MiningMode : MonoBehaviour
         hash = (hash ^ (hash >> 13)) * 0x5bd1e995;
         bool darker = ((hash >> 15) & 1) == 1;
         if (darker && block != PlanetOne.SideBlock.Ship) color *= 0.965f;
-        color.a = 1f;
+        // Water is see-through.
+        color.a = block == PlanetOne.SideBlock.Water ? WaterAlpha : 1f;
 
         // Snow and ice blocks use their drawn pictures when there are any, exactly as drawn: no colouring and no flipping.
         // Snow has three looks, picked block by block: Taivan's three snow pictures.
