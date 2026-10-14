@@ -91,10 +91,14 @@ public class SaveGame : MonoBehaviour
         return items.TryGetValue(name, out Item item) ? item : null;
     }
 
+    // The automatic checks are started with -testSaves, and then keep their saves in a folder of their own, so they
+    // can never touch the player's.
+    static readonly bool TestSaves = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-testSaves") >= 0;
+
     // Where a slot's file is kept.
     public static string PathFor(bool creative, int slot)
     {
-        return Path.Combine(Application.persistentDataPath, "saves", (creative ? "creative" : "survival") + (slot + 1) + ".sav");
+        return Path.Combine(Application.persistentDataPath, TestSaves ? "saves-test" : "saves", (creative ? "creative" : "survival") + (slot + 1) + ".sav");
     }
 
     // What is in a slot, or null if it is empty or cannot be read.
