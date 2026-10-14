@@ -50,7 +50,7 @@ public class TitleScreen : MonoBehaviour
     // before it can be started.
     int naming = -1;
     string typed = "";
-    GUIStyle fieldStyle;
+    GUIStyle fieldStyle, dateStyle;
     GUIStyle slotStyle, smallButtonStyle;
     GUIStyle buttonStyle, loadingStyle, stageStyle;
     Texture2D buttonBack, buttonOver;
@@ -154,8 +154,8 @@ public class TitleScreen : MonoBehaviour
         if (loading)
         {
             int dots = (int)((Time.unscaledTime - loadingSince) * 2f) % 4;
-            GUI.Label(new Rect(left, h * 0.46f, wide, h * 0.12f), "Loading" + new string('.', dots) + new string(' ', 3 - dots), loadingStyle);
-            GUI.Label(new Rect(left - wide * 0.25f, h * 0.58f, wide * 1.5f, h * 0.06f), planet.LoadingStage, stageStyle);
+            GameText.Label(new Rect(left - wide * 0.25f, h * 0.44f, wide * 1.5f, h * 0.14f), "Loading" + new string('.', dots) + new string(' ', 3 - dots), loadingStyle);
+            GameText.Label(new Rect(left - wide * 0.25f, h * 0.58f, wide * 1.5f, h * 0.06f), planet.LoadingStage, stageStyle);
             return;
         }
         if (slotsFor != 0)
@@ -164,9 +164,9 @@ public class TitleScreen : MonoBehaviour
             return;
         }
         float tall = h * 0.1f, gap = h * 0.035f, top = h * 0.42f;
-        if (GUI.Button(new Rect(left, top, wide, tall), "Survival", buttonStyle)) ShowSlots(false);
-        if (GUI.Button(new Rect(left, top + tall + gap, wide, tall), "Creative", buttonStyle)) ShowSlots(true);
-        if (GUI.Button(new Rect(left, top + (tall + gap) * 2f, wide, tall), "Exit", buttonStyle)) Exit();
+        if (GameText.Button(new Rect(left, top, wide, tall), "Survival", buttonStyle)) ShowSlots(false);
+        if (GameText.Button(new Rect(left, top + tall + gap, wide, tall), "Creative", buttonStyle)) ShowSlots(true);
+        if (GameText.Button(new Rect(left, top + (tall + gap) * 2f, wide, tall), "Exit", buttonStyle)) Exit();
     }
 
     // Opens the five save slots of a mode.
@@ -189,15 +189,24 @@ public class TitleScreen : MonoBehaviour
             slotStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleLeft };
             slotStyle.normal.textColor = new Color(0.88f, 0.95f, 1f);
             smallButtonStyle = new GUIStyle(buttonStyle);
-            fieldStyle = new GUIStyle(GUI.skin.textField) { alignment = TextAnchor.MiddleLeft };
+            dateStyle = new GUIStyle(slotStyle);
+            dateStyle.normal.textColor = new Color(0.62f, 0.76f, 0.9f);
+            // The box a save's name is typed in: bright writing on a dark box with a pale edge, so what is typed shows.
+            fieldStyle = new GUIStyle(GUI.skin.textField) { alignment = TextAnchor.MiddleLeft, clipping = TextClipping.Clip };
+            Texture2D fieldBack = Framed(new Color(0.1f, 0.16f, 0.27f, 1f), new Color(0.62f, 0.8f, 0.95f, 1f));
+            fieldStyle.normal.background = fieldStyle.focused.background = fieldStyle.hover.background = fieldStyle.active.background = fieldBack;
+            fieldStyle.normal.textColor = fieldStyle.focused.textColor = fieldStyle.hover.textColor = fieldStyle.active.textColor = Color.white;
+            fieldStyle.border = new RectOffset(2, 2, 2, 2);
+            fieldStyle.padding = new RectOffset(10, 10, 2, 2);
         }
         slotStyle.fontSize = Mathf.RoundToInt(h / 36f);
-        smallButtonStyle.fontSize = Mathf.RoundToInt(h / 34f);
-        fieldStyle.fontSize = Mathf.RoundToInt(h / 34f);
+        dateStyle.fontSize = Mathf.RoundToInt(h / 50f);
+        smallButtonStyle.fontSize = Mathf.RoundToInt(h / 44f);
+        fieldStyle.fontSize = Mathf.RoundToInt(h / 46f);
         loadingStyle.fontSize = Mathf.RoundToInt(h / 18f);
 
-        float left = w * 0.5f, wide = w * 0.46f, row = h * 0.085f, gap = h * 0.02f, top = h * 0.3f;
-        GUI.Label(new Rect(left, top - row * 1.5f, wide, row), creative ? "Creative" : "Survival", loadingStyle);
+        float left = w * 0.43f, wide = w * 0.54f, row = h * 0.095f, gap = h * 0.018f, top = h * 0.3f;
+        GameText.Label(new Rect(left, top - row * 1.5f, wide, row), creative ? "Creative" : "Survival", loadingStyle);
         for (int i = 0; i < slots.Length; i++)
         {
             float y = top + i * (row + gap);
@@ -206,29 +215,35 @@ public class TitleScreen : MonoBehaviour
             // Naming a new game: a box to type in, with Start (once something has been typed) and Cancel.
             if (naming == i)
             {
-                GUI.Label(new Rect(left + wide * 0.03f, y, wide * 0.14f, row), "Name:", slotStyle);
+                GameText.Label(new Rect(left + wide * 0.02f, y, wide * 0.13f, row), "Name:", slotStyle);
                 GUI.SetNextControlName("SaveName");
-                typed = GUI.TextField(new Rect(left + wide * 0.16f, y + row * 0.18f, wide * 0.36f, row * 0.64f), typed, SaveGame.LongestName, fieldStyle);
+                typed = GUI.TextField(new Rect(left + wide * 0.15f, y + row * 0.18f, wide * 0.4f, row * 0.64f), typed, SaveGame.LongestName, fieldStyle);
                 GUI.FocusControl("SaveName");
                 bool named = typed.Trim().Length > 0;
                 bool enter = Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter);
                 float nameButton = wide * 0.21f, nameInset = row * 0.14f;
                 GUI.enabled = named;
-                bool start = GUI.Button(new Rect(left + wide - nameButton * 2f - nameInset * 2f, y + nameInset, nameButton, row - nameInset * 2f), "Start", smallButtonStyle);
+                bool start = GameText.Button(new Rect(left + wide - nameButton * 2f - nameInset * 2f, y + nameInset, nameButton, row - nameInset * 2f), "Start", smallButtonStyle);
                 GUI.enabled = true;
                 if (named && (start || enter)) Choose(creative, i, null, typed.Trim());
-                else if (GUI.Button(new Rect(left + wide - nameButton - nameInset, y + nameInset, nameButton, row - nameInset * 2f), "Cancel", smallButtonStyle)) naming = -1;
+                else if (GameText.Button(new Rect(left + wide - nameButton - nameInset, y + nameInset, nameButton, row - nameInset * 2f), "Cancel", smallButtonStyle)) naming = -1;
                 continue;
             }
-            string title = saved == null ? "Empty" : saved.Name != "" ? saved.Name : "Saved game";
-            string words = (i + 1) + ".  " + title + (saved != null ? "   (" + saved.Saved.ToString("d MMM, h:mm tt") + ")" : "");
-            GUI.Label(new Rect(left + wide * 0.03f, y, wide * 0.52f, row), words, slotStyle);
+            // The slot's number and name, with when it was saved on a smaller line underneath.
+            string title = (i + 1) + ".  " + (saved == null ? "Empty" : saved.Name != "" ? saved.Name : "Saved game");
+            float wordsWide = wide * 0.5f;
+            if (saved == null) GameText.Label(new Rect(left + wide * 0.03f, y, wordsWide, row), title, slotStyle);
+            else
+            {
+                GameText.Label(new Rect(left + wide * 0.03f, y + row * 0.06f, wordsWide, row * 0.52f), title, slotStyle);
+                GameText.Label(new Rect(left + wide * 0.03f, y + row * 0.56f, wordsWide, row * 0.38f), "Saved " + saved.Saved.ToString("d MMM, h:mm tt"), dateStyle);
+            }
             float buttonWide = wide * 0.21f, inset = row * 0.14f;
             var first = new Rect(left + wide - buttonWide * 2f - inset * 2f, y + inset, buttonWide, row - inset * 2f);
             var second = new Rect(left + wide - buttonWide - inset, y + inset, buttonWide, row - inset * 2f);
             if (saved == null)
             {
-                if (GUI.Button(second, "New game", smallButtonStyle))
+                if (GameText.Button(second, "New game", smallButtonStyle))
                 {
                     naming = i;
                     typed = "";
@@ -236,12 +251,12 @@ public class TitleScreen : MonoBehaviour
                 }
                 continue;
             }
-            if (GUI.Button(first, "Continue", smallButtonStyle))
+            if (GameText.Button(first, "Continue", smallButtonStyle))
             {
                 SaveGame.Loaded game = SaveGame.Load(creative, i);
                 if (game != null) Choose(creative, i, game);
             }
-            if (GUI.Button(second, deleting == i ? "Sure?" : "Delete", smallButtonStyle))
+            if (GameText.Button(second, deleting == i ? "Sure?" : "Delete", smallButtonStyle))
             {
                 if (deleting == i)
                 {
@@ -253,7 +268,20 @@ public class TitleScreen : MonoBehaviour
             }
         }
         float backY = top + slots.Length * (row + gap) + gap;
-        if (GUI.Button(new Rect(left + wide * 0.7f, backY, wide * 0.3f, row), "Back", smallButtonStyle)) slotsFor = 0;
+        if (GameText.Button(new Rect(left + wide * 0.7f, backY, wide * 0.3f, row), "Back", smallButtonStyle)) slotsFor = 0;
+    }
+
+    // A small picture of a box in one colour with an edge in another, for stretching over a box of any size.
+    static Texture2D Framed(Color inside, Color edge)
+    {
+        const int size = 8;
+        var texture = new Texture2D(size, size) { filterMode = FilterMode.Point };
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++) texture.SetPixel(x, y, x < 2 || y < 2 || x >= size - 2 || y >= size - 2 ? edge : inside);
+        }
+        texture.Apply();
+        return texture;
     }
 
     static Texture2D Fill(Color color)

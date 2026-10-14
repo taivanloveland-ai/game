@@ -344,7 +344,7 @@ public class WorldMap : MonoBehaviour
         DrawMark(KeepInside(frame, OnMap(frame, middle, scale, ship)), 8f, ShipMark);
         DrawMark(KeepInside(frame, OnMap(frame, middle, scale, at)), 7f, PlayerMark);
 
-        if (miniOffset != Vector2.zero && GUI.Button(new Rect(frame.x, frame.yMax + 8f, frame.width, 22f), "Back to me")) miniOffset = Vector2.zero;
+        if (miniOffset != Vector2.zero && GameText.Button(new Rect(frame.x, frame.yMax + 8f, frame.width, 22f), "Back to me")) miniOffset = Vector2.zero;
     }
 
     void DrawWorldMap()
@@ -358,7 +358,7 @@ public class WorldMap : MonoBehaviour
 
         Rect frame = WorldFrame();
         GUI.Box(new Rect(frame.x - 6f, frame.y - 34f, frame.width + 12f, frame.height + 40f), GUIContent.none);
-        GUI.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move", titleStyle);
+        GameText.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move", titleStyle);
         float squares = mapWidth / worldZoom;
         worldMiddle = KeepOffPoles(frame, worldMiddle, squares);
         DrawLand(frame, worldMiddle, squares);
@@ -370,7 +370,7 @@ public class WorldMap : MonoBehaviour
         DrawMark(KeepInside(frame, playerSpot), 9f, PlayerMark);
 
         bool moved = worldZoom != 1f || worldMiddle != new Vector2(mapWidth / 2f, mapHeight / 2f);
-        if (moved && GUI.Button(new Rect(frame.x, frame.yMax + 10f, frame.width, 24f), "Whole map"))
+        if (moved && GameText.Button(new Rect(frame.x, frame.yMax + 10f, frame.width, 24f), "Whole map"))
         {
             worldZoom = 1f;
             worldMiddle = new Vector2(mapWidth / 2f, mapHeight / 2f);
@@ -386,11 +386,11 @@ public class WorldMap : MonoBehaviour
             Vector2 spot = OnMap(frame, middle, scale, mouth);
             if (!frame.Contains(spot)) continue;
             DrawMark(spot, 7f, CaveMark);
-            var label = new Rect(spot.x + 7f, spot.y - 10f, 90f, 20f);
+            var label = new Rect(spot.x + 7f, spot.y - 11f, 150f, 22f);
             GUI.color = MarkEdge;
-            GUI.Label(new Rect(label.x + 1f, label.y + 1f, label.width, label.height), "Frost Cave", caveStyle);
+            GameText.Label(new Rect(label.x + 1f, label.y + 1f, label.width, label.height), "Frost Cave", caveStyle);
             GUI.color = Color.white;
-            GUI.Label(label, "Frost Cave", caveStyle);
+            GameText.Label(label, "Frost Cave", caveStyle);
         }
     }
 

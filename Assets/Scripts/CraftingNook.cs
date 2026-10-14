@@ -319,26 +319,26 @@ public class CraftingNook : MonoBehaviour
         }
 
         // One column for each thing that can be made, side by side.
-        const float column = 300f, height = 250f;
+        const float column = 440f, height = 250f;
         float width = column * recipes.Length + 20f;
         var panel = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
         GUI.Box(panel, GUIContent.none);
         GUI.Box(panel, GUIContent.none);
-        GUI.Label(new Rect(panel.x, panel.y + 8f, width, 26f), "Ship workbench", titleStyle);
-        if (GUI.Button(new Rect(panel.xMax - 34f, panel.y + 6f, 28f, 24f), "X")) Open = false;
+        GameText.Label(new Rect(panel.x, panel.y + 8f, width, 26f), "Ship workbench", titleStyle);
+        if (GameText.Button(new Rect(panel.xMax - 34f, panel.y + 6f, 28f, 24f), "X")) Open = false;
 
         for (int i = 0; i < recipes.Length; i++)
         {
             Recipe recipe = recipes[i];
             float left = panel.x + 10f + i * column;
             GUI.DrawTexture(new Rect(left + 16f, panel.y + 46f, 56f, 56f), recipe.Tool.Icon.texture, ScaleMode.ScaleToFit);
-            GUI.Label(new Rect(left + 86f, panel.y + 46f, column - 96f, 56f), recipe.Tool.Name + "\n" + recipe.Use, lineStyle);
+            GameText.Label(new Rect(left + 86f, panel.y + 46f, column - 96f, 56f), recipe.Tool.Name + "\n" + recipe.Use, lineStyle);
 
             DrawNeed(new Rect(left + 16f, panel.y + 112f, column - 32f, 34f), gatherables.PlantItem, recipe.Ferns);
             DrawNeed(new Rect(left + 16f, panel.y + 150f, column - 32f, 34f), gatherables.ShardItem, recipe.Shards);
 
             GUI.enabled = CanMake(recipe);
-            if (GUI.Button(new Rect(left + 70f, panel.y + 198f, column - 140f, 36f), "Craft")) Make(recipe);
+            if (GameText.Button(new Rect(left + 70f, panel.y + 198f, column - 140f, 36f), "Craft")) Make(recipe);
             GUI.enabled = true;
         }
     }
@@ -348,6 +348,6 @@ public class CraftingNook : MonoBehaviour
     {
         int have = inventory.CountOf(item);
         GUI.DrawTexture(new Rect(row.x + 8f, row.y + 2f, 30f, 30f), item.Icon.texture, ScaleMode.ScaleToFit);
-        GUI.Label(new Rect(row.x + 50f, row.y, row.width - 50f, row.height), item.Name + "   " + have + " / " + needed, have >= needed ? lineStyle : missingStyle);
+        GameText.Label(new Rect(row.x + 50f, row.y, row.width - 50f, row.height), item.Name + "   " + have + " / " + needed, have >= needed ? lineStyle : missingStyle);
     }
 }

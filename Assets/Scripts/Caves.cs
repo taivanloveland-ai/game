@@ -259,9 +259,9 @@ public class Caves : MonoBehaviour
             var line = new Rect(0f, Screen.height * 0.18f, Screen.width, Screen.height * 0.2f);
             float shadow = Mathf.Max(2f, Screen.height / 220f);
             GUI.color = new Color(0.02f, 0.03f, 0.08f, alpha * 0.85f);
-            GUI.Label(new Rect(line.x + shadow, line.y + shadow, line.width, line.height), "FROST CAVE", titleStyle);
+            GameText.Label(new Rect(line.x + shadow, line.y + shadow, line.width, line.height), "FROST CAVE", titleStyle);
             GUI.color = new Color(0.86f, 0.95f, 1f, alpha);
-            GUI.Label(line, "FROST CAVE", titleStyle);
+            GameText.Label(line, "FROST CAVE", titleStyle);
         }
 
         if (fadeStartedAt >= 0f)

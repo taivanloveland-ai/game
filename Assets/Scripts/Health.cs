@@ -128,7 +128,7 @@ public class Health : MonoBehaviour
         GUI.color = Current <= Max * 0.3f ? BarLow : BarFill;
         GUI.DrawTexture(new Rect(bar.x + 2f, bar.y + 2f, (bar.width - 4f) * Current / Max, bar.height - 4f), Texture2D.whiteTexture);
         GUI.color = Color.white;
-        GUI.Label(bar, "Health " + Mathf.CeilToInt(Current) + " / " + (int)Max, barStyle);
+        GameText.Label(bar, "Health " + Mathf.CeilToInt(Current) + " / " + (int)Max, barStyle);
 
         // A red flash when hurt, and the screen going dark and clearing again when the player falls.
         float flash = 0.28f * Mathf.Clamp01(1f - (Time.time - lastHurtAt) / 0.25f);

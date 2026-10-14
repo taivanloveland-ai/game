@@ -8,7 +8,7 @@ public class Hud : MonoBehaviour
     const float SlotSize = 56f;
     const float Gap = 6f;
     const int ItemsPerRow = 5;
-    const float ItemSlotSize = 84f;
+    const float ItemSlotSize = 116f;
     static readonly Color HighlightColor = new Color32(150, 215, 255, 255);
 
     Inventory inventory;
@@ -17,7 +17,7 @@ public class Hud : MonoBehaviour
     public bool ItemsOpen => itemsOpen;
     string message;
     float messageUntil;
-    GUIStyle countStyle, smallCountStyle, nameStyle, itemNameStyle, titleStyle, messageStyle;
+    GUIStyle countStyle, smallCountStyle, nameStyle, itemNameStyle, titleStyle, messageStyle, itemLabelStyle;
 
     // What is being dragged with the mouse, and the hotbar slot it was picked up from (-1 if it came from the items panel).
     Item dragged;
@@ -110,6 +110,8 @@ public class Hud : MonoBehaviour
             countStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.LowerRight };
             smallCountStyle = new GUIStyle(countStyle) { fontSize = 14 };
             nameStyle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.UpperCenter };
+            // An item's name can run on to a second line over its slot.
+            itemLabelStyle = new GUIStyle(nameStyle) { wordWrap = true };
             // Long names such as "Thornam bush vine" are shown a little smaller so they fit over their slot.
             itemNameStyle = new GUIStyle(nameStyle) { fontSize = 10, clipping = TextClipping.Overflow };
             titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
@@ -137,13 +139,13 @@ public class Hud : MonoBehaviour
             GUI.DrawTexture(new Rect(slot.x + 6f, slot.y + 6f, slot.width - 12f, slot.height - 12f), item.Icon.texture, ScaleMode.ScaleToFit);
             GUI.color = Color.white;
             // In creative mode blocks never run out, so no number is shown.
-            if (!tool && !inventory.Infinite) GUI.Label(new Rect(slot.x, slot.y, slot.width - 4f, slot.height - 1f), count.ToString(), smallCountStyle);
+            if (!tool && !inventory.Infinite) GameText.Label(new Rect(slot.x, slot.y, slot.width - 4f, slot.height - 1f), count.ToString(), smallCountStyle);
         }
-        if (showBar) GUI.Label(new Rect(bar.x - 120f, bar.y - 22f, bar.width + 240f, 20f), "[1-9, 0] or mouse wheel: equip        [Tab] Items: drag blocks onto the bar to build", nameStyle);
+        if (showBar) GameText.Label(new Rect(bar.x - 120f, bar.y - 22f, bar.width + 240f, 20f), "[1-9, 0] or mouse wheel: equip        [Tab] Items: drag blocks onto the bar to build", nameStyle);
 
         if (Time.time < messageUntil)
         {
-            GUI.Label(new Rect(0f, bar.y - 60f, Screen.width, 30f), message, messageStyle);
+            GameText.Label(new Rect(0f, bar.y - 60f, Screen.width, 30f), message, messageStyle);
         }
 
         if (itemsOpen) DrawItems();
@@ -212,11 +214,11 @@ public class Hud : MonoBehaviour
         Rect panel = ItemsRect();
         GUI.Box(panel, GUIContent.none);
         GUI.Box(panel, GUIContent.none);
-        GUI.Label(new Rect(panel.x, panel.y + 8f, panel.width, 26f), "Items", titleStyle);
+        GameText.Label(new Rect(panel.x, panel.y + 8f, panel.width, 26f), "Items", titleStyle);
 
         if (count == 0)
         {
-            GUI.Label(new Rect(panel.x, panel.y + 60f, panel.width, 24f), "Nothing yet", nameStyle);
+            GameText.Label(new Rect(panel.x, panel.y + 60f, panel.width, 24f), "Nothing yet", nameStyle);
             return;
         }
 
@@ -225,9 +227,9 @@ public class Hud : MonoBehaviour
             Inventory.Stack stack = inventory.Stacks[i];
             Rect slot = ItemSlot(i);
             GUI.Box(slot, GUIContent.none);
-            GUI.DrawTexture(new Rect(slot.x + 22f, slot.y + 20f, slot.width - 44f, slot.height - 40f), stack.Item.Icon.texture, ScaleMode.ScaleToFit);
-            GUI.Label(new Rect(slot.x, slot.y + 2f, slot.width, 18f), stack.Item.Name, stack.Item.Name.Length > 13 ? itemNameStyle : nameStyle);
-            GUI.Label(new Rect(slot.x, slot.y, slot.width - 6f, slot.height - 2f), "x" + stack.Count, countStyle);
+            GUI.DrawTexture(new Rect(slot.x + 30f, slot.y + 40f, slot.width - 60f, slot.height - 52f), stack.Item.Icon.texture, ScaleMode.ScaleToFit);
+            GameText.Label(new Rect(slot.x + 3f, slot.y + 2f, slot.width - 6f, 36f), stack.Item.Name, itemLabelStyle);
+            GameText.Label(new Rect(slot.x, slot.y, slot.width - 6f, slot.height - 2f), "x" + stack.Count, countStyle);
         }
     }
 }

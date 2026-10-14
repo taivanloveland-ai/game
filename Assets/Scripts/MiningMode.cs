@@ -618,13 +618,15 @@ public class MiningMode : MonoBehaviour
     void OnGUI()
     {
         if (labelStyle == null) labelStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold };
-        string text = "[F] Mining mode, along the row    [R] Mining mode, along the column    [Space] jump";
-        if (Active && !Column) text = "MINING MODE, ROW    [F] back to top-down    [R] turn to the column    [Space] jump    [W] row behind    [S] row in front    [Left click] mine";
-        if (Active && Column) text = "MINING MODE, COLUMN    [R] back to top-down    [F] turn to the row    [Space] jump    [W] column behind    [S] column in front    [Left click] mine";
+        string text = "[F] Mining mode, row    [R] Mining mode, column    [Space] jump";
+        if (Active && !Column) text = "MINING, ROW    [F] top-down    [R] column    [W] [S] change row    [Space] jump    [Click] mine";
+        if (Active && Column) text = "MINING, COLUMN    [R] top-down    [F] row    [W] [S] change column    [Space] jump    [Click] mine";
         if (Active && Time.time < blockedUntil) text = "MINING MODE    Something is in the way there";
         labelStyle.normal.textColor = Color.black;
-        GUI.Label(new Rect(18, 14, 1400, 32), text, labelStyle);
+        // The line of keys runs the width of the screen, and is made small enough to fit on it.
+        float wide = Screen.width - 32f;
+        GameText.Label(new Rect(18, 14, wide, 34), text, labelStyle);
         labelStyle.normal.textColor = Color.white;
-        GUI.Label(new Rect(16, 12, 1400, 32), text, labelStyle);
+        GameText.Label(new Rect(16, 12, wide, 34), text, labelStyle);
     }
 }

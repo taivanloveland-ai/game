@@ -17,5 +17,8 @@ public class GameFont : MonoBehaviour
         // Before anything else on screen is drawn.
         GUI.depth = 1000;
         if (font != null && GUI.skin.font != font) GUI.skin.font = font;
+        // The typing line and the highlight in a box that is typed in show up clearly.
+        GUI.skin.settings.cursorColor = Color.white;
+        GUI.skin.settings.selectionColor = new Color(0.3f, 0.55f, 0.85f, 0.8f);
     }
 }

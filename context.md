@@ -440,3 +440,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - No weather in the caves. Weather is not kept in a saved game: loading rolls the day again.
 
 - **"make a panel in creative mode to turn on snow or hail and to switch from day ofr night"** (2026-10-13): creative mode's box at the top left (under the health bar) now has, under the speed slider: a **Snow: On/Off** button and a **Hail: On/Off** button (it then falls on you wherever you go, cloud or no cloud, and hail still hurts in the open), and a **Day / Night** button that says which it is and jumps to the middle of the other. The day's own weather clouds still come as well.
+
+- **"make sure with every text box the actual text is visible."** (2026-10-13). His font's letters are about 1.8 times as wide as the old font's and 1.2 times as tall, so writing was being cut off by boxes made for the old font. Now:
+  - Every label and every button's words go through one helper (`GameText`) that makes the writing smaller, if it has to, until it fits inside its box. Nothing is cut off, whatever the font or the size of the window.
+  - Boxes that were too small were made bigger so the writing does not have to shrink much: the items list (bigger slots, names on two lines), the workbench, creative mode's panel, the settings (each slider's words are on their own line above it), the save slots (name on one line, when it was saved on a smaller line under it), the Loading words, and the cave labels on the map.
+  - The line of keys at the top in the side-scroller was shortened so it fits: "MINING, ROW    [F] top-down    [R] column    [W] [S] change row    [Space] jump    [Click] mine".
+  - The box a save's name is typed in now has white writing on a dark box with a pale edge and a white typing line.
+  - Claude cannot see the game's menus in its automatic checks (Unity does not draw them there), so this was checked by measuring every piece of writing against its box at 1920 x 1080 and 1280 x 720, not by looking.
+- Claude's automatic checks now keep their saved games in a folder of their own (`saves-test`, with `-testSaves`), so they cannot touch his saves. Before this was in place, one check was run on 2026-10-13 that starts a game in Creative slot 4 and deletes Creative slot 4 and Survival slot 5, without first looking whether those slots were empty.

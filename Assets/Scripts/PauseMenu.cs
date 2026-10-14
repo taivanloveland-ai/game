@@ -113,14 +113,14 @@ public class PauseMenu : MonoBehaviour
             buttonStyle.active.textColor = Color.white;
             titleStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
             titleStyle.normal.textColor = new Color(0.88f, 0.95f, 1f);
-            labelStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleLeft };
+            labelStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter };
             labelStyle.normal.textColor = new Color(0.82f, 0.9f, 0.97f);
             noteStyle = new GUIStyle(titleStyle);
             noteStyle.normal.textColor = new Color(0.6f, 0.95f, 0.75f);
         }
         buttonStyle.fontSize = Mathf.RoundToInt(h / 26f);
         titleStyle.fontSize = Mathf.RoundToInt(h / 16f);
-        labelStyle.fontSize = Mathf.RoundToInt(h / 34f);
+        labelStyle.fontSize = Mathf.RoundToInt(h / 30f);
         noteStyle.fontSize = Mathf.RoundToInt(h / 30f);
 
         // The game behind is dimmed.
@@ -132,7 +132,7 @@ public class PauseMenu : MonoBehaviour
         float left = (w - wide) / 2f;
         var panel = new Rect(left - wide * 0.12f, h * 0.14f, wide * 1.24f, h * 0.72f);
         GUI.DrawTexture(panel, panelBack);
-        GUI.Label(new Rect(panel.x, panel.y + h * 0.02f, panel.width, h * 0.1f), settings ? "Settings" : "Paused", titleStyle);
+        GameText.Label(new Rect(panel.x, panel.y + h * 0.02f, panel.width, h * 0.1f), settings ? "Settings" : "Paused", titleStyle);
         float top = panel.y + h * 0.15f;
 
         if (settings)
@@ -140,39 +140,40 @@ public class PauseMenu : MonoBehaviour
             DrawSettings(left, top, wide, tall, gap);
             return;
         }
-        if (GUI.Button(new Rect(left, top, wide, tall), "Resume", buttonStyle)) Resume();
-        if (GUI.Button(new Rect(left, top + (tall + gap), wide, tall), "Save", buttonStyle)) Save();
-        if (GUI.Button(new Rect(left, top + (tall + gap) * 2f, wide, tall), "Settings", buttonStyle)) settings = true;
-        if (GUI.Button(new Rect(left, top + (tall + gap) * 3f, wide, tall), "Save and Quit", buttonStyle)) SaveAndQuit();
-        if (Time.unscaledTime < noteUntil) GUI.Label(new Rect(panel.x, top + (tall + gap) * 4f, panel.width, tall * 0.7f), note, noteStyle);
+        if (GameText.Button(new Rect(left, top, wide, tall), "Resume", buttonStyle)) Resume();
+        if (GameText.Button(new Rect(left, top + (tall + gap), wide, tall), "Save", buttonStyle)) Save();
+        if (GameText.Button(new Rect(left, top + (tall + gap) * 2f, wide, tall), "Settings", buttonStyle)) settings = true;
+        if (GameText.Button(new Rect(left, top + (tall + gap) * 3f, wide, tall), "Save and Quit", buttonStyle)) SaveAndQuit();
+        if (Time.unscaledTime < noteUntil) GameText.Label(new Rect(panel.x, top + (tall + gap) * 4f, panel.width, tall * 0.7f), note, noteStyle);
     }
 
     void DrawSettings(float left, float top, float wide, float tall, float gap)
     {
-        float row = tall * 0.8f, step = row + gap, half = wide * 0.46f;
-        float slider = top + row * 0.3f;
+        // Each slider has its words on a line of their own above it, so there is room for them.
+        float row = tall * 0.8f, step = row + gap, words = tall * 0.62f, slide = tall * 0.36f, group = words + slide + gap;
 
         float volume = GameSettings.MusicVolume;
-        GUI.Label(new Rect(left, top, half, row), "Music volume: " + Mathf.RoundToInt(volume * 100f) + "%", labelStyle);
-        float newVolume = GUI.HorizontalSlider(new Rect(left + half, slider, wide - half, row * 0.5f), volume, 0f, 1f);
+        GameText.Label(new Rect(left, top, wide, words), "Music volume: " + Mathf.RoundToInt(volume * 100f) + "%", labelStyle);
+        float newVolume = GUI.HorizontalSlider(new Rect(left, top + words, wide, slide), volume, 0f, 1f);
         if (newVolume != volume) GameSettings.MusicVolume = newVolume;
 
         // Further right on the slider is closer in.
         float zoom = GameSettings.Zoom;
-        GUI.Label(new Rect(left, top + step, half, row), "Zoom: " + (GameSettings.UsualZoom / zoom).ToString("0.0") + "x", labelStyle);
-        float closeness = GUI.HorizontalSlider(new Rect(left + half, slider + step, wide - half, row * 0.5f), -zoom, -GameSettings.FurthestZoom, -GameSettings.ClosestZoom);
+        GameText.Label(new Rect(left, top + group, wide, words), "Zoom: " + (GameSettings.UsualZoom / zoom).ToString("0.0") + "x", labelStyle);
+        float closeness = GUI.HorizontalSlider(new Rect(left, top + group + words, wide, slide), -zoom, -GameSettings.FurthestZoom, -GameSettings.ClosestZoom);
         if (closeness != -zoom)
         {
             GameSettings.Zoom = -closeness;
             ApplyZoom();
         }
 
+        top += group * 2f - step * 2f + gap;
         bool mini = GameSettings.ShowMiniMap;
-        if (GUI.Button(new Rect(left, top + step * 2f, wide, row), "Mini map: " + (mini ? "On" : "Off"), buttonStyle)) GameSettings.ShowMiniMap = !mini;
+        if (GameText.Button(new Rect(left, top + step * 2f, wide, row), "Mini map: " + (mini ? "On" : "Off"), buttonStyle)) GameSettings.ShowMiniMap = !mini;
         bool full = GameSettings.FullScreen;
-        if (GUI.Button(new Rect(left, top + step * 3f, wide, row), "Full screen: " + (full ? "On" : "Off"), buttonStyle)) GameSettings.FullScreen = !full;
+        if (GameText.Button(new Rect(left, top + step * 3f, wide, row), "Full screen: " + (full ? "On" : "Off"), buttonStyle)) GameSettings.FullScreen = !full;
 
-        if (GUI.Button(new Rect(left, top + step * 4f + gap, wide, row), "Back", buttonStyle))
+        if (GameText.Button(new Rect(left, top + step * 4f + gap, wide, row), "Back", buttonStyle))
         {
             settings = false;
             GameSettings.Keep();
