@@ -494,6 +494,8 @@ public class PlanetOne : MonoBehaviour
         hud.HideHotbar = () => worldMap.Open;
         var weather = gameObject.AddComponent<Weather>();
         weather.Setup(this, controller, cam, dayNight, health, hud, Square);
+        // The ice boss, which rises on the polar ice caps.
+        gameObject.AddComponent<IceBoss>().Setup(this, controller, mining, health, inventory, nook, hud, cam, Square);
         // Creative mode also has a panel for the player's speed, the weather and the time of day.
         if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller, weather, dayNight);
 
@@ -722,6 +724,14 @@ public class PlanetOne : MonoBehaviour
                 if (tall > 0) kind[x, y] = Rock;
             }
         });
+    }
+
+    // True for a square on one of the polar ice caps, on the surface: north tells which.
+    public bool OnIceCap(int x, int y, out bool north)
+    {
+        Vector2Int spot = Wrap(x, y);
+        north = spot.y >= height / 2;
+        return !InCave && FromPole(spot.x, spot.y) < CapAt(spot.x, spot.y);
     }
 
     // How many squares a spot is from the nearer pole: from the bottom of the map, or from the top.
