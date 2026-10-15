@@ -31,6 +31,11 @@ public class PlanetOne : MonoBehaviour
     // For testing only, and off in the real game: an extra frost cave right by the crash site, in a little rock
     // cliff a few squares east of the ship.
     [System.NonSerialized] public bool caveByCrashSite = false;
+    // For testing only, and to be turned off later: in creative mode, a straight road of snow from the crash site to
+    // both ice caps, cut flat through the mountains in the north and frozen over the ocean in the south.
+    [System.NonSerialized] public bool roadToCapsInCreative = true;
+    // Whether the world being made gets that road.
+    bool makeRoad;
 
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship, Water, Algae }
@@ -393,6 +398,7 @@ public class PlanetOne : MonoBehaviour
         var picker = new System.Random();
         // A saved game's world is made again from its own seed. A new game's world is picked at random.
         bool pick = randomWorld && loading == null;
+        makeRoad = creative && roadToCapsInCreative;
         if (loading != null) seed = loading.Seed;
         if (pick) seed = picker.Next(1, 1000000);
         GenerateLand(cx, cy);
@@ -623,6 +629,7 @@ public class PlanetOne : MonoBehaviour
 
         LoadingStage = "Raising the mountains";
         RaiseMountains(mountainSeed);
+        if (makeRoad) MakeRoadToCaps(cx, cy);
 
         for (int y = 0; y < height; y++)
         {
@@ -725,6 +732,33 @@ public class PlanetOne : MonoBehaviour
             }
         });
     }
+
+    // For testing: a road 3 squares wide running straight north and south, just east of the crag in front of the
+    // northern cave, from one ice cap to the other, and a short stretch from the crash site across to it. Along it
+    // the land is flat at ground level: rock is snow, and the ocean is frozen into ice.
+    void MakeRoadToCaps(int cx, int cy)
+    {
+        int roadX = cx + RoadEast;
+        void Flatten(int x, int y)
+        {
+            Vector2Int spot = Wrap(x, y);
+            mountain[spot.x, spot.y] = 0;
+            ground[spot.x, spot.y] = 0;
+            if (kind[spot.x, spot.y] == Rock) kind[spot.x, spot.y] = Snow;
+            if (kind[spot.x, spot.y] == Water) kind[spot.x, spot.y] = Ice;
+        }
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = roadX; x < roadX + 3; x++) Flatten(x, y);
+        }
+        for (int y = cy - 3; y < cy; y++)
+        {
+            for (int x = cx; x < roadX; x++) Flatten(x, y);
+        }
+    }
+
+    // How far east of the crash site the road to the ice caps runs: clear of the crag in front of the northern cave.
+    const int RoadEast = 14;
 
     // True for a square on one of the polar ice caps, on the surface: north tells which.
     public bool OnIceCap(int x, int y, out bool north)
