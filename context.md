@@ -462,3 +462,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - Standing still, its pieces took about 30 health in 9 seconds in a test.
 
 - **"make sure you run the animation. of the boss also make sure the ice cracks bebore he rises out."** (2026-10-14). No animation file from him had arrived, so Claude made the boss's arrival itself (his own animation can replace it later). Now: first the **ice cracks open** where it will come up, dark jagged cracks with pale edges spreading out over 1.4 seconds, with the view shaking a little. Then it **pushes up out of the cracks** over 1.8 seconds, the part still under the ice unseen (it is not stretched), with chunks of ice thrown up round it and the view shaking harder. The cracks then fade over 3 seconds. It starts throwing 2 seconds after it is all the way out.
+
+- **"make health heal 1d a second instead of 5"** (2026-10-14): health now comes back at **1 a second** (it was 5), still starting 5 seconds after the last time the player was hurt. From nearly nothing to full now takes about 100 seconds.
