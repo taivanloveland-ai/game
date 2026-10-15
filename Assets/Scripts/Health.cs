@@ -6,8 +6,9 @@ using UnityEngine;
 public class Health : MonoBehaviour
 {
     public const float Max = 100f;
-    // Health starts coming back this long after the last time the player was hurt, at this much a second.
-    const float RegenDelay = 5f, RegenPerSecond = 5f;
+    // Health starts coming back this long after the last time the player was hurt, at this much a second. (It came
+    // back at 5 a second until 2026-10-14.)
+    const float RegenDelay = 5f, RegenPerSecond = 1f;
     // How long the screen takes to go dark and to clear again, and how long after waking nothing can hurt the player.
     const float FadeOutSeconds = 0.7f, FadeInSeconds = 1.1f, SafeSeconds = 3f;
     // Dropped items slide back to the player from this far away, and loose blocks are drawn this small.
