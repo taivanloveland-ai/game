@@ -3,7 +3,7 @@ using UnityEngine;
 
 // The ice boss: Taivan's picture of a tall tower of ice with a ball on top and ice pieces set in its sides
 // (Assets/Resources/Art/IceBoss). Stepping onto either pole's ice cap, it rises out of the ice a little way to one side,
-// four times as tall as the player.
+// seven times as tall as the player.
 //
 // Every five seconds (but not while any of its pieces are still flying), the ball on top breaks and every ice piece
 // in its sides comes flying straight at where the player is. Each one that hits takes 5 health. A shadow on the
@@ -15,11 +15,12 @@ using UnityEngine;
 public class IceBoss : MonoBehaviour
 {
     // It is this many times as tall as the player.
-    const float TimesTaller = 4f;
-    // It rises this many squares to one side of the player (and one square toward the pole), so all of it is on the
+    // (It was 4 times as tall until 2026-10-14, when Taivan asked for it much larger.)
+    const float TimesTaller = 7f;
+    // It rises this many squares to one side of the player, level with them, so all of it is on the
     // screen, taking this many seconds to push up out of the cracked ice, and starts throwing this long after it
     // has risen.
-    const float RisesBeside = 6f, RiseSeconds = 1.8f, FirstThrowAfter = 2f;
+    const float RisesBeside = 6.5f, RiseSeconds = 1.8f, FirstThrowAfter = 2f;
     // Before it rises, the ice cracks open where it will come up, spreading out over this many seconds; and the
     // cracks fade away over this many seconds once it has risen. The view shakes this hard while it all happens.
     const float CrackSeconds = 1.4f, CracksFadeSeconds = 3f, ShakeHard = 0.06f;
@@ -33,13 +34,13 @@ public class IceBoss : MonoBehaviour
     const float HitsWithin = 0.45f, PieceEndsAt = 0.45f;
     // How many hits of the ice axe it takes, how close the player must be, and how often they can swing.
     const int Hits = 30;
-    const float AxeReach = 3f, SwingSeconds = 0.45f;
+    const float AxeReach = 4.5f, SwingSeconds = 0.45f;
     // If the player goes further than this away, it sinks back into the ice until they come again.
     const float LeavesBeyond = 70f;
     // Ice pieces smaller than this many pixels in the picture are its other marks (its eye and the like), not pieces.
     const int SmallestPiece = 35;
     // The pieces are small in the picture, so while they fly they are drawn this many times as big, to be seen.
-    const float PieceScale = 2f;
+    const float PieceScale = 1.5f;
     const int Order = 60;
 
     class Piece
@@ -185,7 +186,7 @@ public class IceBoss : MonoBehaviour
             if (!edge && cells.Count >= SmallestPiece) pieces.Add(cells);
         }
 
-        // It is drawn four times as tall as the player, standing on its lowest row.
+        // It is drawn TimesTaller times as tall as the player, standing on its lowest row.
         bossTexture = texture;
         bossBottom = bottom;
         bossTop = top;
@@ -281,7 +282,7 @@ public class IceBoss : MonoBehaviour
     {
         if (!up) return false;
         Vector2Int at = planet.Wrap(Vector2Int.FloorToInt(foot));
-        return y == at.y && Mathf.Abs(x - at.x) <= 1;
+        return y == at.y && Mathf.Abs(x - at.x) <= 2;
     }
 
     void Update()
@@ -327,8 +328,8 @@ public class IceBoss : MonoBehaviour
         if (!planet.OnIceCap(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), out bool north)) return;
         if (north ? beatenNorth : beatenSouth) return;
         upNorth = north;
-        // Beside the player, east or west, and a square toward the pole: up the map in the north, down it in the south.
-        foot = at + new Vector2(Random.value < 0.5f ? -RisesBeside : RisesBeside, north ? 1f : -1f);
+        // Beside the player, east or west, level with them, so all of its height is on the screen.
+        foot = at + new Vector2(Random.value < 0.5f ? -RisesBeside : RisesBeside, -0.5f);
         up = true;
         roseAt = Time.time;
         nextThrowAt = Time.time + CrackSeconds + RiseSeconds + FirstThrowAfter;
@@ -351,6 +352,8 @@ public class IceBoss : MonoBehaviour
         var crackObject = new GameObject("Cracks");
         crackObject.transform.SetParent(body.transform, false);
         crackObject.transform.localPosition = new Vector3(0f, 0.04f, 0f);
+        // The cracks spread as far as it is big.
+        crackObject.transform.localScale = new Vector3(TimesTaller / 4f, TimesTaller / 4f, 1f);
         cracks = crackObject.AddComponent<SpriteRenderer>();
         cracks.spriteSortPoint = SpriteSortPoint.Pivot;
         // A shadow round its foot, drawn on the ice just behind it.
@@ -383,7 +386,7 @@ public class IceBoss : MonoBehaviour
         body.transform.position = new Vector3(foot.x, foot.y + planet.TopAt(Mathf.FloorToInt(foot.x), Mathf.FloorToInt(foot.y)) * PlanetOne.HeightScale, 0f);
         ShowRising(risen);
         picture.color = Time.time < hurtUntil ? new Color(1f, 0.55f, 0.55f) : Color.white;
-        float barWide = 2.4f, filled = barWide * hitsLeft / Hits;
+        float barWide = 3.6f, filled = barWide * hitsLeft / Hits;
         barBack.localPosition = new Vector3(0f, height + 0.35f, 0f);
         barBack.localScale = new Vector3(barWide + 0.08f, 0.2f, 1f);
         barFill.localPosition = new Vector3(-(barWide - filled) / 2f, height + 0.35f, 0f);
