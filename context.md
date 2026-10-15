@@ -175,7 +175,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Temporary settings to undo later
 
-- Nothing temporary right now. **Undone on 2026-10-12** ("undo temporaries", the second time that day): no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` in `PlanetOne.cs` is off).
+- **Temporary now (2026-10-14):** in creative mode, a straight road to both ice caps (`roadToCapsInCreative` in `PlanetOne.cs`; set it to false to undo). Otherwise as undone on 2026-10-12: no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` is off).
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
@@ -468,3 +468,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"make the ice creature much larger"** (2026-10-14): the ice boss is now **7 times the player's height** (it was 4), about 6.3 blocks tall and 2.8 wide. To keep all of it on the screen it rises 6.5 squares to one side, level with the player. Its pieces, cracks, shadow and health bar grew with it (the flying pieces are now drawn 1.5 times their size, not 2, since they are bigger anyway), and it can be hit with the ice axe from 4.5 squares (it was 3).
 
 - **"make the ball at the top start not there then grows to full size and cracks from the middle to teh edge and breaks apart and the shards fly at th player"** (2026-10-14): the ice boss's ball is no longer there when it rises (it rises without it). Once it is out, and again each time its flying pieces are all gone, the ball grows from nothing to full size over 3.6 seconds, then dark cracks spread across it from its middle to its edge over 1.4 seconds, then it breaks apart (its quarters fly off and fade) and the six ice pieces fly at the player. So it still throws about every five seconds.
+
+- **"temporarily in creative mode make a straight path to the ice caps"** (2026-10-14, TEMPORARY): in creative worlds only, a straight road 3 squares wide runs due north and south, starting 14 squares east of the ship (a short stretch at the ship's front joins it), past the crag in front of the northern cave. It goes all the way to both ice caps: cut flat through the northern mountains (rock walls up to 20 blocks tall on each side), and frozen into ice across the southern ocean so it can be walked over without sinking. On the open snow it looks like the snow round it. Survival worlds are unchanged. `roadToCapsInCreative` in `PlanetOne.cs`; set it to false to undo.
