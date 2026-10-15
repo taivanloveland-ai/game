@@ -448,3 +448,15 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - The box a save's name is typed in now has white writing on a dark box with a pale edge and a white typing line.
   - Claude cannot see the game's menus in its automatic checks (Unity does not draw them there), so this was checked by measuring every piece of writing against its box at 1920 x 1080 and 1280 x 720, not by looking.
 - Claude's automatic checks now keep their saved games in a folder of their own (`saves-test`, with `-testSaves`), so they cannot touch his saves. Before this was in place, one check was run on 2026-10-13 that starts a game in Creative slot 4 and deletes Creative slot 4 and Survival slot 5, without first looking whether those slots were empty.
+
+## Ice boss (asked 2026-10-14)
+- He sent a picture (a tall tower of ice with a crystal ball over its top and ice pieces set in its sides), in the game unchanged as `Assets/Resources/Art/IceBoss.png`. His words: "this is a boss. it spawns 4x the size of the player. the induvidual ice pieces fly at the player and deal 5d for now. shadows are under directly where the shards are because it might be hard to tell where they are. ill make the spawning animation."
+- His picks: it appears **on the ice caps**; beaten with **the ice axe, 30 hits**; it drops **nothing yet**. How it throws, in his words: "when the sprite ball breaks, every five secs unless some shards are active, as many shards are in the sprite come flying".
+- As built:
+  - Stepping onto either pole's ice cap (the North Pole's plain ice or the South Pole's snowy cap), it rises out of the ice 6 squares to one side of the player (and a square toward the pole), four times as tall as the player. For now it rises by stretching up out of the ice over 1.5 seconds; **his spawning animation will replace that** when he makes it.
+  - The game finds the **6 ice pieces** in his picture by themselves. Two seconds after rising, and then every 5 seconds after the last of its pieces is gone, the ball on top breaks (its quarters fly apart and fade) and all 6 pieces fly at where the player is standing, so they can be dodged by moving. While they fly the tower is drawn without its ball and pieces; when they are all gone it is whole again.
+  - Each piece that hits takes **5 health**. A dark oval **shadow** on the ice right under each piece shows where it is, and the tower has one at its foot. The pieces are drawn twice their size in the picture while flying, so they can be seen.
+  - **30 hits with the ice axe** (click it, from within 3 squares; holding the button keeps swinging) shatter it. A health bar shows over it. It flashes red when hit. It cannot be walked through.
+  - Once beaten it does not come back to that ice cap during that play (each pole has its own). This is not kept in saved games yet. If the player goes more than 70 squares away it sinks back into the ice, and rises again next time they step on the cap.
+  - It only acts in the top-down view; in the side-scroller it is hidden and does nothing. Never in the caves.
+- Standing still, its pieces took about 30 health in 9 seconds in a test.
