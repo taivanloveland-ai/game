@@ -14,6 +14,8 @@ public class CameraFollow : MonoBehaviour
     // How much higher up the screen than the target the camera should look. In the top-down view the player is drawn
     // above where they stand when they are on high ground.
     public System.Func<float> lift;
+    // How hard the view shakes right now, in blocks; 0 for not at all.
+    public static float Shake;
 
     Camera cam;
     float currentLift;
@@ -32,6 +34,8 @@ public class CameraFollow : MonoBehaviour
         float halfHeight = cam.orthographicSize, halfWidth = halfHeight * cam.aspect;
         float x = Mathf.Clamp(target.position.x, bounds.xMin + halfWidth, bounds.xMax - halfWidth);
         float y = Mathf.Clamp(target.position.y + currentLift, bounds.yMin + halfHeight, bounds.yMax - halfHeight);
-        transform.position = new Vector3(x, y, -10f);
+        // A shake, as when the ice boss breaks out of the ice.
+        Vector2 shake = Shake > 0f ? Random.insideUnitCircle * Shake : Vector2.zero;
+        transform.position = new Vector3(x + shake.x, y + shake.y, -10f);
     }
 }
