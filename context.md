@@ -515,3 +515,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **(picture of a brown stick, no words)** (2026-10-16): his picture of the **Thornam stick** item, in the game unchanged as `Assets/Resources/Art/ThornamStick.png` (32 x 32), drawn sharp, on the ground and in the inventory. All three thornam bush items (thorn, vine, stick) now use his pictures.
 
 - **(picture of a teal mound, no words)** (2026-10-16): taken as his picture of the **algae clump**. It is in the game unchanged as `Assets/Resources/Art/AlgaeClump.png` (32 x 32, the clump about 26 x 12 of it), drawn sharp at the same pixel size as his snow and ice blocks (32 to a square), so a clump is about 0.8 of a square wide. It keeps its soft shadow beside it, and is the picture of the clump item in the inventory too. It is smaller and closer in colour to the algae ground than the clump drawn in code was, so it is harder to spot; it can be drawn bigger if wanted.
+
+- **(a redone picture of the algae clump) "redo"** (2026-10-16): his redone clump picture replaces the first one in `Assets/Resources/Art/AlgaeClump.png`, unchanged, at the same size (32 pixels to a square).
