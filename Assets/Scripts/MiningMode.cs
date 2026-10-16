@@ -591,6 +591,13 @@ public class MiningMode : MonoBehaviour
             // Kept apart from one another in the key below by their look.
             iceLook = look + 1;
         }
+        // So has ice: Taivan's ice blocks.
+        if (block == PlanetOne.SideBlock.Ice && planet.IceLookSprite(0) != null)
+        {
+            int look = planet.IceLookAt(x, worldRow, level);
+            picture = planet.IceLookSprite(look);
+            iceLook = look + 1;
+        }
         if (picture != null) color = Color.white;
 
         // Ice without a drawn picture uses the game's own finely drawn ice blocks. Most are plain; about one in three

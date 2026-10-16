@@ -239,6 +239,8 @@ public class PlanetOne : MonoBehaviour
     }
 
     BlockPicture snowPicture, snowPicture2, snowPicture3, icePicture;
+    // Taivan's ice blocks, one look each, picked block by block like the snow; null if there are none.
+    BlockPicture[] icePictures;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -304,6 +306,8 @@ public class PlanetOne : MonoBehaviour
         snowPicture2 = LoadBlockPicture("Art/SnowBlock2");
         snowPicture3 = LoadBlockPicture("Art/SnowBlock3");
         icePicture = LoadBlockPicture("Art/IceBlock");
+        icePictures = LoadBlockPictures("Art/IceBlocks");
+        if (icePictures != null) icePicture = icePictures[0];
         IceSideSprites = MakeIceSideSprites();
 
         // All the writing on screen is in the game's own font.
@@ -1086,6 +1090,7 @@ public class PlanetOne : MonoBehaviour
         int looks = material == Ice ? IceMarks.Length : 3;
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(HashAt(x, y, variantSeed) * looks) : 0;
         if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
+        if (material == Ice && icePictures != null) variant = IceLookAt(x, y, level - 1);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1195,7 +1200,8 @@ public class PlanetOne : MonoBehaviour
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         // Snow has three looks, picked square by square: Taivan's three snow pictures.
-        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : PictureFor(material);
+        // So has ice: Taivan's ice blocks.
+        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : PictureFor(material);
         bool pictured = picture != null;
         Color32 topColor, rimColor;
         switch (material)
@@ -1230,7 +1236,13 @@ public class PlanetOne : MonoBehaviour
             }
             bool rim =((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
             if (rim) return rimColor;
-            if (pictured) return PicturePixel(picture, fineX, fineY);
+            if (pictured)
+            {
+                // A picture of ice is a little see-through too where reflections show beneath it.
+                Color32 drawn = PicturePixel(picture, fineX, fineY);
+                if (glassy) drawn.a = IceGlassAlpha;
+                return drawn;
+            }
             if (material == Water) return WaterPixel(variant, x, y);
             if (material == Algae) return AlgaePixel(variant, x, y);
             if (material != Ice) return topColor;
@@ -1284,6 +1296,20 @@ public class PlanetOne : MonoBehaviour
         return Mathf.Min(SnowLooks - 1, (int)(HashAt(x, y, variantSeed + 7919 * (level + 64)) * SnowLooks));
     }
 
+    // Which of Taivan's ice blocks a block of ice looks like, numbered from 0. Picked at random for each block, but
+    // always the same for the same block. 0 if there are none.
+    public int IceLookAt(int x, int y, int level)
+    {
+        if (icePictures == null) return 0;
+        return Mathf.Min(icePictures.Length - 1, (int)(HashAt(x, y, variantSeed + 6007 * (level + 64)) * icePictures.Length));
+    }
+
+    // The picture for a look of ice, or null if there are no ice pictures.
+    public Sprite IceLookSprite(int look)
+    {
+        return icePictures != null ? icePictures[look].Sprite : null;
+    }
+
     // The picture for a look of snow, or null for plain white (only if the third picture is missing).
     public Sprite SnowLookSprite(int look)
     {
@@ -1317,7 +1343,35 @@ public class PlanetOne : MonoBehaviour
     static BlockPicture LoadBlockPicture(string path)
     {
         var texture = Resources.Load<Texture2D>(path);
-        if (texture == null) return null;
+        return texture == null ? null : LoadBlockPicture(texture);
+    }
+
+    // Loads a picture of several blocks side by side, each one square, as one block picture each, cut out without
+    // changing a pixel. Returns null if there is no picture of that name.
+    static BlockPicture[] LoadBlockPictures(string path)
+    {
+        var sheet = Resources.Load<Texture2D>(path);
+        if (sheet == null) return null;
+        Color32[] pixels = ReadPixels(sheet);
+        int size = sheet.height, count = sheet.width / size;
+        var pictures = new BlockPicture[count];
+        for (int i = 0; i < count; i++)
+        {
+            var cut = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++) cut[y * size + x] = pixels[y * sheet.width + i * size + x];
+            }
+            var frame = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            frame.SetPixels32(cut);
+            frame.Apply();
+            pictures[i] = LoadBlockPicture(frame);
+        }
+        return pictures;
+    }
+
+    static BlockPicture LoadBlockPicture(Texture2D texture)
+    {
         Color32[] pixels = ReadPixels(texture);
 
         // A block is solid, so any see-through pixel left in a picture (a stray one or two can slip in while drawing)
