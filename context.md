@@ -175,7 +175,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Temporary settings to undo later
 
-- **Temporary now (2026-10-14):** in creative mode, a straight road to both ice caps (`roadToCapsInCreative` in `PlanetOne.cs`; set it to false to undo). Otherwise as undone on 2026-10-12: no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` is off).
+- **Temporary now:** in creative mode, a straight road to both ice caps (since 2026-10-14; `roadToCapsInCreative` in `PlanetOne.cs`, set it to false to undo); and the ice axe does 4 times its damage (since 2026-10-16; `axeDamageTimes` in `PlanetOne.cs`, set it to 1 to undo). Otherwise as undone on 2026-10-12: no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` is off).
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
@@ -505,3 +505,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"make the blank ice appear more."** (2026-10-16): his third ice block is the plain one, with no streaks. It now shows on **60%** of the ice (it was 1 in 4), and the three streaked ones share the rest (about 13% each). The game finds the plain one by itself, so the order of the pictures does not matter.
 
 - **"the ice pillar takes 100 hits to kill. it drops 20 shards of ice and a magical orb."** (2026-10-16): it now takes **100** ice-axe hits (it was 50). When it shatters, **20 ice shards** scatter round where it stood and a **Magical orb** is left in the middle; they slide to the player like other things on the ground. The orb is a new item, his 32 x 32 picture unchanged (`Assets/Resources/Art/MagicalOrb.png`), drawn sharp; it is kept in saved games like everything else. It does nothing yet. In a test, walking over the spot picked up Ice shard x20 and Magical orb x1.
+
+- **"temporarily make axe do x4d"** (2026-10-16, TEMPORARY): every hit of the ice axe does 4 times its damage. A spider loses 40 a hit instead of 10, so it dies in 2 hits instead of 5; each hit on the ice pillar counts as 4, so it shatters in 25 hits instead of 100. `axeDamageTimes` in `PlanetOne.cs`; set it to 1 to undo (or say "undo temporaries").

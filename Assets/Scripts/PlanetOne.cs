@@ -34,6 +34,9 @@ public class PlanetOne : MonoBehaviour
     // For testing only, and to be turned off later: in creative mode, a straight road of snow from the crash site to
     // both ice caps, cut flat through the mountains in the north and frozen over the ocean in the south.
     [System.NonSerialized] public bool roadToCapsInCreative = true;
+    // For testing only, and 1 in the real game: every hit of the ice axe does this many times its usual damage, to
+    // spiders and to the ice pillar.
+    [System.NonSerialized] public int axeDamageTimes = 4;
     // Whether the world being made gets that road.
     bool makeRoad;
 
