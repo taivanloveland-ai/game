@@ -13,8 +13,8 @@ public class SaveGame : MonoBehaviour
 {
     public const int Slots = 5;
     // Changed whenever the layout of the file changes. A file with another number is not read.
-    // (Version 1 had no name; its saves can still be read.)
-    const int Version = 2;
+    // (Version 1 had no name, and versions 1 and 2 had no day count; their saves can still be read.)
+    const int Version = 3;
     // The longest name a save can be given.
     public const int LongestName = 18;
 
@@ -34,6 +34,7 @@ public class SaveGame : MonoBehaviour
         public bool Creative;
         public int Seed;
         public string Name = "";
+        public int Version;
         // Everything after the first few lines of the file.
         public byte[] Rest;
     }
@@ -131,7 +132,7 @@ public class SaveGame : MonoBehaviour
         using (var r = new BinaryReader(new GZipStream(File.OpenRead(PathFor(creative, slot)), CompressionMode.Decompress)))
         {
             int version = r.ReadInt32();
-            var loaded = new Loaded { Creative = r.ReadBoolean(), Seed = r.ReadInt32() };
+            var loaded = new Loaded { Version = version, Creative = r.ReadBoolean(), Seed = r.ReadInt32() };
             r.ReadInt64();
             if (version >= 2) loaded.Name = r.ReadString();
             using (var rest = new MemoryStream())
@@ -175,6 +176,7 @@ public class SaveGame : MonoBehaviour
                 w.Write(planet.CaveIndex);
                 w.Write(health.Current);
                 w.Write(dayNight.time);
+                w.Write(dayNight.Day);
                 w.Write(player.speed);
 
                 // What they carry.
@@ -216,6 +218,7 @@ public class SaveGame : MonoBehaviour
             int cave = r.ReadInt32();
             float healthThen = r.ReadSingle();
             dayNight.time = r.ReadSingle();
+            if (loaded.Version >= 3) dayNight.Day = r.ReadInt32();
             player.speed = r.ReadSingle();
 
             inventory.Stacks.Clear();

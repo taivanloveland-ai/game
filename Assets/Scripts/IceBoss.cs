@@ -5,11 +5,12 @@ using UnityEngine;
 // is the pillar rising out of the ground, frame by frame; Assets/Resources/Art/IceBossBall is the ball on its top
 // growing from nothing and cracking, frame by frame, and then the ten shards it breaks into.
 //
-// A little way into either pole's ice cap, the ice may crack open a little way to one side of the player and the pillar
-// rises out of it, the view shaking as it comes up, seven times as tall as the player. Then the ball grows on its top
-// and cracks, and breaks into its ten shards, which spread out into a circle round where the ball was and shoot one
-// at a time at where the player is, two a second. Each that hits takes 4 to 8 health. A shadow on the ground right under
-// each shard shows where it is. Once they are all gone the ball grows again. Nothing is thrown from the pillar itself.
+// A little way into either pole's ice cap, while snow is falling, the ice cracks open a little way to one side of the
+// player and the pillar rises out of it, the view shaking as it comes up, seven times as tall as the player. It never
+// comes up when it is not snowing. Then the ball grows on its top and cracks, and breaks into its ten shards, which
+// spread out into a circle round where the ball was and shoot one at a time at where the player is, two a second.
+// Each that hits takes 4 to 8 health. A shadow on the ground right under each shard shows where it is. Once they are
+// all gone the ball grows again. Nothing is thrown from the pillar itself.
 //
 // It is beaten with 50 hits of the ice axe, from close by. It drops nothing yet. Once beaten, it does not come back to
 // that ice cap while the game is being played. It only acts in the top-down view, and not in the caves.
@@ -48,11 +49,11 @@ public class IceBoss : MonoBehaviour
     const float AxeReach = 4.5f, SwingSeconds = 0.45f;
     // If the player goes further than this away, it sinks back into the ice until they come again.
     const float LeavesBeyond = 70f;
-    // It only rises once the player is this many squares in from the edge of an ice cap, and then only some of the
-    // times: each time they come that far in, there is this chance. Leaving that part of the cap and coming back
-    // is another chance.
+    // It rises whenever the player is this many squares in from the edge of an ice cap while snow is falling on them
+    // (from a snow cloud or on a snow day) at least this thickly, and never when it is not snowing.
+    // (Until 2026-10-16 it rose 3 times in 4, snow or not.)
     const int RisesInside = 15;
-    [System.NonSerialized] public float riseChance = 0.75f;
+    const float RisesInSnow = 0.05f;
     const int Order = 60;
 
     class Piece
@@ -76,6 +77,7 @@ public class IceBoss : MonoBehaviour
     CraftingNook nook;
     Hud hud;
     Camera cam;
+    Weather weather;
 
     // His frames: the pillar rising (the last one is the pillar all the way up), the ball, and the shards.
     Sprite[] risingFrames, ballFrames, shardSprites;
@@ -102,11 +104,10 @@ public class IceBoss : MonoBehaviour
     int hitsLeft;
     bool upNorth;
     bool beatenNorth, beatenSouth;
-    // Whether the chance to rise has been had on this trip into the cap.
-    bool triedThisTime;
 
-    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Health health, Inventory inventory, CraftingNook nook, Hud hud, Camera cam, Sprite square)
+    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Health health, Inventory inventory, CraftingNook nook, Hud hud, Camera cam, Sprite square, Weather weather)
     {
+        this.weather = weather;
         this.planet = planet;
         this.player = player;
         this.mining = mining;
@@ -226,18 +227,13 @@ public class IceBoss : MonoBehaviour
         }
     }
 
-    // Coming far enough into an ice cap that has not beaten it yet may bring it up out of the ice beside the player.
+    // Coming far enough into an ice cap that has not beaten it yet, while it is snowing, brings it up out of the ice
+    // beside the player.
     void TryToRise()
     {
         Vector2 at = player.GroundPosition;
-        if (planet.IntoIceCap(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), out bool north) < RisesInside)
-        {
-            triedThisTime = false;
-            return;
-        }
-        if (triedThisTime || (north ? beatenNorth : beatenSouth)) return;
-        triedThisTime = true;
-        if (Random.value >= riseChance) return;
+        if (planet.IntoIceCap(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), out bool north) < RisesInside) return;
+        if (weather.Snowing < RisesInSnow || (north ? beatenNorth : beatenSouth)) return;
         upNorth = north;
         // Beside the player, east or west, level with them, so all of its height is on the screen.
         foot = at + new Vector2(Random.value < 0.5f ? -RisesBeside : RisesBeside, -0.5f);
