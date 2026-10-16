@@ -251,29 +251,34 @@ public class PlanetOne : MonoBehaviour
     // Taivan's algae blocks, null if there are none. Their bright lines run on from one into the next, so they are laid
     // in order going east, first to last and round again, and the lines flow unbroken across the algae.
     BlockPicture[] algaePictures;
-    // How many of them he drew (one more, plain algae with the lines taken out, is kept after them), and where the
-    // bright lines are across all of them side by side: true for a pixel of a line, bottom row first.
+    // How many of them he drew, and where the bright lines are across all of them side by side: true for a pixel of
+    // a line, bottom row first.
     int algaeLooks;
     bool[] algaeLineMask;
     int algaeStripWide, algaeStripTall;
 
-    // At night the bright lines of the algae come alive: they are drawn on a layer of their own over the night's dark,
-    // sliding east, slowly while the music is quiet and faster when it is loud, and flashing brighter on its beats.
-    // Meanwhile the algae itself is drawn without them. By day they are still, part of the algae as he drew them.
-    // How far they slide, in his pixels a second (32 to a square), when the music is quiet and when it is loudest.
-    const float LinesSlideQuiet = 3f, LinesSlideLoud = 30f;
-    // How fast they slide on round in the morning, until they are back where he drew them.
-    const float LinesCatchUp = 64f;
-    // How much brighter (toward white) a beat makes them, and how fast that fades, in shares a second.
-    const float BeatFlash = 0.7f, BeatFade = 3f;
-    Tilemap algaeLines;
-    bool linesMoving;
-    float linesShift, beat, loudness, slowLevel, fastLevel, nextBeatAt;
-    int linesShown = -1;
-    readonly float[] musicSamples = new float[256];
-    // The squares of algae being drawn, and how high their tops are.
-    readonly Dictionary<Vector2Int, int> algaeTops = new Dictionary<Vector2Int, int>();
-    readonly Dictionary<long, Tile> lineTiles = new Dictionary<long, Tile>();
+    // The algae comes alive with the music, day and night. The bright lines stay where he drew them, and light runs
+    // along inside them, east, slowly while the music is quiet and faster when it is loud. On the big booms of the
+    // drums the whole algae flashes brighter. At night it glows as well. These are drawn on layers of their own over
+    // the night's dark, cut away wherever something nearer covers the algae (a rock or a raised block in front), and
+    // hidden behind the player and the things growing on it.
+    // How fast the light runs along the lines, in his pixels a second (32 to a square), when the music is quiet and
+    // when it is loudest; how far apart the patches of light are along the lines, and how long each one is (from
+    // its middle to where it fades out), in his pixels.
+    const float LightRunsQuiet = 8f, LightRunsLoud = 64f, LightApart = 64f, LightHalfLength = 10f;
+    // How bright a boom makes the algae flash, and how fast that fades, in shares a second. A boom is the low notes
+    // suddenly this many times as loud as they have been lately.
+    const float BoomFlash = 0.5f, BoomFade = 2.5f, BoomJump = 1.6f;
+    // Squares this many rows nearer are looked at for anything covering a square of algae.
+    const int CoverRows = 24;
+    Tilemap algaeFlash, algaeLight;
+    float lightPhase, boom, loudness, slowLevel, fastLevel, slowBass, fastBass, peakBass, nextBoomAt;
+    int lightShown;
+    readonly float[] musicSamples = new float[256], musicSpectrum = new float[512];
+    // The squares of algae being drawn: how high their tops are, and how many of his pixels up from the bottom of each
+    // something nearer covers it.
+    readonly Dictionary<Vector2Int, Vector2Int> algaeTops = new Dictionary<Vector2Int, Vector2Int>();
+    readonly Dictionary<long, Tile> algaeLayerTiles = new Dictionary<long, Tile>();
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -585,6 +590,13 @@ public class PlanetOne : MonoBehaviour
         bodyVisual.transform.SetParent(visual.transform, false);
 
         var controller = player.AddComponent<PlayerController>();
+        // The player hides the algae's glow and light, which are drawn over the dark of night, so they are not drawn over
+        // the player. (It is kept out of the sorted group, where it would only hide the player's own pictures.)
+        var hider = new GameObject("Glow Hider");
+        hider.transform.SetParent(player.transform, false);
+        hider.transform.localScale = bodyVisual.transform.localScale;
+        hider.AddComponent<SpriteMask>().sprite = Square;
+        controller.GlowHider = hider.transform;
         // The player's reflection in the ice: the same rectangle upside down beneath their feet. It is kept out of
         // the sorted group above so that it is drawn under the land.
         GameObject reflection = MakeBox("Reflection", Square, PlayerColor * ReflectionTint, new Vector2(PlayerController.Width, PlayerController.Height * ReflectionSquash), ReflectionOrder);
@@ -926,9 +938,14 @@ public class PlanetOne : MonoBehaviour
         algaeGlow = MakeTilemap(grid, "Algae Glow", 101);
         algaeGlow.tileAnchor = terrain.tileAnchor;
         algaeGlow.color = new Color(1f, 1f, 1f, 0f);
-        // The algae's bright lines at night, over its glow.
-        algaeLines = MakeTilemap(grid, "Algae Lines", 102);
-        algaeLines.tileAnchor = terrain.tileAnchor;
+        // Its flash on the drums' booms, and the light running along its lines, over the glow.
+        algaeFlash = MakeTilemap(grid, "Algae Flash", 102);
+        algaeFlash.tileAnchor = terrain.tileAnchor;
+        algaeFlash.color = new Color(1f, 1f, 1f, 0f);
+        algaeLight = MakeTilemap(grid, "Algae Light", 103);
+        algaeLight.tileAnchor = terrain.tileAnchor;
+        // None of them is drawn over the player or the things growing on the algae: those hide them.
+        foreach (Tilemap layer in new[] { algaeGlow, algaeFlash, algaeLight }) layer.GetComponent<TilemapRenderer>().maskInteraction = SpriteMaskInteraction.VisibleOutsideMask;
     }
 
     void Update()
@@ -942,10 +959,10 @@ public class PlanetOne : MonoBehaviour
             glowShown = glow;
             algaeGlow.color = new Color(1f, 1f, 1f, glow);
         }
-        MoveAlgaeLines();
+        LightUpAlgae();
     }
 
-    // Loads his algae blocks, works out where their bright lines are, and makes the plain algae without them.
+    // Loads his algae blocks and works out where their bright lines are.
     void LoadAlgae()
     {
         algaePictures = LoadBlockPictures("Art/AlgaeBlocks");
@@ -973,29 +990,40 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < algaeStripWide; x++) algaeLineMask[y * algaeStripWide + x] = !pixels[y * sheetWide + x].Equals(algae);
         }
-        var plain = new Texture2D(algaeStripTall, algaeStripTall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
-        var fill = new Color32[algaeStripTall * algaeStripTall];
-        for (int i = 0; i < fill.Length; i++) fill[i] = algae;
-        plain.SetPixels32(fill);
-        plain.Apply();
-        System.Array.Resize(ref algaePictures, algaeLooks + 1);
-        algaePictures[algaeLooks] = LoadBlockPicture(plain);
     }
 
-    // The bright lines of one square of algae, slid east by a number of his pixels: white where a line is (the layer
-    // is coloured as a whole), see-through elsewhere, at the height of the square's top.
-    Tile LineTile(int level, int look, int shift)
+    // How many of his pixels up from the bottom of a square of algae something nearer covers it: a rock, a cliff or a
+    // raised block in front, drawn further up the screen than the ground behind it.
+    int AlgaeCovered(int x, int y, int level)
     {
-        long key = ((long)(level + 64) << 32) | ((long)look << 16) | (long)shift;
-        if (lineTiles.TryGetValue(key, out Tile tile)) return tile;
+        float bottom = y + level * HeightScale, covered = 0f;
+        for (int k = 1; k <= CoverRows; k++) covered = Mathf.Max(covered, y - k + 1 + DrawnTopAt(x, y - k) * HeightScale - bottom);
+        return Mathf.Clamp(Mathf.CeilToInt(covered * algaeStripTall - 0.001f), 0, algaeStripTall);
+    }
+
+    // One square of one of the algae's layers: kind 0 is its glow (his picture), 1 its flash (solid white), and 2 the
+    // light in its lines (white, as bright as the light is there). See-through below the covered rows, and at the
+    // height of the square's top.
+    Tile AlgaeLayerTile(int kind, int level, int look, int covered, int phase)
+    {
+        long key = ((long)kind << 56) | ((long)(level + 64) << 40) | ((long)look << 32) | ((long)covered << 16) | (long)phase;
+        if (algaeLayerTiles.TryGetValue(key, out Tile tile)) return tile;
         int size = algaeStripTall;
         var pixels = new Color32[size * size];
-        for (int y = 0; y < size; y++)
+        for (int y = covered; y < size; y++)
         {
             for (int x = 0; x < size; x++)
             {
-                int from = ((look * size + x - shift) % algaeStripWide + algaeStripWide) % algaeStripWide;
-                pixels[y * size + x] = algaeLineMask[y * algaeStripWide + from] ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
+                int along = look * size + x;
+                if (kind == 0) pixels[y * size + x] = algaePictures[look].Pixels[y * size + x];
+                else if (kind == 1) pixels[y * size + x] = new Color32(255, 255, 255, 255);
+                else if (algaeLineMask[y * algaeStripWide + along])
+                {
+                    // The patches of light along the lines, each brightest in its middle.
+                    float from = Mathf.Repeat(along - phase, LightApart);
+                    float light = Mathf.Clamp01(1f - Mathf.Min(from, LightApart - from) / LightHalfLength);
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(light * 255f));
+                }
             }
         }
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
@@ -1004,85 +1032,88 @@ public class PlanetOne : MonoBehaviour
         // Raised the same way as the top of a tile (see TerrainTile).
         var pivot = new Vector2(0.5f, (TilePixels - level * FacePixels) / (float)TilePixels);
         tile = MakeTile(Color.white, Sprite.Create(texture, new Rect(0, 0, size, size), pivot, size), false);
-        lineTiles[key] = tile;
+        algaeLayerTiles[key] = tile;
         return tile;
     }
 
-    // Listens to the music: how loud it is now against how loud it has been lately, and whether a beat just came.
+    // Puts a square's glow, flash and light on their layers, or takes them away if it is not algae on top.
+    void ShowAlgaeLayers(Vector2Int cell)
+    {
+        int level = DrawnTopAt(cell.x, cell.y);
+        var at = (Vector3Int)cell;
+        if (MaterialOf(SideBlockAt(cell.x, cell.y, level - 1)) != Algae)
+        {
+            algaeTops.Remove(cell);
+            algaeGlow.SetTile(at, null);
+            algaeFlash.SetTile(at, null);
+            algaeLight.SetTile(at, null);
+            return;
+        }
+        int covered = AlgaeCovered(cell.x, cell.y, level), look = AlgaeLookAt(cell.x);
+        algaeTops[cell] = new Vector2Int(level, covered);
+        algaeGlow.SetTile(at, AlgaeLayerTile(0, level, look, covered, 0));
+        algaeFlash.SetTile(at, AlgaeLayerTile(1, level, 0, covered, 0));
+        algaeLight.SetTile(at, AlgaeLayerTile(2, level, look, covered, lightShown));
+    }
+
+    // Listens to the music: how loud it is now against how loud it has been lately, and whether the low notes just
+    // boomed.
     void HearMusic()
     {
+        float dt = Time.unscaledDeltaTime;
         AudioListener.GetOutputData(musicSamples, 0);
         float sum = 0f;
         foreach (float sample in musicSamples) sum += sample * sample;
         float level = Mathf.Sqrt(sum / musicSamples.Length);
-        float dt = Time.unscaledDeltaTime;
         slowLevel = Mathf.Lerp(slowLevel, level, Mathf.Clamp01(dt * 0.5f));
         fastLevel = Mathf.Lerp(fastLevel, level, Mathf.Clamp01(dt * 12f));
         loudness = slowLevel > 0.0001f ? Mathf.Clamp01(fastLevel / (slowLevel * 2f)) : 0f;
-        // A beat: a sudden rise well above how loud it has been lately.
-        if (fastLevel > slowLevel * 1.35f && fastLevel > 0.01f && Time.time >= nextBeatAt)
+        // The low notes, where the drums boom: the first few bands of the spectrum.
+        AudioListener.GetSpectrumData(musicSpectrum, 0, FFTWindow.BlackmanHarris);
+        float bass = 0f;
+        for (int i = 1; i <= 6; i++) bass += musicSpectrum[i];
+        slowBass = Mathf.Lerp(slowBass, bass, Mathf.Clamp01(dt * 0.7f));
+        fastBass = Mathf.Lerp(fastBass, bass, Mathf.Clamp01(dt * 20f));
+        // Only the big ones: nearly as loud as the loudest of the last few seconds.
+        peakBass = Mathf.Max(peakBass * Mathf.Exp(-dt * 0.3f), fastBass);
+        if (fastBass > slowBass * BoomJump && fastBass >= peakBass * 0.9f && fastBass > 0.002f && Time.time >= nextBoomAt)
         {
-            beat = 1f;
-            nextBeatAt = Time.time + 0.25f;
+            boom = 1f;
+            nextBoomAt = Time.time + 0.4f;
         }
-        beat = Mathf.Max(0f, beat - BeatFade * dt);
+        boom = Mathf.Max(0f, boom - BoomFade * dt);
     }
 
-    // Slides the algae's bright lines and colours them, at night; and puts them back into the algae by day.
-    void MoveAlgaeLines()
+    // Runs the light along the algae's lines and flashes it on the booms.
+    void LightUpAlgae()
     {
         if (algaePictures == null) return;
-        float night = sky != null && !InCave ? sky.Night : 0f;
         HearMusic();
-        bool moving = linesMoving;
-        if (night > 0f) moving = true;
-        else if (moving && linesShown == 0 && linesShift < 1f) moving = false;
-        if (moving != linesMoving)
+        lightPhase = Mathf.Repeat(lightPhase + Mathf.Lerp(LightRunsQuiet, LightRunsLoud, loudness) * Time.deltaTime, LightApart);
+        int phase = Mathf.FloorToInt(lightPhase) % (int)LightApart;
+        if (phase != lightShown)
         {
-            // Morning comes once the lines have slid back round to where he drew them, so they never jump.
-            linesMoving = moving;
-            if (!moving) linesShift = 0f;
-            linesShown = 0;
-            foreach (Vector2Int cell in new List<Vector2Int>(algaeTops.Keys)) SetLandTile(cell);
-        }
-        if (!linesMoving) return;
-
-        // Once it is day they hurry round to where he drew them, at most a couple of seconds.
-        float speed = night > 0f ? Mathf.Lerp(LinesSlideQuiet, LinesSlideLoud, loudness) : LinesCatchUp;
-        float before = linesShift;
-        linesShift = Mathf.Repeat(linesShift + speed * Time.deltaTime, algaeStripWide);
-        // Round to the start again in the morning: stop there.
-        if (night <= 0f && linesShift < before) linesShift = 0f;
-        int shift = Mathf.FloorToInt(linesShift) % algaeStripWide;
-        if (shift != linesShown)
-        {
-            linesShown = shift;
+            lightShown = phase;
             var cells = new Vector3Int[algaeTops.Count];
             var tiles = new TileBase[algaeTops.Count];
             int i = 0;
-            foreach (KeyValuePair<Vector2Int, int> entry in algaeTops)
+            foreach (KeyValuePair<Vector2Int, Vector2Int> entry in algaeTops)
             {
                 cells[i] = (Vector3Int)entry.Key;
-                tiles[i] = LineTile(entry.Value, AlgaeLookAt(entry.Key.x), shift);
+                tiles[i] = AlgaeLayerTile(2, entry.Value.x, AlgaeLookAt(entry.Key.x), entry.Value.y, phase);
                 i++;
             }
-            algaeLines.SetTiles(cells, tiles);
+            algaeLight.SetTiles(cells, tiles);
         }
-
-        // As dark as the algae around them is drawn at dusk, glowing fully bright by the middle of the night, and flashing
-        // on the beats.
-        Color dark = sky.WorldTint * (1f - 0.5f * night);
-        Color lines = (Color)AlgaeLight * Color.Lerp(dark, Color.white, night);
-        lines = Color.Lerp(lines, Color.white, beat * BeatFlash * night);
-        lines.a = 1f;
-        algaeLines.color = lines;
+        bool outside = !InCave;
+        algaeFlash.color = new Color(0.86f, 1f, 0.96f, outside ? boom * BoomFlash : 0f);
+        algaeLight.color = new Color(1f, 1f, 1f, outside ? 0.85f : 0f);
     }
 
-    // For checking: whether the lines are sliding, how far, how loud the music is, and the beat's flash.
-    public bool AlgaeLinesMoving => linesMoving;
-    public float AlgaeLinesShift => linesShift;
+    // For checking: how far the light has run, how loud the music is, and the flash of the last boom.
+    public float AlgaeLightPhase => lightPhase;
     public float MusicLoudness => loudness;
-    public float MusicBeat => beat;
+    public float MusicBoom => boom;
 
     // True if a spot is open at a level but has ground over it: the inside of a tunnel or a cave.
     public bool IsTunnel(int x, int y, int level)
@@ -1248,7 +1279,8 @@ public class PlanetOne : MonoBehaviour
             doorFloors.SetTile((Vector3Int)cell, null);
             iceBeneath.SetTile((Vector3Int)cell, null);
             algaeGlow.SetTile((Vector3Int)cell, null);
-            algaeLines.SetTile((Vector3Int)cell, null);
+            algaeFlash.SetTile((Vector3Int)cell, null);
+            algaeLight.SetTile((Vector3Int)cell, null);
             algaeTops.Remove(cell);
         }
         foreach (Vector2Int cell in wanted.allPositionsWithin)
@@ -1274,7 +1306,7 @@ public class PlanetOne : MonoBehaviour
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(HashAt(x, y, variantSeed) * looks) : 0;
         if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
         if (material == Ice && icePictures != null) variant = IceLookAt(x, y, level - 1);
-        if (material == Algae && algaePictures != null) variant = linesMoving ? algaeLooks : AlgaeLookAt(x);
+        if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1361,11 +1393,17 @@ public class PlanetOne : MonoBehaviour
         // are drawn in between the two. They show on the ice and nowhere else, since no other ground is see-through.
         int drawnTop = DrawnTopAt(cell.x, cell.y);
         byte surface = MaterialOf(SideBlockAt(cell.x, cell.y, drawnTop - 1));
-        // The glow is drawn without the bright lines, which have a layer of their own at night.
-        algaeGlow.SetTile((Vector3Int)cell, surface == Algae ? TerrainTile(Algae, Mathf.Clamp(drawnTop, 0, 1), drawnTop, 0, 0, algaePictures != null ? algaeLooks : 0) : null);
-        if (surface == Algae && algaePictures != null) algaeTops[cell] = drawnTop;
-        else algaeTops.Remove(cell);
-        algaeLines.SetTile((Vector3Int)cell, linesMoving && surface == Algae && algaePictures != null ? LineTile(drawnTop, AlgaeLookAt(cell.x), linesShown) : null);
+        if (algaePictures != null)
+        {
+            ShowAlgaeLayers(cell);
+            // This square may cover algae further back, or no longer cover it.
+            for (int k = 1; k <= CoverRows; k++)
+            {
+                var behind = new Vector2Int(cell.x, cell.y + k);
+                if (algaeTops.ContainsKey(behind)) ShowAlgaeLayers(behind);
+            }
+        }
+        else algaeGlow.SetTile((Vector3Int)cell, surface == Algae ? TerrainTile(Algae, Mathf.Clamp(drawnTop, 0, 1), drawnTop, 0, 0, 0) : null);
         bool ice = surface == Ice;
         terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y, ice));
         // The ocean is see-through too, with its stone bed drawn beneath it.
@@ -2115,7 +2153,8 @@ public class PlanetOne : MonoBehaviour
         doorFloors.ClearAllTiles();
         iceBeneath.ClearAllTiles();
         algaeGlow.ClearAllTiles();
-        algaeLines.ClearAllTiles();
+        algaeFlash.ClearAllTiles();
+        algaeLight.ClearAllTiles();
         algaeTops.Clear();
         window = new RectInt();
     }

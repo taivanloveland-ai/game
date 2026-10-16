@@ -33,6 +33,8 @@ public class PlayerController : MonoBehaviour
 
     PlanetOne planet;
     Transform bodyVisual;
+    // Kept over the player's body wherever it is drawn: it hides the algae's glow there.
+    [System.NonSerialized] public Transform GlowHider;
     SpriteRenderer bodyRenderer;
     Color baseColor;
     // The colour the world is being tinted for the time of day.
@@ -143,6 +145,7 @@ public class PlayerController : MonoBehaviour
         float floorLift = ground * PlanetOne.HeightScale;
         CameraLift = lift;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
+        if (GlowHider != null) GlowHider.position = bodyVisual.position;
         shadow.localPosition = new Vector3(0f, 0.1f + floorLift, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
 

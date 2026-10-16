@@ -291,9 +291,9 @@ public class Gatherables : MonoBehaviour
 
         Kind clump = MakeKind("Algae clump", ClumpWide, ClumpTall, 16f, false, ClumpPixel);
         // Taivan's picture of a clump replaces the one drawn here, at the same size as his ground blocks.
-        UsePicture(clump, "Art/AlgaeClump", ClumpPicturePixelsPerUnit);
-        // A soft shadow beside it helps it show against the ground.
-        clump.Shadow = true;
+        // A soft shadow beside the one drawn here helps it show against the ground. His needs none: on it the shadow
+        // looked like a reflection.
+        clump.Shadow = !UsePicture(clump, "Art/AlgaeClump", ClumpPicturePixelsPerUnit);
         ClumpItem = clump.Item;
         var rand = new System.Random(planet.seed + 1);
         for (int y = 0; y < planet.height; y++)
@@ -709,10 +709,10 @@ public class Gatherables : MonoBehaviour
     // Fine is for pictures painted at the snow picture's scale, which are shown smaller than they are painted.
     // Gives a kind of thing Taivan's picture of it, unchanged and drawn sharp, standing on its lowest row, on the ground
     // and in the inventory. Nothing changes if there is no picture of that name.
-    static void UsePicture(Kind kind, string path, float pixelsPerUnit)
+    static bool UsePicture(Kind kind, string path, float pixelsPerUnit)
     {
         var picture = Resources.Load<Texture2D>(path);
-        if (picture == null) return;
+        if (picture == null) return false;
         Color32[] pixels = PlanetOne.ReadPixels(picture);
         var texture = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         texture.SetPixels32(pixels);
@@ -728,7 +728,7 @@ public class Gatherables : MonoBehaviour
                 lowest = Mathf.Min(lowest, y); highest = Mathf.Max(highest, y);
             }
         }
-        if (right < 0) return;
+        if (right < 0) return false;
         var whole = new Rect(0, 0, picture.width, picture.height);
         for (int level = 0; level < kind.Sprites.Length; level++)
         {
@@ -739,6 +739,7 @@ public class Gatherables : MonoBehaviour
         kind.Item = new Item(kind.Item.Name, kind.Sprites[0]);
         kind.Width = (right - left + 1) / pixelsPerUnit;
         kind.Height = (highest - lowest + 1) / pixelsPerUnit;
+        return true;
     }
 
     static Kind MakeKind(string name, int pixelsWide, int pixelsTall, float pixelsPerUnit, bool fine, System.Func<int, int, Color32> paint)
@@ -768,6 +769,9 @@ public class Gatherables : MonoBehaviour
         renderer.sprite = kind.Sprites[planet.GroundAt(cell.x, cell.y)];
         // Sorted by its foot, so the player walks in front of or behind it correctly.
         renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+        // On the algae it hides the algae's glow and light, which are drawn over the dark of night, so they are not
+        // drawn over it.
+        if (planet.IsAlgae(cell.x, cell.y)) go.AddComponent<SpriteMask>().sprite = renderer.sprite;
         if (kind.Shadow)
         {
             // The shadow is the same picture in a darker blue, a little to the side, drawn just behind the thing.
