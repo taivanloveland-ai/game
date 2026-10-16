@@ -600,11 +600,12 @@ public class IceBoss : MonoBehaviour
         Hit();
     }
 
-    // One hit with the ice axe. The last one shatters it.
+    // One hit with the ice axe. The last one shatters it. (While the axe is set to do more than its usual damage, a
+    // hit counts as that many.)
     public void Hit()
     {
         if (!up) return;
-        hitsLeft--;
+        hitsLeft = Mathf.Max(0, hitsLeft - planet.axeDamageTimes);
         hurtUntil = Time.time + 0.12f;
         if (hitsLeft > 0) return;
         if (upNorth) beatenNorth = true;

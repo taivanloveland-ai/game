@@ -309,7 +309,7 @@ public class Spiders : MonoBehaviour
         Vector2 at = planet.Nearest(struck.Position, playerAt);
         if (Vector2.Distance(at, playerAt) > AxeReach) return Strike.TooFar;
 
-        struck.Health -= AxeDamage;
+        struck.Health -= AxeDamage * planet.axeDamageTimes;
         struck.HurtUntil = Time.time + 0.15f;
         struck.Bite = -1f;
         if (struck.Health <= 0f)
