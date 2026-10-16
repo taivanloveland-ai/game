@@ -80,7 +80,7 @@ public class SaveGame : MonoBehaviour
         {
             nook.Pickaxe, nook.Axe, pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
             gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem, gatherables.StickItem,
-            spiders.SilkItem, spiders.LegItem, spiders.FangItem,
+            spiders.SilkItem, spiders.LegItem, spiders.FangItem, planet.GetComponent<IceBoss>()?.OrbItem,
         })
         {
             if (item != null) items[item.Name] = item;
