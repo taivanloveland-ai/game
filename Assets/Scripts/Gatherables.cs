@@ -511,9 +511,11 @@ public class Gatherables : MonoBehaviour
     // gives 3 thorns, 3 thornam bush vines and 1 thornam stick.
     Kind MakeBush()
     {
-        ThornItem = new Item("Thorn", LooseSprite((x, y) => ThornPixel(x, y)));
-        VineItem = new Item("Thornam bush vine", LooseSprite((x, y) => VinePixel(x, y)));
-        StickItem = new Item("Thornam stick", LooseSprite((x, y) => StickPixel(x, y)));
+        // Taivan's pictures where he has drawn them (Art/Thorn, Art/ThornamVine, Art/ThornamStick), and the ones drawn
+        // here otherwise.
+        ThornItem = new Item("Thorn", LoosePicture("Art/Thorn") ?? LooseSprite((x, y) => ThornPixel(x, y)));
+        VineItem = new Item("Thornam bush vine", LoosePicture("Art/ThornamVine") ?? LooseSprite((x, y) => VinePixel(x, y)));
+        StickItem = new Item("Thornam stick", LoosePicture("Art/ThornamStick") ?? LooseSprite((x, y) => StickPixel(x, y)));
 
         // Without the picture, a plain round bush in the same colours stands in for it.
         Kind bush = MakeKind("Thornam bush", 16, 16, 16 / BushHeight, false, (x, y) =>
@@ -561,6 +563,21 @@ public class Gatherables : MonoBehaviour
             shore[pick] = shore[shore.Count - 1];
             shore.RemoveAt(shore.Count - 1);
         }
+    }
+
+    // One of Taivan's pictures of a loose item, unchanged and drawn sharp, as big as the ones drawn here and sitting on
+    // the ground at its lowest row. Null if there is no picture of that name.
+    static Sprite LoosePicture(string path)
+    {
+        var picture = Resources.Load<Texture2D>(path);
+        if (picture == null) return null;
+        Color32[] pixels = PlanetOne.ReadPixels(picture);
+        var texture = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        int lowest = 0;
+        while (lowest < picture.height - 1 && !RowHasAny(pixels, picture.width, lowest)) lowest++;
+        return Sprite.Create(texture, new Rect(0, 0, picture.width, picture.height), new Vector2(0.5f, lowest / (float)picture.height), picture.height / LooseSize);
     }
 
     static Sprite LooseSprite(System.Func<int, int, Color32> paint)
