@@ -274,8 +274,7 @@ public class PlanetOne : MonoBehaviour
     Tilemap algaeFlash, algaeLight;
     float lightPhase, boom, loudness, slowLevel, fastLevel, slowBass, fastBass, peakBass, nextBoomAt;
     int lightShown;
-    readonly float[] musicSamples = new float[256], musicSpectrum = new float[512];
-    // The squares of algae being drawn: how high their tops are, and how many of his pixels up from the bottom of each
+        // The squares of algae being drawn: how high their tops are, and how many of his pixels up from the bottom of each
     // something nearer covers it.
     readonly Dictionary<Vector2Int, Vector2Int> algaeTops = new Dictionary<Vector2Int, Vector2Int>();
     readonly Dictionary<long, Tile> algaeLayerTiles = new Dictionary<long, Tile>();
@@ -1061,22 +1060,18 @@ public class PlanetOne : MonoBehaviour
     void HearMusic()
     {
         float dt = Time.unscaledDeltaTime;
-        AudioListener.GetOutputData(musicSamples, 0);
-        float sum = 0f;
-        foreach (float sample in musicSamples) sum += sample * sample;
-        float level = Mathf.Sqrt(sum / musicSamples.Length);
+        // Heard as it plays, before the music volume turns it down, so it is the same however loud the music is set.
+        float level = Music.Level;
         slowLevel = Mathf.Lerp(slowLevel, level, Mathf.Clamp01(dt * 0.5f));
         fastLevel = Mathf.Lerp(fastLevel, level, Mathf.Clamp01(dt * 12f));
         loudness = slowLevel > 0.0001f ? Mathf.Clamp01(fastLevel / (slowLevel * 2f)) : 0f;
-        // The low notes, where the drums boom: the first few bands of the spectrum.
-        AudioListener.GetSpectrumData(musicSpectrum, 0, FFTWindow.BlackmanHarris);
-        float bass = 0f;
-        for (int i = 1; i <= 6; i++) bass += musicSpectrum[i];
+        // The low notes, where the drums boom.
+        float bass = Music.Bass;
         slowBass = Mathf.Lerp(slowBass, bass, Mathf.Clamp01(dt * 0.7f));
         fastBass = Mathf.Lerp(fastBass, bass, Mathf.Clamp01(dt * 20f));
         // Only the big ones: nearly as loud as the loudest of the last few seconds.
         peakBass = Mathf.Max(peakBass * Mathf.Exp(-dt * 0.3f), fastBass);
-        if (fastBass > slowBass * BoomJump && fastBass >= peakBass * 0.9f && fastBass > 0.002f && Time.time >= nextBoomAt)
+        if (fastBass > slowBass * BoomJump && fastBass >= peakBass * 0.9f && fastBass > 0.01f && Time.time >= nextBoomAt)
         {
             boom = 1f;
             nextBoomAt = Time.time + 0.4f;

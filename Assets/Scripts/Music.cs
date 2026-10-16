@@ -12,10 +12,17 @@ public class Music : MonoBehaviour
     AudioSource day, night;
     // How far each theme is faded in, from 0 to 1. What is heard is this times the music volume in the settings.
     float dayLevel, nightLevel;
+    readonly System.Collections.Generic.List<MusicEar> ears = new System.Collections.Generic.List<MusicEar>();
+    static Music playing;
+
+    // How loud the music is right now, and how loud its low notes are, as they would sound at full volume.
+    public static float Level { get { float sum = 0f; if (playing != null) foreach (MusicEar ear in playing.ears) sum += ear.Level; return sum; } }
+    public static float Bass { get { float sum = 0f; if (playing != null) foreach (MusicEar ear in playing.ears) sum += ear.Bass; return sum; } }
 
     public void Setup(DayNight dayNight)
     {
         this.dayNight = dayNight;
+        playing = this;
         day = MakeSource("Music/Planet 1 Day Theme");
         night = MakeSource("Music/Planet 1 Night Theme");
         // The game starts on whichever theme suits the time of day, which fades in as the title theme fades away.
@@ -29,7 +36,11 @@ public class Music : MonoBehaviour
     {
         var clip = Resources.Load<AudioClip>(path);
         if (clip == null) return null;
-        var source = gameObject.AddComponent<AudioSource>();
+        // Each theme plays from a holder of its own, with an ear listening to it.
+        var holder = new GameObject(clip.name);
+        holder.transform.SetParent(transform, false);
+        var source = holder.AddComponent<AudioSource>();
+        ears.Add(holder.AddComponent<MusicEar>());
         source.clip = clip;
         source.loop = true;
         source.playOnAwake = false;
@@ -53,7 +64,8 @@ public class Music : MonoBehaviour
         level = Mathf.MoveTowards(level, wanted ? 1f : 0f, Time.unscaledDeltaTime / FadeSeconds);
         if (wanted && !source.isPlaying) source.Play();
         else if (!wanted && level <= 0f && source.isPlaying) source.Stop();
-        source.volume = level * GameSettings.MusicVolume;
+        // The ear on it turns it down to the music volume in the settings, after listening to it.
+        source.volume = level;
         return level;
     }
 }
