@@ -7,9 +7,9 @@ using UnityEngine;
 //
 // Stepping onto either pole's ice cap, the ice cracks open a little way to one side of the player and the pillar
 // rises out of it, the view shaking as it comes up, seven times as tall as the player. Then the ball grows on its top
-// and cracks, and breaks into its ten shards, which hang where the ball was and shoot one at a time at where the
-// player is, two a second. Each that hits takes 5 health. A shadow on the ground right under each shard shows where it
-// is. Once they are all gone the ball grows again. Nothing is thrown from the pillar itself.
+// and cracks, and breaks into its ten shards, which spread out into a circle round where the ball was and shoot one
+// at a time at where the player is, two a second. Each that hits takes 5 health. A shadow on the ground right under
+// each shard shows where it is. Once they are all gone the ball grows again. Nothing is thrown from the pillar itself.
 //
 // It is beaten with 30 hits of the ice axe, from close by. It drops nothing yet. Once beaten, it does not come back to
 // that ice cap while the game is being played. It only acts in the top-down view, and not in the caves.
@@ -31,9 +31,10 @@ public class IceBoss : MonoBehaviour
     // before are the ball growing and cracking, played over this many seconds.
     const int BallFrame = 32, ShardCount = 10;
     const float BallSeconds = 5f;
-    // When the ball breaks its shards spread out this far round where it was, over this many seconds, and shoot at
-    // the player one after another, this many seconds apart: two a second.
-    const float ShardsSpread = 0.75f, SpreadSeconds = 0.25f, ShootEvery = 0.5f;
+    // When the ball breaks its shards spread out into a circle this wide (from its middle to each shard) round
+    // where the ball was, over this many seconds. The whole circle hangs there this long, and then they shoot at the
+    // player one after another, going round the circle, this many seconds apart: two a second.
+    const float ShardsSpread = 1.6f, SpreadSeconds = 0.3f, CircleHolds = 0.6f, ShootEvery = 0.5f;
     // How much a hit takes, how fast the shards fly (squares a second), and how far past the player they carry on
     // before they melt away.
     const float PieceDamage = 5f, PieceSpeed = 7f, FliesPast = 10f;
@@ -54,7 +55,7 @@ public class IceBoss : MonoBehaviour
         // Where it is over the ground, which way it flies, how high it is drawn above the ground, and how fast it
         // comes down; how far it has flown and has to fly; and, while it still hangs by the pillar, where it hangs,
         // its turn to shoot, and whether it has been shot yet.
-        public Vector2 Ground, Heading, Hangs;
+        public Vector2 Ground, Heading, Hangs, ShotFrom;
         public float Lift, Drop, Flown, Reach;
         public int Turn;
         public bool Shot;
@@ -287,7 +288,8 @@ public class IceBoss : MonoBehaviour
     void Place()
     {
         float risen = Risen;
-        float height = PlayerController.Height * TimesTaller;
+        // The health bar is over the top of the circle the shards hang in.
+        float height = ballOffset.y + ShardsSpread + 0.7f;
         body.transform.position = new Vector3(foot.x, foot.y + planet.TopAt(Mathf.FloorToInt(foot.x), Mathf.FloorToInt(foot.y)) * PlanetOne.HeightScale, 0f);
         ShowRising(risen);
         picture.color = Time.time < hurtUntil ? new Color(1f, 0.55f, 0.55f) : Color.white;
@@ -465,6 +467,7 @@ public class IceBoss : MonoBehaviour
         for (int i = flying.Count - 1; i >= 0; i--)
         {
             Piece piece = flying[i];
+            Vector2 was = piece.Ground;
             if (!piece.Shot)
             {
                 // Still hanging by the pillar: spreading out from where the ball was, until its turn comes, one every
@@ -472,9 +475,10 @@ public class IceBoss : MonoBehaviour
                 float spread = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Time.time - brokeAt) / SpreadSeconds));
                 piece.Ground = foot + new Vector2(piece.Hangs.x * spread, -0.05f);
                 piece.Lift = ballOffset.y + piece.Hangs.y * spread;
-                if (Time.time >= brokeAt + piece.Turn * ShootEvery)
+                if (Time.time >= brokeAt + CircleHolds + piece.Turn * ShootEvery)
                 {
                     piece.Shot = true;
+                    piece.ShotFrom = piece.Ground;
                     Vector2 toward = at - piece.Ground;
                     float distance = Mathf.Max(0.5f, toward.magnitude);
                     piece.Heading = toward / distance;
@@ -485,8 +489,9 @@ public class IceBoss : MonoBehaviour
             else
             {
                 float step = PieceSpeed * Time.deltaTime;
-                piece.Ground += piece.Heading * step;
                 piece.Flown += step;
+                // Worked out afresh from where it was shot, not added to bit by bit, so it cannot drift off its line.
+                piece.Ground = piece.ShotFrom + piece.Heading * piece.Flown;
                 piece.Lift = Mathf.Max(PieceEndsAt, piece.Lift - piece.Drop * Time.deltaTime);
             }
             // Drawn as high above its shadow as it is above the ground.
@@ -494,7 +499,8 @@ public class IceBoss : MonoBehaviour
             piece.Shadow.transform.position = new Vector3(piece.Ground.x, piece.Ground.y, 0f);
             if (!piece.Shot) continue;
 
-            bool hits = Vector2.Distance(piece.Ground, at) < HitsWithin && player.FeetHeight < PieceEndsAt + 0.6f;
+            // Anywhere along the way it came this frame, so a slow frame cannot carry it past the player unhurt.
+            bool hits = DistanceToSegment(at, was, piece.Ground) < HitsWithin && player.FeetHeight < PieceEndsAt + 0.6f;
             if (hits) health.Hurt(PieceDamage);
             if (hits || piece.Flown > piece.Reach)
             {
