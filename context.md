@@ -539,3 +539,11 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"if the fern is growing on algae, there is no snow on it."** (2026-10-16): a fern growing on the algae is now drawn without the snow at its foot: his fern picture with its snow (the pale white and grey-blue pixels) taken out, everything else unchanged, including its little shadow. Ferns on snow and ice still have their snow.
 
 - **"Also make nonlined algae blocks in rows of 1-3 between lined algae blocks."** (2026-10-16): the algae is now in bands: a row of his lined blocks, then **1 to 3 rows of plain algae** (his algae colour with no lines; how many is picked at random each time, the same every time for a world), then a lined row again, and so on. The light in the lines and the flashes on the drum booms are only on the lined rows.
+
+- **"you can make these out of 20 algae clumps, 15 thorns, and 2 thornam vines."** (2026-10-16), with his picture of a shoe of algae with thorns under it. His picks: called **"thornam cleats"**; they give "no slipping on ice and run at 6 instead of 4"; worn in "a boots slot in the inventory". As built:
+  - His picture is in the game unchanged as `Assets/Resources/Art/ThornamCleats.png`, drawn sharp.
+  - The ship workbench has a third recipe: **20 algae clumps, 15 thorns and 2 thornam vines** make thornam cleats, which go among the player's items. (The workbench lists all three side by side.)
+  - The items panel (Tab) has a **boots slot** on its left. Drag the cleats into it to put them on; drag them out to take them off. Boots cannot go on the hotbar, and only boots go in the boots slot.
+  - Wearing them: **no sliding on ice** (start, turn and stop instantly, as on snow), and the player moves **1.5 times as fast**: 6 instead of 4 (on snow, which is a little slower, about 5.4 instead of 3.6). In both views.
+  - What is worn is kept in saved games (save files are now version 4; older saves still load).
+  - Tested: 1 second on snow went 3.5 squares without them and 5.2 with them; on ice, a moment after starting the player was at 1.1 without them (still sliding up to speed) and 7.2 with them (full speed at once).

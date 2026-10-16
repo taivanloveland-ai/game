@@ -20,6 +20,12 @@ public class PlayerController : MonoBehaviour
     // How quickly the player can change speed on ice, in units per second each second. Lower is more slippery.
     // Made a bit more slippery on 2026-10-11 (it was 12).
     public float iceGrip = 8f;
+    // True while the player is wearing thornam cleats: their thorns grip the ice, so there is no sliding on it, and
+    // the player runs this many times as fast (6 squares a second instead of 4).
+    public System.Func<bool> WearingCleats;
+    public const float CleatsSpeedTimes = 1.5f;
+    bool Cleats => WearingCleats != null && WearingCleats();
+    float Pace => Cleats ? speed * CleatsSpeedTimes : speed;
     // On ice the player slides a little faster than full speed. 1 would be no faster.
     public float iceSpeedFactor = 1.2f;
     // The ocean round the South Pole is too cold to swim in: the player sinks through the water, this many blocks a
@@ -169,8 +175,8 @@ public class PlayerController : MonoBehaviour
         Vector2 feetAt = new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f);
         bool onIce = grounded && planet.IsIce(feetAt);
         InWater = planet.WaterAt(Mathf.FloorToInt(feetAt.x), Mathf.FloorToInt(feetAt.y), Mathf.FloorToInt(altitude + 0.4f));
-        Vector2 wanted = move * (InWater ? speed * waterSpeedFactor : onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
-        velocity = onIce ? Vector2.MoveTowards(velocity, wanted, iceGrip * dt) : wanted;
+        Vector2 wanted = move * (InWater ? Pace * waterSpeedFactor : onIce ? Pace * iceSpeedFactor : Pace * snowSpeedFactor);
+        velocity = onIce && !Cleats ? Vector2.MoveTowards(velocity, wanted, iceGrip * dt) : wanted;
 
         if (jumpQueued && grounded && !InWater)
         {
@@ -299,10 +305,10 @@ public class PlayerController : MonoBehaviour
         bool onIce = grounded && planet.IsIce(GroundPosition);
         Vector2 at = GroundPosition;
         InWater = planet.WaterAt(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), Mathf.FloorToInt(FeetHeight + 0.4f));
-        float wanted = move.x * (InWater ? speed * waterSpeedFactor : onIce ? speed * iceSpeedFactor : speed * snowSpeedFactor);
+        float wanted = move.x * (InWater ? Pace * waterSpeedFactor : onIce ? Pace * iceSpeedFactor : Pace * snowSpeedFactor);
 
         Vector2 v = body.linearVelocity;
-        v.x = onIce ? Mathf.MoveTowards(v.x, wanted, iceGrip * Time.fixedDeltaTime) : wanted;
+        v.x = onIce && !Cleats ? Mathf.MoveTowards(v.x, wanted, iceGrip * Time.fixedDeltaTime) : wanted;
         if (jumpQueued && grounded && !InWater) v.y = JumpSpeed();
         if (InWater) v.y = Mathf.Max(v.y, -sinkSpeed);
         body.linearVelocity = v;
