@@ -16,6 +16,8 @@ public class Gatherables : MonoBehaviour
     const double ClumpDensity = 0.012;
     // A clump of algae is painted this many pixels wide and tall, 16 to a block.
     const int ClumpWide = 18, ClumpTall = 12;
+    // Taivan's picture of a clump is drawn this many of its pixels to a square, the same as his snow and ice blocks.
+    const float ClumpPicturePixelsPerUnit = 32f;
     // Across the whole planet there are this many ice shards for every this many ferns.
     const int FernsPerSet = 8, ShardsPerSet = 5;
     // There is one thornam bush for every this many ferns. Bushes only grow on snow that is right next to ice.
@@ -288,6 +290,8 @@ public class Gatherables : MonoBehaviour
         ShardItem = shard.Item;
 
         Kind clump = MakeKind("Algae clump", ClumpWide, ClumpTall, 16f, false, ClumpPixel);
+        // Taivan's picture of a clump replaces the one drawn here, at the same size as his ground blocks.
+        UsePicture(clump, "Art/AlgaeClump", ClumpPicturePixelsPerUnit);
         // A soft shadow beside it helps it show against the ground.
         clump.Shadow = true;
         ClumpItem = clump.Item;
@@ -703,6 +707,40 @@ public class Gatherables : MonoBehaviour
     // Makes a kind of thing from a small picture. The pivot is at its foot. For raised ground, empty space is added
     // underneath so it is drawn that much higher while still being sorted by where it actually stands.
     // Fine is for pictures painted at the snow picture's scale, which are shown smaller than they are painted.
+    // Gives a kind of thing Taivan's picture of it, unchanged and drawn sharp, standing on its lowest row, on the ground
+    // and in the inventory. Nothing changes if there is no picture of that name.
+    static void UsePicture(Kind kind, string path, float pixelsPerUnit)
+    {
+        var picture = Resources.Load<Texture2D>(path);
+        if (picture == null) return;
+        Color32[] pixels = PlanetOne.ReadPixels(picture);
+        var texture = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        // The rows and columns with anything in them.
+        int left = picture.width, right = -1, lowest = picture.height, highest = -1;
+        for (int y = 0; y < picture.height; y++)
+        {
+            for (int x = 0; x < picture.width; x++)
+            {
+                if (pixels[y * picture.width + x].a == 0) continue;
+                left = Mathf.Min(left, x); right = Mathf.Max(right, x);
+                lowest = Mathf.Min(lowest, y); highest = Mathf.Max(highest, y);
+            }
+        }
+        if (right < 0) return;
+        var whole = new Rect(0, 0, picture.width, picture.height);
+        for (int level = 0; level < kind.Sprites.Length; level++)
+        {
+            // Dropping the pivot below its foot draws it higher, for raised ground.
+            float footUp = (lowest - level * PlanetOne.HeightScale * pixelsPerUnit) / picture.height;
+            kind.Sprites[level] = Sprite.Create(texture, whole, new Vector2((left + right + 1) / 2f / picture.width, footUp), pixelsPerUnit);
+        }
+        kind.Item = new Item(kind.Item.Name, kind.Sprites[0]);
+        kind.Width = (right - left + 1) / pixelsPerUnit;
+        kind.Height = (highest - lowest + 1) / pixelsPerUnit;
+    }
+
     static Kind MakeKind(string name, int pixelsWide, int pixelsTall, float pixelsPerUnit, bool fine, System.Func<int, int, Color32> paint)
     {
         var sprites = new Sprite[2];
