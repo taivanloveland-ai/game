@@ -507,6 +507,7 @@ public class PlanetOne : MonoBehaviour
         // The crafting nook is set into the middle of the ship's front.
         var nook = gameObject.AddComponent<CraftingNook>();
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
+        controller.WearingCleats = () => inventory.Boots != null && inventory.Boots == nook.Cleats;
         // Creative mode starts with both tools and blocks that never run out.
         if (startWithPickaxe || creative) inventory.AddTool(nook.Pickaxe);
         if (creative) inventory.AddTool(nook.Axe);

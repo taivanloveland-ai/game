@@ -2,7 +2,8 @@ using UnityEngine;
 
 // A little nook in the side of the crashed ship, with a hammer and a wrench hanging in it. Right clicking it walks
 // the player over and opens a small crafting menu. It makes two tools: 8 ferns and 5 ice shards make an ice pickaxe,
-// and 15 ferns and 10 ice shards make an ice axe.
+// and 15 ferns and 10 ice shards make an ice axe. And 20 algae clumps, 15 thorns and 2 thornam vines make thornam
+// cleats, worn in the boots slot.
 // The nook is on the ship's front, so it is used from the top-down view.
 public class CraftingNook : MonoBehaviour
 {
@@ -10,6 +11,8 @@ public class CraftingNook : MonoBehaviour
     const int ShardsNeeded = 5;
     // The ice axe takes 15 ferns and 10 ice shards.
     const int AxeFernsNeeded = 15, AxeShardsNeeded = 10;
+    // Thornam cleats take 20 algae clumps, 15 thorns and 2 thornam vines.
+    const int CleatsClumpsNeeded = 20, CleatsThornsNeeded = 15, CleatsVinesNeeded = 2;
     // The player has to be within a block of the nook to use it.
     const float Reach = 1.6f;
     // The walk to the nook is given up if the player stops making progress for this long.
@@ -48,12 +51,15 @@ public class CraftingNook : MonoBehaviour
     public bool Open { get; private set; }
     public Item Pickaxe { get; private set; }
     public Item Axe { get; private set; }
+    // Thornam cleats: boots with thorns on their soles (Taivan's picture, Art/ThornamCleats).
+    public Item Cleats { get; private set; }
 
     // Something the workbench can make, what it takes, and a few words on what it is for.
     class Recipe
     {
         public Item Tool;
-        public int Ferns, Shards;
+        // What it takes: each thing, and how many of it.
+        public (Item Item, int Count)[] Needs;
         public string Use;
     }
 
@@ -90,10 +96,12 @@ public class CraftingNook : MonoBehaviour
         Sprite[] drawn = ToolPictures();
         Pickaxe = new Item("Ice pickaxe", drawn != null ? drawn[0] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => PickaxePixel(x, y)));
         Axe = new Item("Ice axe", drawn != null ? drawn[1] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => AxePixel(x, y)));
+        Cleats = new Item("Thornam cleats", Picture("Art/ThornamCleats") ?? Pickaxe.Icon) { Boots = true };
         recipes = new[]
         {
-            new Recipe { Tool = Pickaxe, Ferns = FernsNeeded, Shards = ShardsNeeded, Use = "for mining" },
-            new Recipe { Tool = Axe, Ferns = AxeFernsNeeded, Shards = AxeShardsNeeded, Use = "for spiders and bushes" },
+            new Recipe { Tool = Pickaxe, Needs = new[] { (gatherables.PlantItem, FernsNeeded), (gatherables.ShardItem, ShardsNeeded) }, Use = "for mining" },
+            new Recipe { Tool = Axe, Needs = new[] { (gatherables.PlantItem, AxeFernsNeeded), (gatherables.ShardItem, AxeShardsNeeded) }, Use = "for spiders and bushes" },
+            new Recipe { Tool = Cleats, Needs = new[] { (gatherables.ClumpItem, CleatsClumpsNeeded), (gatherables.ThornItem, CleatsThornsNeeded), (gatherables.VineItem, CleatsVinesNeeded) }, Use = "worn: grip on ice, run faster" },
         };
 
         // The picture sits on the ship's front face, which is drawn one square up from the ground in front of it.
@@ -117,6 +125,17 @@ public class CraftingNook : MonoBehaviour
             case 'W': return WrenchMetal;
             default: return Recess;
         }
+    }
+
+    // One of Taivan's pictures, unchanged and drawn sharp, as an item's picture. Null if it is missing.
+    static Sprite Picture(string path)
+    {
+        var picture = Resources.Load<Texture2D>(path);
+        if (picture == null) return null;
+        var texture = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        texture.SetPixels32(PlanetOne.ReadPixels(picture));
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, picture.width, picture.height), new Vector2(0.5f, 0.5f), picture.height);
     }
 
     // Taivan's picture of the ice pickaxe (left) and the ice axe (right), side by side in Art/IceTools, cut into one
@@ -305,24 +324,30 @@ public class CraftingNook : MonoBehaviour
     // True if the player has what a recipe needs.
     bool CanMake(Recipe recipe)
     {
-        return inventory.CountOf(gatherables.PlantItem) >= recipe.Ferns && inventory.CountOf(gatherables.ShardItem) >= recipe.Shards;
+        foreach ((Item item, int count) in recipe.Needs)
+        {
+            if (inventory.CountOf(item) < count) return false;
+        }
+        return true;
     }
 
-    // Uses up the ferns and shards and adds the tool to the hotbar. Returns false if there are not enough.
+    // Uses up what a recipe takes and gives the player what it makes: a tool goes on the hotbar, anything else among
+    // their items. Returns false if there is not enough.
     bool Make(Recipe recipe)
     {
         if (!CanMake(recipe)) return false;
-        inventory.Remove(gatherables.PlantItem, recipe.Ferns);
-        inventory.Remove(gatherables.ShardItem, recipe.Shards);
-        inventory.AddTool(recipe.Tool);
-        hud.Say("Crafted an " + recipe.Tool.Name.ToLower());
+        foreach ((Item item, int count) in recipe.Needs) inventory.Remove(item, count);
+        bool tool = recipe.Tool != Cleats;
+        if (tool) inventory.AddTool(recipe.Tool);
+        else inventory.Add(recipe.Tool);
+        hud.Say((tool ? "Crafted an " : "Crafted ") + recipe.Tool.Name.ToLower() + (recipe.Tool.Boots ? ". Put them on in the boots slot [Tab]" : ""), recipe.Tool.Boots ? 3f : 1.2f);
         return true;
     }
 
     public bool CanCraft => CanMake(recipes[0]);
     public bool CanCraftAxe => CanMake(recipes[1]);
 
-    // Makes an ice pickaxe, or an ice axe.
+    // Makes an ice pickaxe, an ice axe, or thornam cleats.
     public bool Craft()
     {
         return Make(recipes[0]);
@@ -331,6 +356,11 @@ public class CraftingNook : MonoBehaviour
     public bool CraftAxe()
     {
         return Make(recipes[1]);
+    }
+
+    public bool CraftCleats()
+    {
+        return Make(recipes[2]);
     }
 
     void OnGUI()
@@ -345,7 +375,11 @@ public class CraftingNook : MonoBehaviour
         }
 
         // One column for each thing that can be made, side by side.
-        const float column = 440f, height = 250f;
+        // As tall as the longest list of what something takes.
+        int rows = 0;
+        foreach (Recipe each in recipes) rows = Mathf.Max(rows, each.Needs.Length);
+        const float column = 400f;
+        float height = 112f + rows * 38f + 50f;
         float width = column * recipes.Length + 20f;
         var panel = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
         GUI.Box(panel, GUIContent.none);
@@ -360,11 +394,10 @@ public class CraftingNook : MonoBehaviour
             GUI.DrawTexture(new Rect(left + 16f, panel.y + 46f, 56f, 56f), recipe.Tool.Icon.texture, ScaleMode.ScaleToFit);
             GameText.Label(new Rect(left + 86f, panel.y + 46f, column - 96f, 56f), recipe.Tool.Name + "\n" + recipe.Use, lineStyle);
 
-            DrawNeed(new Rect(left + 16f, panel.y + 112f, column - 32f, 34f), gatherables.PlantItem, recipe.Ferns);
-            DrawNeed(new Rect(left + 16f, panel.y + 150f, column - 32f, 34f), gatherables.ShardItem, recipe.Shards);
+            for (int n = 0; n < recipe.Needs.Length; n++) DrawNeed(new Rect(left + 16f, panel.y + 112f + n * 38f, column - 32f, 34f), recipe.Needs[n].Item, recipe.Needs[n].Count);
 
             GUI.enabled = CanMake(recipe);
-            if (GameText.Button(new Rect(left + 70f, panel.y + 198f, column - 140f, 36f), "Craft")) Make(recipe);
+            if (GameText.Button(new Rect(left + 70f, panel.yMax - 46f, column - 140f, 36f), "Craft")) Make(recipe);
             GUI.enabled = true;
         }
     }

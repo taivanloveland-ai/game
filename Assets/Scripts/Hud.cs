@@ -19,7 +19,9 @@ public class Hud : MonoBehaviour
     float messageUntil;
     GUIStyle countStyle, smallCountStyle, nameStyle, itemNameStyle, titleStyle, messageStyle, itemLabelStyle;
 
-    // What is being dragged with the mouse, and the hotbar slot it was picked up from (-1 if it came from the items panel).
+    // What is being dragged with the mouse, and the hotbar slot it was picked up from (-1 if it came from the items
+    // panel, and FromBoots if it came off the player's feet).
+    const int FromBoots = -2;
     Item dragged;
     int draggedFrom;
 
@@ -71,6 +73,13 @@ public class Hud : MonoBehaviour
         return new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
     }
 
+    // The boots slot, beside the items panel on its left: what the player wears on their feet.
+    Rect BootsSlot()
+    {
+        Rect panel = ItemsRect();
+        return new Rect(panel.x - Gap - ItemSlotSize, panel.y + 40f, ItemSlotSize, ItemSlotSize);
+    }
+
     Rect ItemSlot(int i)
     {
         Rect panel = ItemsRect();
@@ -87,7 +96,7 @@ public class Hud : MonoBehaviour
         if (dragged != null) return true;
         Vector2 pointer = GameInput.PointerPosition();
         pointer.y = Screen.height - pointer.y;
-        return HotbarRect().Contains(pointer) || (itemsOpen && ItemsRect().Contains(pointer));
+        return HotbarRect().Contains(pointer) || (itemsOpen && (ItemsRect().Contains(pointer) || BootsSlot().Contains(pointer)));
     }
 
     // The hotbar slot under a point on screen, or -1.
@@ -170,23 +179,39 @@ public class Hud : MonoBehaviour
                 dragged = inventory.Hotbar[slot];
                 draggedFrom = slot;
             }
+            if (itemsOpen && dragged == null && inventory.Boots != null && BootsSlot().Contains(e.mousePosition))
+            {
+                dragged = inventory.Boots;
+                draggedFrom = FromBoots;
+            }
             for (int i = 0; itemsOpen && dragged == null && i < inventory.Stacks.Count; i++)
             {
                 if (!ItemSlot(i).Contains(e.mousePosition)) continue;
-                if (inventory.Stacks[i].Item.Placeable)
+                if (inventory.Stacks[i].Item.Placeable || inventory.Stacks[i].Item.Boots)
                 {
                     dragged = inventory.Stacks[i].Item;
                     draggedFrom = -1;
                 }
                 else
                 {
-                    Say("Only blocks can go on the bar");
+                    Say("Only blocks can go on the bar, and boots in the boots slot");
                 }
             }
         }
         else if (e.type == EventType.MouseUp && e.button == 0 && dragged != null)
         {
             int slot = HotbarSlotAt(e.mousePosition);
+            bool onBoots = itemsOpen && BootsSlot().Contains(e.mousePosition);
+            // Boots go on and off the feet, and never on the hotbar.
+            if (dragged.Boots)
+            {
+                if (onBoots && draggedFrom != FromBoots) inventory.Wear(dragged);
+                else if (!onBoots && draggedFrom == FromBoots) inventory.TakeOffBoots();
+                if (slot >= 0) Say("Boots go in the boots slot");
+                dragged = null;
+                return;
+            }
+            if (onBoots) Say("Only boots go in the boots slot");
             if (slot >= 0 && draggedFrom >= 0) inventory.SwapSlots(draggedFrom, slot);
             else if (slot >= 0 && !inventory.SetSlot(slot, dragged)) Say("That slot holds a tool");
             else if (slot < 0 && draggedFrom >= 0) inventory.ClearSlot(draggedFrom);
@@ -215,6 +240,18 @@ public class Hud : MonoBehaviour
         GUI.Box(panel, GUIContent.none);
         GUI.Box(panel, GUIContent.none);
         GameText.Label(new Rect(panel.x, panel.y + 8f, panel.width, 26f), "Items", titleStyle);
+
+        // The boots slot, with what the player has on their feet.
+        Rect boots = BootsSlot();
+        GUI.Box(new Rect(boots.x - Gap, panel.y, boots.width + Gap * 2f, boots.height + 40f + Gap), GUIContent.none);
+        GameText.Label(new Rect(boots.x, panel.y + 8f, boots.width, 26f), "Boots", titleStyle);
+        GUI.Box(boots, GUIContent.none);
+        if (inventory.Boots != null && !(dragged == inventory.Boots && draggedFrom == FromBoots))
+        {
+            GUI.DrawTexture(new Rect(boots.x + 18f, boots.y + 30f, boots.width - 36f, boots.height - 40f), inventory.Boots.Icon.texture, ScaleMode.ScaleToFit);
+            GameText.Label(new Rect(boots.x + 3f, boots.y + 2f, boots.width - 6f, 36f), inventory.Boots.Name, itemLabelStyle);
+        }
+        else GameText.Label(new Rect(boots.x + 6f, boots.y + boots.height / 2f - 18f, boots.width - 12f, 36f), "Drag boots here", itemLabelStyle);
 
         if (count == 0)
         {

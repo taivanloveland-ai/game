@@ -13,8 +13,9 @@ public class SaveGame : MonoBehaviour
 {
     public const int Slots = 5;
     // Changed whenever the layout of the file changes. A file with another number is not read.
-    // (Version 1 had no name, and versions 1 and 2 had no day count; their saves can still be read.)
-    const int Version = 3;
+    // (Version 1 had no name, versions 1 and 2 had no day count, and versions 1 to 3 had no boots; their saves can
+    // still be read.)
+    const int Version = 4;
     // The longest name a save can be given.
     public const int LongestName = 18;
 
@@ -80,7 +81,7 @@ public class SaveGame : MonoBehaviour
         {
             nook.Pickaxe, nook.Axe, pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
             gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem, gatherables.StickItem,
-            spiders.SilkItem, spiders.LegItem, spiders.FangItem, planet.GetComponent<IceBoss>()?.OrbItem,
+            spiders.SilkItem, spiders.LegItem, spiders.FangItem, nook.Cleats, planet.GetComponent<IceBoss>()?.OrbItem,
         })
         {
             if (item != null) items[item.Name] = item;
@@ -190,6 +191,7 @@ public class SaveGame : MonoBehaviour
                 foreach (Item tool in inventory.Tools) w.Write(tool.Name);
                 foreach (Item held in inventory.Hotbar) w.Write(held != null ? held.Name : "");
                 w.Write(inventory.EquippedSlot);
+                w.Write(inventory.Boots != null ? inventory.Boots.Name : "");
 
                 planet.WriteChanges(w);
                 gatherables.Write(w);
@@ -238,6 +240,7 @@ public class SaveGame : MonoBehaviour
             }
             for (int i = 0; i < inventory.Hotbar.Length; i++) inventory.Hotbar[i] = Find(r.ReadString());
             inventory.EquippedSlot = r.ReadInt32();
+            inventory.Boots = loaded.Version >= 4 ? Find(r.ReadString()) : null;
 
             planet.ReadChanges(r);
             gatherables.Read(r);

@@ -10,6 +10,8 @@ public class Item
     public readonly PlanetOne.SideBlock Block;
 
     public bool Placeable => Block != PlanetOne.SideBlock.Air;
+    // True for things worn on the feet, in the boots slot.
+    public bool Boots;
 
     public Item(string name, Sprite icon, PlanetOne.SideBlock block = PlanetOne.SideBlock.Air)
     {
@@ -115,6 +117,25 @@ public class Inventory
         // With nothing equipped, the first step lands on the first slot going right, or the last going left.
         int from = EquippedSlot >= 0 ? EquippedSlot : steps > 0 ? -1 : 0;
         EquippedSlot = ((from + steps) % Hotbar.Length + Hotbar.Length) % Hotbar.Length;
+    }
+
+    // What the player is wearing on their feet, or null. Worn boots are not among the stacks above.
+    public Item Boots;
+
+    // Puts on a pair of boots the player is carrying, taking off any they had on.
+    public void Wear(Item boots)
+    {
+        if (!boots.Boots || !Remove(boots, 1)) return;
+        if (Boots != null && !Infinite) Add(Boots);
+        Boots = boots;
+    }
+
+    // Takes off the boots the player is wearing, back into what they carry.
+    public void TakeOffBoots()
+    {
+        if (Boots == null) return;
+        if (!Infinite) Add(Boots);
+        Boots = null;
     }
 
     // Creative mode: nothing the player has is ever used up.
