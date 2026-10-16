@@ -12,8 +12,9 @@ using UnityEngine;
 // Each that hits takes 4 to 8 health. A shadow on the ground right under each shard shows where it is. Once they are
 // all gone the ball grows again. Nothing is thrown from the pillar itself.
 //
-// It is beaten with 50 hits of the ice axe, from close by. It drops nothing yet. Once beaten, it does not come back to
-// that ice cap while the game is being played. It only acts in the top-down view, and not in the caves.
+// It is beaten with 100 hits of the ice axe, from close by. It shatters into 20 ice shards and leaves a magical orb
+// (Taivan's picture, Assets/Resources/Art/MagicalOrb). Once beaten, it does not come back to that ice cap while the
+// game is being played. It only acts in the top-down view, and not in the caves.
 public class IceBoss : MonoBehaviour
 {
     // It is this many times as tall as the player, the ball on its top included.
@@ -45,7 +46,8 @@ public class IceBoss : MonoBehaviour
     // down to this height above the ground, about the middle of the player.
     const float HitsWithin = 0.45f, PieceEndsAt = 0.45f;
     // How many hits of the ice axe it takes, how close the player must be, and how often they can swing.
-    const int Hits = 50;
+    // (50 until 2026-10-16, and 30 before that.)
+    const int Hits = 100;
     const float AxeReach = 4.5f, SwingSeconds = 0.45f;
     // If the player goes further than this away, it sinks back into the ice until they come again.
     const float LeavesBeyond = 70f;
@@ -55,6 +57,9 @@ public class IceBoss : MonoBehaviour
     const int RisesInside = 15;
     const float RisesInSnow = 0.05f;
     const int Order = 60;
+    // When it is beaten it drops this many ice shards, scattered within this many squares of its foot, and the orb.
+    const int ShardsDropped = 20;
+    const float ShardsScatter = 1.6f;
 
     class Piece
     {
@@ -78,6 +83,11 @@ public class IceBoss : MonoBehaviour
     Hud hud;
     Camera cam;
     Weather weather;
+    Pickups pickups;
+    Gatherables gatherables;
+
+    // The magical orb it leaves when beaten.
+    public Item OrbItem { get; private set; }
 
     // His frames: the pillar rising (the last one is the pillar all the way up), the ball, and the shards.
     Sprite[] risingFrames, ballFrames, shardSprites;
@@ -105,9 +115,12 @@ public class IceBoss : MonoBehaviour
     bool upNorth;
     bool beatenNorth, beatenSouth;
 
-    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Health health, Inventory inventory, CraftingNook nook, Hud hud, Camera cam, Sprite square, Weather weather)
+    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Health health, Inventory inventory, CraftingNook nook, Hud hud, Camera cam, Sprite square, Weather weather, Pickups pickups, Gatherables gatherables)
     {
         this.weather = weather;
+        this.pickups = pickups;
+        this.gatherables = gatherables;
+        OrbItem = MakeOrb();
         this.planet = planet;
         this.player = player;
         this.mining = mining;
@@ -167,6 +180,21 @@ public class IceBoss : MonoBehaviour
         for (int i = 0; i < ShardCount; i++) shardSprites[i] = Cut(ballPixels, balls.width, new RectInt((ballCount + i) * BallFrame, 0, BallFrame, BallFrame), new Vector2(0.5f, 0.5f));
         Debug.Log("Ice boss: " + risingCount + " rising frames of " + frameWide + " x " + frameTall + ", " + ballCount + " ball frames and " + ShardCount + " shards");
         return true;
+    }
+
+    // The magical orb, from Taivan's picture: one block across, drawn sharp, sitting on the ground at its lowest row.
+    static Item MakeOrb()
+    {
+        var picture = Resources.Load<Texture2D>("Art/MagicalOrb");
+        if (picture == null) return null;
+        Color32[] pixels = PlanetOne.ReadPixels(picture);
+        var texture = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        int lowest = 0;
+        while (lowest < picture.height - 1 && System.Array.FindIndex(pixels, lowest * picture.width, picture.width, c => c.a > 0) < 0) lowest++;
+        var sprite = Sprite.Create(texture, new Rect(0, 0, picture.width, picture.height), new Vector2(0.5f, lowest / (float)picture.height), picture.height);
+        return new Item("Magical orb", sprite);
     }
 
     // One frame cut out of a sheet, as its own sharp picture.
@@ -582,6 +610,9 @@ public class IceBoss : MonoBehaviour
         if (upNorth) beatenNorth = true;
         else beatenSouth = true;
         hud.Say("It shatters!", 3f);
+        // Its ice shards scatter round its foot, and the orb is left where it stood.
+        for (int i = 0; i < ShardsDropped && gatherables.ShardItem != null; i++) pickups.Drop(gatherables.ShardItem, foot + Random.insideUnitCircle * ShardsScatter);
+        if (OrbItem != null) pickups.Drop(OrbItem, foot);
         Sink();
     }
 
