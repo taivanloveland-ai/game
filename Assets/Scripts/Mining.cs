@@ -15,6 +15,7 @@ public class Mining : MonoBehaviour
     const float DropScale = 0.35f;
     // Pictures here are painted at the same fine scale as the snow picture.
     const int FinePixels = 128;
+    // How many stages of cracks are drawn in code, if Taivan's picture of them is missing.
     const int CrackStages = 4;
 
     static readonly Color32 Clear = new Color32(0, 0, 0, 0);
@@ -72,17 +73,56 @@ public class Mining : MonoBehaviour
         AlgaeItem = new Item("Algae", PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0.5f), 16, (x, y) => PlanetOne.AlgaePixel(0, x, y)), PlanetOne.SideBlock.Algae);
         StoneItem = new Item("Stone", PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, StonePixel), PlanetOne.SideBlock.Stone);
 
-        crackSprites = new Sprite[CrackStages];
-        for (int stage = 0; stage < CrackStages; stage++)
+        // Taivan's cracks, from the first little one to the biggest. Drawn in code if his picture is missing.
+        crackSprites = CrackPictures();
+        if (crackSprites == null)
         {
-            int lines = (stage + 1) * 2;
-            crackSprites[stage] = PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, (x, y) => CrackPixel(x, y, lines));
+            crackSprites = new Sprite[CrackStages];
+            for (int stage = 0; stage < CrackStages; stage++)
+            {
+                int lines = (stage + 1) * 2;
+                crackSprites[stage] = PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, (x, y) => CrackPixel(x, y, lines));
+            }
         }
         var go = new GameObject("Cracks");
         go.transform.SetParent(transform, false);
         cracks = go.AddComponent<SpriteRenderer>();
         cracks.sortingOrder = MiningMode.ObjectSortingOrder;
         cracks.enabled = false;
+    }
+
+    // Taivan's picture of the cracks in Art/BlockCracks: square frames side by side, smallest first, each cut out as
+    // its own sharp picture one block across, without changing a pixel. Null if the picture is missing.
+    static Sprite[] CrackPictures()
+    {
+        var sheet = Resources.Load<Texture2D>("Art/BlockCracks");
+        if (sheet == null) return null;
+        Color32[] pixels = PlanetOne.ReadPixels(sheet);
+        int size = sheet.height, count = sheet.width / size;
+        var frames = new Sprite[count];
+        for (int i = 0; i < count; i++)
+        {
+            var cut = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++) cut[y * size + x] = pixels[y * sheet.width + i * size + x];
+            }
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            texture.SetPixels32(cut);
+            texture.Apply();
+            frames[i] = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        }
+        return frames;
+    }
+
+    // Which stage of cracks shows after a number of hits on a block that breaks after `needed`: the first stage after
+    // the first hit and the last one just before it breaks, with the rest spread between. A block that breaks on its
+    // second hit shows the middle stage.
+    int CrackStage(int hits, int needed)
+    {
+        int last = crackSprites.Length - 1;
+        if (needed <= 2) return last / 2;
+        return Mathf.Clamp(Mathf.RoundToInt((hits - 1) * last / (float)(needed - 2)), 0, last);
     }
 
     // Plain stone with a few lighter and darker flecks.
@@ -190,7 +230,7 @@ public class Mining : MonoBehaviour
         int needed = HitsFor(block);
         if (hits < needed)
         {
-            cracks.sprite = crackSprites[Mathf.Clamp(Mathf.CeilToInt(hits * CrackStages / (float)needed) - 1, 0, CrackStages - 1)];
+            cracks.sprite = crackSprites[CrackStage(hits, needed)];
             return Result.Hit;
         }
 
