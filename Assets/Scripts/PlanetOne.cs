@@ -259,16 +259,16 @@ public class PlanetOne : MonoBehaviour
 
     // The algae comes alive with the music, day and night. The bright lines stay where he drew them, and light runs
     // along inside them, east, slowly while the music is quiet and faster when it is loud. On the big booms of the
-    // drums the whole algae flashes brighter. At night it glows as well. These are drawn on layers of their own over
-    // the night's dark, cut away wherever something nearer covers the algae (a rock or a raised block in front), and
-    // hidden behind the player and the things growing on it.
+    // drums all the lines flash bright. (Until 2026-10-16 the whole algae flashed, which he did not like.) At night it
+    // glows as well. These are drawn on layers of their own over the night's dark, cut away wherever something nearer
+    // covers the algae (a rock or a raised block in front), and hidden behind the player and the things growing on it.
     // How fast the light runs along the lines, in his pixels a second (32 to a square), when the music is quiet and
     // when it is loudest; how far apart the patches of light are along the lines, and how long each one is (from
     // its middle to where it fades out), in his pixels.
     const float LightRunsQuiet = 8f, LightRunsLoud = 64f, LightApart = 64f, LightHalfLength = 10f;
-    // How bright a boom makes the algae flash, and how fast that fades, in shares a second. A boom is the low notes
+    // How bright a boom makes the lines flash, and how fast that fades, in shares a second. A boom is the low notes
     // suddenly this many times as loud as they have been lately.
-    const float BoomFlash = 0.5f, BoomFade = 2.5f, BoomJump = 1.6f;
+    const float BoomFlash = 1f, BoomFade = 2.5f, BoomJump = 1.6f;
     // Squares this many rows nearer are looked at for anything covering a square of algae.
     const int CoverRows = 24;
     Tilemap algaeFlash, algaeLight;
@@ -938,7 +938,7 @@ public class PlanetOne : MonoBehaviour
         algaeGlow = MakeTilemap(grid, "Algae Glow", 101);
         algaeGlow.tileAnchor = terrain.tileAnchor;
         algaeGlow.color = new Color(1f, 1f, 1f, 0f);
-        // Its flash on the drums' booms, and the light running along its lines, over the glow.
+        // Its lines flashing on the drums' booms, and the light running along them, over the glow.
         algaeFlash = MakeTilemap(grid, "Algae Flash", 102);
         algaeFlash.tileAnchor = terrain.tileAnchor;
         algaeFlash.color = new Color(1f, 1f, 1f, 0f);
@@ -1001,8 +1001,8 @@ public class PlanetOne : MonoBehaviour
         return Mathf.Clamp(Mathf.CeilToInt(covered * algaeStripTall - 0.001f), 0, algaeStripTall);
     }
 
-    // One square of one of the algae's layers: kind 0 is its glow (his picture), 1 its flash (solid white), and 2 the
-    // light in its lines (white, as bright as the light is there). See-through below the covered rows, and at the
+    // One square of one of the algae's layers: kind 0 is its glow (his picture), 1 its flash (its lines, white), and
+    // 2 the light in its lines (white, as bright as the light is there). See-through below the covered rows, and at the
     // height of the square's top.
     Tile AlgaeLayerTile(int kind, int level, int look, int covered, int phase)
     {
@@ -1016,7 +1016,7 @@ public class PlanetOne : MonoBehaviour
             {
                 int along = look * size + x;
                 if (kind == 0) pixels[y * size + x] = algaePictures[look].Pixels[y * size + x];
-                else if (kind == 1) pixels[y * size + x] = new Color32(255, 255, 255, 255);
+                else if (kind == 1) { if (algaeLineMask[y * algaeStripWide + along]) pixels[y * size + x] = new Color32(255, 255, 255, 255); }
                 else if (algaeLineMask[y * algaeStripWide + along])
                 {
                     // The patches of light along the lines, each brightest in its middle.
@@ -1052,7 +1052,7 @@ public class PlanetOne : MonoBehaviour
         int covered = AlgaeCovered(cell.x, cell.y, level), look = AlgaeLookAt(cell.x, cell.y);
         algaeTops[cell] = new Vector2Int(level, covered);
         algaeGlow.SetTile(at, AlgaeLayerTile(0, level, look, covered, 0));
-        algaeFlash.SetTile(at, AlgaeLayerTile(1, level, 0, covered, 0));
+        algaeFlash.SetTile(at, AlgaeLayerTile(1, level, look, covered, 0));
         algaeLight.SetTile(at, AlgaeLayerTile(2, level, look, covered, lightShown));
     }
 
@@ -1106,7 +1106,7 @@ public class PlanetOne : MonoBehaviour
             algaeLight.SetTiles(cells, tiles);
         }
         bool outside = !InCave;
-        algaeFlash.color = new Color(0.86f, 1f, 0.96f, outside ? boom * BoomFlash : 0f);
+        algaeFlash.color = new Color(0.92f, 1f, 0.98f, outside ? boom * BoomFlash : 0f);
         algaeLight.color = new Color(1f, 1f, 1f, outside ? 0.85f : 0f);
     }
 
