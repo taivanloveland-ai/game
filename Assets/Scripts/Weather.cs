@@ -6,12 +6,17 @@ using UnityEngine;
 // during the day, and drifts across the planet in a straight line in a direction picked at random, on a path that
 // passes near where the player is. The cloud itself is never seen: only what falls from it, on whoever is under it.
 //
-// Snow only changes how things look. Hail hurts: every hit takes 1 to 5 health, one hit after another, unless the
+// And every fourth day (the 4th, the 8th, and so on) is a snow day: snow falls over the whole planet, all day and all
+// night, from one sunrise to the next.
+//
+// Snow only changes how things look (and brings the ice boss up out of the polar ice). Hail hurts: every hit takes 1 to 5 health, one hit after another, unless the
 // player has a block over their head. There is no weather in the caves.
 public class Weather : MonoBehaviour
 {
     // The chance each day of a cloud of snow, and of a cloud of hail.
     const float SnowChance = 0.5f, HailChance = 0.1f;
+    // Every this many days is a snow day.
+    const int SnowDayEvery = 4;
     // A cloud is this many squares from its middle to its edge (the algae biome is about the same), and what falls
     // from it thins out over this many squares at the edge.
     const float CloudRadius = 280f, CloudEdge = 50f;
@@ -61,6 +66,7 @@ public class Weather : MonoBehaviour
     float lastTime;
     float nextHailAt;
     bool warned;
+    int lastDay;
 
     // Set from creative mode's panel: snow or hail falls on the player wherever they are, cloud or no cloud.
     public bool ForceSnow, ForceHail;
@@ -98,6 +104,7 @@ public class Weather : MonoBehaviour
         }
 
         lastTime = dayNight.time;
+        lastDay = dayNight.Day;
         RollTheDay(dayNight.time);
     }
 
@@ -121,10 +128,14 @@ public class Weather : MonoBehaviour
         return new Falling { At = picture.transform, Picture = picture, Place = new Vector2(Random.Range(-20f, 20f), Random.Range(-12f, 12f)), Speed = speed, Sideways = sideways };
     }
 
+    // Whether today is a snow day, with snow over the whole planet.
+    public bool SnowDay => dayNight.Day % SnowDayEvery == 0;
+
     // Decides the day's weather. From is the time of day now: a cloud comes some time after that.
     void RollTheDay(float from)
     {
-        if (Random.value < SnowChance) clouds.Add(new Cloud { Hail = false, ComesAt = Random.Range(from, Mathf.Max(from, ComesWithin)) });
+        // On a snow day it is snowing everywhere anyway.
+        if (!SnowDay && Random.value < SnowChance) clouds.Add(new Cloud { Hail = false, ComesAt = Random.Range(from, Mathf.Max(from, ComesWithin)) });
         if (Random.value < HailChance) clouds.Add(new Cloud { Hail = true, ComesAt = Random.Range(from, Mathf.Max(from, ComesWithin)) });
     }
 
@@ -160,6 +171,12 @@ public class Weather : MonoBehaviour
             RollTheDay(0f);
         }
         lastTime = time;
+        // A snow day has begun (or a saved game was loaded on one).
+        if (dayNight.Day != lastDay)
+        {
+            lastDay = dayNight.Day;
+            if (SnowDay) hud.Say("Snow is falling over the whole planet today.", 5f);
+        }
 
         float snow = 0f, hail = 0f;
         Vector2 at = player.GroundPosition;
@@ -185,6 +202,7 @@ public class Weather : MonoBehaviour
             if (cloud.Hail) hail = Mathf.Max(hail, strength);
             else snow = Mathf.Max(snow, strength);
         }
+        if (SnowDay) snow = 1f;
         // Nothing falls in a cave.
         // In creative mode snow and hail can be turned on by hand, wherever the player is.
         if (ForceSnow) snow = 1f;

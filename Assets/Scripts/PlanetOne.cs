@@ -501,7 +501,7 @@ public class PlanetOne : MonoBehaviour
         var weather = gameObject.AddComponent<Weather>();
         weather.Setup(this, controller, cam, dayNight, health, hud, Square);
         // The ice boss, which rises on the polar ice caps.
-        gameObject.AddComponent<IceBoss>().Setup(this, controller, mining, health, inventory, nook, hud, cam, Square);
+        gameObject.AddComponent<IceBoss>().Setup(this, controller, mining, health, inventory, nook, hud, cam, Square, weather);
         // Creative mode also has a panel for the player's speed, the weather and the time of day.
         if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller, weather, dayNight);
 

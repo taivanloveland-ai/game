@@ -11,6 +11,9 @@ public class DayNight : MonoBehaviour
     public float cycleSeconds = 1440f;
     // Where we are in the cycle: 0 is sunrise, 0.5 is sunset, and 1 is the next sunrise.
     [Range(0f, 1f)] public float time = 0.1f;
+    // Which day it is: the first day is 1, and each sunrise starts the next. (Creative mode's day and night button
+    // jumps within the same day.)
+    [System.NonSerialized] public int Day = 1;
 
     const int Pixels = 16;
     // The black hole is painted with this many pixels to a block, and shown with hard-edged pixels: chunky enough
@@ -93,7 +96,9 @@ public class DayNight : MonoBehaviour
 
     void Update()
     {
+        float before = time;
         time = Mathf.Repeat(time + Time.deltaTime / cycleSeconds, 1f);
+        if (time < before) Day++;
         Refresh();
     }
 
