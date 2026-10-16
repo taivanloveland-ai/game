@@ -481,3 +481,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - Nothing shoots from the pillar itself any more; the old six pieces are gone. His old picture `IceBoss.png` is no longer used but is still in the Art folder.
   - Still 30 ice-axe hits to beat it, with a health bar. Standing still, all 10 shards hit: 50 health.
   - Pictures wider than 2048 pixels used to be shrunk by Unity when loaded, which spoiled the frames; art dropped into the Art folder is now kept at full size (up to 8192).
+
+- **"redo the snow sprites with these"** (2026-10-15): he sent one 96 x 32 sheet of three new snow tiles side by side. It was cut into its three 32 x 32 tiles, pixel for pixel, which replace the snow pictures from earlier today as `SnowBlock.png`, `SnowBlock2.png` and `SnowBlock3.png` (left to right).
