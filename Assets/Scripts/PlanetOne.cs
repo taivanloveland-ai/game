@@ -989,6 +989,32 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < algaeStripWide; x++) algaeLineMask[y * algaeStripWide + x] = !pixels[y * sheetWide + x].Equals(algae);
         }
+        // And plain algae, without lines, kept after his blocks, for the rows between the lined ones.
+        var plain = new Texture2D(algaeStripTall, algaeStripTall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var fill = new Color32[algaeStripTall * algaeStripTall];
+        for (int i = 0; i < fill.Length; i++) fill[i] = algae;
+        plain.SetPixels32(fill);
+        plain.Apply();
+        System.Array.Resize(ref algaePictures, algaeLooks + 1);
+        algaePictures[algaeLooks] = LoadBlockPicture(plain);
+    }
+
+    // Whether each row of the planet has lines in its algae: a lined row, then one to three plain rows (how many is
+    // picked at random), then a lined row again, and so on. Worked out for each world the first time it is needed.
+    bool[] linedRows;
+    int linedRowsSeed;
+    const int PlainRowsFrom = 1, PlainRowsTo = 3;
+
+    bool RowIsLined(int y)
+    {
+        if (linedRows == null || linedRows.Length != height || linedRowsSeed != variantSeed)
+        {
+            linedRows = new bool[height];
+            linedRowsSeed = variantSeed;
+            var rand = new System.Random(variantSeed + 5303);
+            for (int row = 0; row < height; row += 1 + rand.Next(PlainRowsFrom, PlainRowsTo + 1)) linedRows[row] = true;
+        }
+        return linedRows[((y % height) + height) % height];
     }
 
     // How many of his pixels up from the bottom of a square of algae something nearer covers it: a rock, a cliff or a
@@ -1015,6 +1041,8 @@ public class PlanetOne : MonoBehaviour
             {
                 int along = look * size + x;
                 if (kind == 0) pixels[y * size + x] = algaePictures[look].Pixels[y * size + x];
+                // Plain algae has no lines to flash or light.
+                else if (look >= algaeLooks) continue;
                 else if (kind == 1) { if (algaeLineMask[y * algaeStripWide + along]) pixels[y * size + x] = new Color32(255, 255, 255, 255); }
                 else if (algaeLineMask[y * algaeStripWide + along])
                 {
@@ -1536,6 +1564,8 @@ public class PlanetOne : MonoBehaviour
     public int AlgaeLookAt(int x, int y)
     {
         if (algaePictures == null) return 0;
+        // Plain algae, without lines, on the rows between the lined ones.
+        if (!RowIsLined(y)) return algaeLooks;
         int start = (int)(HashAt(0, y, variantSeed + 4241) * algaeLooks);
         return ((x + start) % algaeLooks + algaeLooks) % algaeLooks;
     }
