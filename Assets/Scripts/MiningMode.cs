@@ -601,7 +601,7 @@ public class MiningMode : MonoBehaviour
         // And algae: Taivan's algae blocks, in order along the row or column.
         if (block == PlanetOne.SideBlock.Algae && planet.AlgaeLookSprite(0) != null)
         {
-            int look = planet.AlgaeLookAt(x);
+            int look = planet.AlgaeLookAt(x, worldRow);
             picture = planet.AlgaeLookSprite(look);
             iceLook = look + 1;
         }
