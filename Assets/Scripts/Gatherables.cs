@@ -122,6 +122,8 @@ public class Gatherables : MonoBehaviour
         public Item Item;
         // One sprite per ground height: on raised ground the picture is drawn higher above the same spot.
         public Sprite[] Sprites;
+        // Sprites for when it grows on the algae, if it looks different there; otherwise the ones above.
+        public Sprite[] AlgaeSprites;
         public float Width, Height;
         // What comes loose when it is collected, and how many of each. Left empty, it is one of the item above.
         public Item[] Drops;
@@ -255,6 +257,19 @@ public class Gatherables : MonoBehaviour
                 var pivot = new Vector2(FernFootAcross, FernFootUp - level * PlanetOne.HeightScale / PlantHeight);
                 plant.Sprites[level] = Sprite.Create(fernPicture, whole, pivot, pixelsPerUnit);
             }
+            // On the algae it grows without the snow at its foot: his picture with the snow taken out (its pale white and
+            // grey-blue), and nothing else changed.
+            Color32[] fernPixels = PlanetOne.ReadPixels(fernPicture);
+            for (int i = 0; i < fernPixels.Length; i++)
+            {
+                Color32 c = fernPixels[i];
+                if (c.a == 255 && !IsFernGreen(c)) fernPixels[i] = Clear;
+            }
+            var noSnow = new Texture2D(fernPicture.width, fernPicture.height, TextureFormat.RGBA32, false) { filterMode = fernPicture.filterMode, wrapMode = TextureWrapMode.Clamp };
+            noSnow.SetPixels32(fernPixels);
+            noSnow.Apply();
+            plant.AlgaeSprites = new Sprite[plant.Sprites.Length];
+            for (int level = 0; level < plant.Sprites.Length; level++) plant.AlgaeSprites[level] = Sprite.Create(noSnow, whole, plant.Sprites[level].pivot / new Vector2(fernPicture.width, fernPicture.height), pixelsPerUnit);
             plant.Item = new Item(plant.Item.Name, BigFiddlehead(fernPicture, pixelsPerUnit) ?? plant.Sprites[0]);
             plant.Width = fernPicture.width / pixelsPerUnit;
         }
@@ -766,7 +781,7 @@ public class Gatherables : MonoBehaviour
         go.transform.SetParent(planet.TopDownRoot, false);
         go.transform.position = Foot(cell);
         var renderer = go.AddComponent<SpriteRenderer>();
-        renderer.sprite = kind.Sprites[planet.GroundAt(cell.x, cell.y)];
+        renderer.sprite = (kind.AlgaeSprites != null && planet.IsAlgae(cell.x, cell.y) ? kind.AlgaeSprites : kind.Sprites)[planet.GroundAt(cell.x, cell.y)];
         // Sorted by its foot, so the player walks in front of or behind it correctly.
         renderer.spriteSortPoint = SpriteSortPoint.Pivot;
         // On the algae it hides the algae's glow and light, which are drawn over the dark of night, so they are not
