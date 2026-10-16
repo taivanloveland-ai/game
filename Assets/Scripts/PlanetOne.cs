@@ -248,6 +248,9 @@ public class PlanetOne : MonoBehaviour
     // share the rest.
     int blankIce = -1;
     const float BlankIceShare = 0.6f;
+    // Taivan's algae blocks, null if there are none. Their bright lines run on from one into the next, so they are laid
+    // in order going east, first to last and round again, and the lines flow unbroken across the algae.
+    BlockPicture[] algaePictures;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -315,6 +318,7 @@ public class PlanetOne : MonoBehaviour
         icePicture = LoadBlockPicture("Art/IceBlock");
         icePictures = LoadBlockPictures("Art/IceBlocks");
         if (icePictures != null) icePicture = icePictures[0];
+        algaePictures = LoadBlockPictures("Art/AlgaeBlocks");
         for (int i = 0; icePictures != null && i < icePictures.Length && blankIce < 0; i++)
         {
             if (System.Array.TrueForAll(icePictures[i].Pixels, c => c.Equals(icePictures[i].Pixels[0]))) blankIce = i;
@@ -1102,6 +1106,7 @@ public class PlanetOne : MonoBehaviour
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(HashAt(x, y, variantSeed) * looks) : 0;
         if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
         if (material == Ice && icePictures != null) variant = IceLookAt(x, y, level - 1);
+        if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1188,7 +1193,7 @@ public class PlanetOne : MonoBehaviour
         // are drawn in between the two. They show on the ice and nowhere else, since no other ground is see-through.
         int drawnTop = DrawnTopAt(cell.x, cell.y);
         byte surface = MaterialOf(SideBlockAt(cell.x, cell.y, drawnTop - 1));
-        algaeGlow.SetTile((Vector3Int)cell, surface == Algae ? TerrainTile(Algae, Mathf.Clamp(drawnTop, 0, 1), drawnTop, 0, 0, 0) : null);
+        algaeGlow.SetTile((Vector3Int)cell, surface == Algae ? TerrainTile(Algae, Mathf.Clamp(drawnTop, 0, 1), drawnTop, 0, 0, AlgaeLookAt(cell.x)) : null);
         bool ice = surface == Ice;
         terrain.SetTile((Vector3Int)cell, TileAt(cell.x, cell.y, ice));
         // The ocean is see-through too, with its stone bed drawn beneath it.
@@ -1212,7 +1217,7 @@ public class PlanetOne : MonoBehaviour
 
         // Snow has three looks, picked square by square: Taivan's three snow pictures.
         // So has ice: Taivan's ice blocks.
-        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : PictureFor(material);
+        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : material == Algae && algaePictures != null ? algaePictures[variant] : PictureFor(material);
         bool pictured = picture != null;
         Color32 topColor, rimColor;
         switch (material)
@@ -1318,6 +1323,18 @@ public class PlanetOne : MonoBehaviour
         // One of the others, skipping over the plain one.
         int other = Mathf.Min(icePictures.Length - 2, (int)((roll - BlankIceShare) / (1f - BlankIceShare) * (icePictures.Length - 1)));
         return other >= blankIce ? other + 1 : other;
+    }
+
+    // Which of Taivan's algae blocks a square of algae shows: they go in order from west to east. 0 if there are none.
+    public int AlgaeLookAt(int x)
+    {
+        return algaePictures == null ? 0 : ((x % algaePictures.Length) + algaePictures.Length) % algaePictures.Length;
+    }
+
+    // The picture for a look of algae, or null if there are no algae pictures.
+    public Sprite AlgaeLookSprite(int look)
+    {
+        return algaePictures != null ? algaePictures[look].Sprite : null;
     }
 
     // The picture for a look of ice, or null if there are no ice pictures.

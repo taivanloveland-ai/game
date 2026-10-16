@@ -70,7 +70,7 @@ public class Mining : MonoBehaviour
 
         SnowItem = new Item("Snow", planet.SnowSprite != null ? planet.SnowSprite : planet.Square, PlanetOne.SideBlock.Snow);
         IceItem = new Item("Ice", planet.IceSprite != null ? planet.IceSprite : planet.IceSideSprites[0], PlanetOne.SideBlock.Ice);
-        AlgaeItem = new Item("Algae", PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0.5f), 16, (x, y) => PlanetOne.AlgaePixel(0, x, y)), PlanetOne.SideBlock.Algae);
+        AlgaeItem = new Item("Algae", planet.AlgaeLookSprite(0) ?? PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0.5f), 16, (x, y) => PlanetOne.AlgaePixel(0, x, y)), PlanetOne.SideBlock.Algae);
         StoneItem = new Item("Stone", PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, StonePixel), PlanetOne.SideBlock.Stone);
 
         // Taivan's cracks, from the first little one to the biggest. Drawn in code if his picture is missing.
