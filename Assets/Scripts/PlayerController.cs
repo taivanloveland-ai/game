@@ -137,9 +137,9 @@ public class PlayerController : MonoBehaviour
         float lift = sideView ? 0f : altitude * PlanetOne.HeightScale;
         Vector2Int square = Vector2Int.FloorToInt(GroundPosition);
         bool underRoof = !sideView && planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(altitude + 0.01f));
-        // The camera follows the ground the player is on, not each jump, down into holes as well as up mountains.
+        // The camera stays on the player as they are drawn, jumps and all, not on the ground under them.
         float floorLift = ground * PlanetOne.HeightScale;
-        CameraLift = sideView ? 0f : floorLift;
+        CameraLift = lift;
         bodyVisual.localPosition = new Vector3(0f, Height / 2f + lift, 0f);
         shadow.localPosition = new Vector3(0f, 0.1f + floorLift, 0f);
         shadow.gameObject.SetActive(!sideView && altitude > ground + 0.05f);
