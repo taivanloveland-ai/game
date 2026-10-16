@@ -760,6 +760,15 @@ public class PlanetOne : MonoBehaviour
     // How far east of the crash site the road to the ice caps runs: clear of the crag in front of the northern cave.
     const int RoadEast = 14;
 
+    // How far in from the edge of a polar ice cap a square on the surface is, in squares: 0 or less off the caps (and
+    // in the caves). North tells which cap.
+    public int IntoIceCap(int x, int y, out bool north)
+    {
+        Vector2Int spot = Wrap(x, y);
+        north = spot.y >= height / 2;
+        return InCave ? 0 : CapAt(spot.x, spot.y) - FromPole(spot.x, spot.y);
+    }
+
     // True for a square on one of the polar ice caps, on the surface: north tells which.
     public bool OnIceCap(int x, int y, out bool north)
     {

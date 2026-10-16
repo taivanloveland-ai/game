@@ -5,13 +5,13 @@ using UnityEngine;
 // is the pillar rising out of the ground, frame by frame; Assets/Resources/Art/IceBossBall is the ball on its top
 // growing from nothing and cracking, frame by frame, and then the ten shards it breaks into.
 //
-// Stepping onto either pole's ice cap, the ice cracks open a little way to one side of the player and the pillar
+// A little way into either pole's ice cap, the ice may crack open a little way to one side of the player and the pillar
 // rises out of it, the view shaking as it comes up, seven times as tall as the player. Then the ball grows on its top
 // and cracks, and breaks into its ten shards, which spread out into a circle round where the ball was and shoot one
-// at a time at where the player is, two a second. Each that hits takes 5 health. A shadow on the ground right under
+// at a time at where the player is, two a second. Each that hits takes 4 to 8 health. A shadow on the ground right under
 // each shard shows where it is. Once they are all gone the ball grows again. Nothing is thrown from the pillar itself.
 //
-// It is beaten with 30 hits of the ice axe, from close by. It drops nothing yet. Once beaten, it does not come back to
+// It is beaten with 50 hits of the ice axe, from close by. It drops nothing yet. Once beaten, it does not come back to
 // that ice cap while the game is being played. It only acts in the top-down view, and not in the caves.
 public class IceBoss : MonoBehaviour
 {
@@ -37,15 +37,22 @@ public class IceBoss : MonoBehaviour
     const float ShardsSpread = 1.6f, SpreadSeconds = 0.3f, CircleHolds = 0.6f, ShootEvery = 0.5f;
     // How much a hit takes, how fast the shards fly (squares a second), and how far past the player they carry on
     // before they melt away.
-    const float PieceDamage = 5f, PieceSpeed = 7f, FliesPast = 10f;
+    // (Each shard took 5 until 2026-10-16.)
+    const int LeastDamage = 4, MostDamage = 8;
+    const float PieceSpeed = 7f, FliesPast = 10f;
     // A shard hits the player if it comes this close to where they stand, while they are near the ground. It flies
     // down to this height above the ground, about the middle of the player.
     const float HitsWithin = 0.45f, PieceEndsAt = 0.45f;
     // How many hits of the ice axe it takes, how close the player must be, and how often they can swing.
-    const int Hits = 30;
+    const int Hits = 50;
     const float AxeReach = 4.5f, SwingSeconds = 0.45f;
     // If the player goes further than this away, it sinks back into the ice until they come again.
     const float LeavesBeyond = 70f;
+    // It only rises once the player is this many squares in from the edge of an ice cap, and then only some of the
+    // times: each time they come that far in, there is this chance. Leaving that part of the cap and coming back
+    // is another chance.
+    const int RisesInside = 15;
+    [System.NonSerialized] public float riseChance = 0.75f;
     const int Order = 60;
 
     class Piece
@@ -95,6 +102,8 @@ public class IceBoss : MonoBehaviour
     int hitsLeft;
     bool upNorth;
     bool beatenNorth, beatenSouth;
+    // Whether the chance to rise has been had on this trip into the cap.
+    bool triedThisTime;
 
     public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Health health, Inventory inventory, CraftingNook nook, Hud hud, Camera cam, Sprite square)
     {
@@ -217,12 +226,18 @@ public class IceBoss : MonoBehaviour
         }
     }
 
-    // Stepping onto an ice cap that has not beaten it yet brings it up out of the ice ahead.
+    // Coming far enough into an ice cap that has not beaten it yet may bring it up out of the ice beside the player.
     void TryToRise()
     {
         Vector2 at = player.GroundPosition;
-        if (!planet.OnIceCap(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), out bool north)) return;
-        if (north ? beatenNorth : beatenSouth) return;
+        if (planet.IntoIceCap(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), out bool north) < RisesInside)
+        {
+            triedThisTime = false;
+            return;
+        }
+        if (triedThisTime || (north ? beatenNorth : beatenSouth)) return;
+        triedThisTime = true;
+        if (Random.value >= riseChance) return;
         upNorth = north;
         // Beside the player, east or west, level with them, so all of its height is on the screen.
         foot = at + new Vector2(Random.value < 0.5f ? -RisesBeside : RisesBeside, -0.5f);
@@ -501,7 +516,7 @@ public class IceBoss : MonoBehaviour
 
             // Anywhere along the way it came this frame, so a slow frame cannot carry it past the player unhurt.
             bool hits = DistanceToSegment(at, was, piece.Ground) < HitsWithin && player.FeetHeight < PieceEndsAt + 0.6f;
-            if (hits) health.Hurt(PieceDamage);
+            if (hits) health.Hurt(Random.Range(LeastDamage, MostDamage + 1));
             if (hits || piece.Flown > piece.Reach)
             {
                 Destroy(piece.At.gameObject);
