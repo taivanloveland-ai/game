@@ -1,41 +1,43 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// The ice boss: Taivan's picture of a tall tower of ice with a ball on top and ice pieces set in its sides
-// (Assets/Resources/Art/IceBoss). Stepping onto either pole's ice cap, it rises out of the ice a little way to one side,
-// seven times as tall as the player.
+// The ice boss: Taivan's ice pillar, drawn and animated by him in two sprite sheets. Assets/Resources/Art/IceBossRising
+// is the pillar rising out of the ground, frame by frame; Assets/Resources/Art/IceBossBall is the ball on its top
+// growing from nothing and cracking, frame by frame, and then the ten shards it breaks into.
 //
-// The ball on top is not there when it rises. It grows from nothing to full size, cracks from its middle to its edge,
-// and breaks apart, and every ice piece in its sides comes flying straight at where the player is. Each one that hits
-// takes 5 health. A shadow on the ground right under each flying piece shows where it is. When they are all gone,
-// the pieces are back in its sides and the ball starts to grow again: a throw about every five seconds.
+// Stepping onto either pole's ice cap, the ice cracks open a little way to one side of the player and the pillar
+// rises out of it, the view shaking as it comes up, seven times as tall as the player. Then the ball grows on its top
+// and cracks, and breaks into its ten shards, which hang where the ball was and shoot one at a time at where the
+// player is, two a second. Each that hits takes 5 health. A shadow on the ground right under each shard shows where it
+// is. Once they are all gone the ball grows again. Nothing is thrown from the pillar itself.
 //
 // It is beaten with 30 hits of the ice axe, from close by. It drops nothing yet. Once beaten, it does not come back to
 // that ice cap while the game is being played. It only acts in the top-down view, and not in the caves.
 public class IceBoss : MonoBehaviour
 {
-    // It is this many times as tall as the player.
+    // It is this many times as tall as the player, the ball on its top included.
     // (It was 4 times as tall until 2026-10-14, when Taivan asked for it much larger.)
     const float TimesTaller = 7f;
-    // It rises this many squares to one side of the player, level with them, so all of it is on the
-    // screen, taking this many seconds to push up out of the cracked ice, and starts throwing this long after it
-    // has risen.
-    const float RisesBeside = 6.5f, RiseSeconds = 1.8f;
+    // It rises this many squares to one side of the player, level with them, so all of it is on the screen.
+    const float RisesBeside = 6.5f;
     // Before it rises, the ice cracks open where it will come up, spreading out over this many seconds; and the
     // cracks fade away over this many seconds once it has risen. The view shakes this hard while it all happens.
     const float CrackSeconds = 1.4f, CracksFadeSeconds = 3f, ShakeHard = 0.06f;
     // The cracks are drawn in this many steps as they spread.
     const int CrackSteps = 10;
-    // How long between throws, how much a hit takes, how fast the pieces fly (squares a second), and how far past
-    // the player they carry on before they melt away.
+    // Its rising animation is played at this many frames a second.
+    const float RiseFramesPerSecond = 24f;
+    // The ball sheet: each frame is this many pixels square; the last this many frames are the shards, and the ones
+    // before are the ball growing and cracking, played over this many seconds.
+    const int BallFrame = 32, ShardCount = 10;
+    const float BallSeconds = 5f;
+    // When the ball breaks its shards spread out this far round where it was, over this many seconds, and shoot at
+    // the player one after another, this many seconds apart: two a second.
+    const float ShardsSpread = 0.75f, SpreadSeconds = 0.25f, ShootEvery = 0.5f;
+    // How much a hit takes, how fast the shards fly (squares a second), and how far past the player they carry on
+    // before they melt away.
     const float PieceDamage = 5f, PieceSpeed = 7f, FliesPast = 10f;
-    // The ball on top is not there at first. Once it has risen, and again each time its pieces are all gone, the
-    // ball grows from nothing to full size over this many seconds, then cracks from its middle to its edge over
-    // this many, and then breaks apart and the pieces fly: a throw every five seconds. Its cracks are drawn in this
-    // many steps.
-    const float BallGrowSeconds = 3.6f, BallCrackSeconds = 1.4f;
-    const int BallCrackSteps = 7;
-    // A piece hits the player if it comes this close to where they stand, while they are near the ground. It flies
+    // A shard hits the player if it comes this close to where they stand, while they are near the ground. It flies
     // down to this height above the ground, about the middle of the player.
     const float HitsWithin = 0.45f, PieceEndsAt = 0.45f;
     // How many hits of the ice axe it takes, how close the player must be, and how often they can swing.
@@ -43,10 +45,6 @@ public class IceBoss : MonoBehaviour
     const float AxeReach = 4.5f, SwingSeconds = 0.45f;
     // If the player goes further than this away, it sinks back into the ice until they come again.
     const float LeavesBeyond = 70f;
-    // Ice pieces smaller than this many pixels in the picture are its other marks (its eye and the like), not pieces.
-    const int SmallestPiece = 35;
-    // The pieces are small in the picture, so while they fly they are drawn this many times as big, to be seen.
-    const float PieceScale = 1.5f;
     const int Order = 60;
 
     class Piece
@@ -54,9 +52,12 @@ public class IceBoss : MonoBehaviour
         public Transform At;
         public SpriteRenderer Picture, Shadow;
         // Where it is over the ground, which way it flies, how high it is drawn above the ground, and how fast it
-        // comes down; and how far it has flown and has to fly.
-        public Vector2 Ground, Heading;
+        // comes down; how far it has flown and has to fly; and, while it still hangs by the pillar, where it hangs,
+        // its turn to shoot, and whether it has been shot yet.
+        public Vector2 Ground, Heading, Hangs;
         public float Lift, Drop, Flown, Reach;
+        public int Turn;
+        public bool Shot;
     }
 
     PlanetOne planet;
@@ -68,22 +69,15 @@ public class IceBoss : MonoBehaviour
     Hud hud;
     Camera cam;
 
-    Sprite whole, broken, ball, noBall;
-    Sprite[] ballCracks;
-    // Where the middle of the ball is, from the foot of the tower.
+    // His frames: the pillar rising (the last one is the pillar all the way up), the ball, and the shards.
+    Sprite[] risingFrames, ballFrames, shardSprites;
+    // Where the middle of the ball is, from the foot of the pillar.
     Vector2 ballOffset;
-    SpriteRenderer ballPicture, ballCrackPicture;
-    // When the ball started growing this time.
-    float ballStarted;
-    Sprite[] pieceSprites;
-    Vector2[] pieceOffsets;
-    Sprite[] ballBits;
+    SpriteRenderer ballPicture;
+    // When the ball started growing this time, and when it last broke.
+    float ballStarted, brokeAt;
     Sprite dot, oval;
     float pixelsPerUnit;
-    // The picture, and its lowest and highest rows, for drawing it part way out of the ice as it rises.
-    Texture2D bossTexture;
-    int bossBottom, bossTop;
-    readonly Dictionary<int, Sprite> risingSprites = new Dictionary<int, Sprite>();
     Sprite[] crackSprites;
     SpriteRenderer cracks;
     float nextChunkAt;
@@ -119,186 +113,62 @@ public class IceBoss : MonoBehaviour
             float dx = (x + 0.5f - 16f) / 16f, dy = (y + 0.5f - 8f) / 8f;
             return dx * dx + dy * dy <= 1f ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
         });
-        if (!CutPicture()) return;
+        if (!CutSheets()) return;
 
         // It stands in the way: nobody walks through it.
         System.Func<int, int, bool> before = planet.Obstacle;
         planet.Obstacle = (x, y) => (before != null && before(x, y)) || Blocks(x, y);
     }
 
-    // Cuts Taivan's picture into its parts, without changing any of its pixels: the whole tower; the tower with its
-    // ball gone and its pieces filled in with the ice around them (as it is while they fly); the ball; and each piece.
-    bool CutPicture()
+    // Cuts his two sheets into their frames, without changing any of their pixels.
+    bool CutSheets()
     {
-        var texture = Resources.Load<Texture2D>("Art/IceBoss");
-        if (texture == null) return false;
-        int wide = texture.width, tall = texture.height;
-        Color32[] pixels = PlanetOne.ReadPixels(texture);
-        bool Solid(int x, int y) => x >= 0 && y >= 0 && x < wide && y < tall && pixels[y * wide + x].a > 0;
+        var rising = Resources.Load<Texture2D>("Art/IceBossRising");
+        var balls = Resources.Load<Texture2D>("Art/IceBossBall");
+        if (rising == null || balls == null) return false;
+        Color32[] risingPixels = PlanetOne.ReadPixels(rising), ballPixels = PlanetOne.ReadPixels(balls);
+        int frameWide = rising.height / 2, frameTall = rising.height;
+        if (rising.width % frameWide != 0) Debug.LogWarning("Ice boss: its rising sheet is " + rising.width + " wide, not a whole number of frames");
+        int risingCount = rising.width / frameWide;
+        int ballCount = balls.width / BallFrame - ShardCount;
 
-        // The lowest and highest rows with anything in them, and the gap between the ball (at the top) and the tower.
-        int bottom = tall, top = -1;
-        for (int y = 0; y < tall; y++)
+        // The pillar all the way up is the last frame. The ball sits on its flat top, the highest row (under its
+        // little point) that is more than a quarter of the frame across.
+        int last = risingCount - 1, flatTop = 0;
+        for (int y = 0; y < frameTall; y++)
         {
-            for (int x = 0; x < wide; x++)
+            int across = 0;
+            for (int x = 0; x < frameWide; x++)
             {
-                if (!Solid(x, y)) continue;
-                bottom = Mathf.Min(bottom, y);
-                top = Mathf.Max(top, y);
+                if (risingPixels[y * rising.width + last * frameWide + x].a > 0) across++;
             }
+            if (across > frameWide / 4) flatTop = y;
         }
-        int ballFrom = top;
-        while (ballFrom > bottom && RowHasAny(pixels, wide, ballFrom - 1)) ballFrom--;
+        // It is drawn TimesTaller times as tall as the player, from its foot to the top of the ball.
+        pixelsPerUnit = (flatTop + 1 + BallFrame) / (PlayerController.Height * TimesTaller);
+        ballOffset = new Vector2(0f, flatTop + 1 + BallFrame / 2f - 1f) / pixelsPerUnit;
 
-        // The ice itself is its commonest colour.
-        var counts = new Dictionary<Color32, int>();
-        foreach (Color32 c in pixels)
-        {
-            if (c.a == 0) continue;
-            counts.TryGetValue(c, out int n);
-            counts[c] = n + 1;
-        }
-        Color32 ice = default;
-        int most = 0;
-        foreach (KeyValuePair<Color32, int> entry in counts)
-        {
-            if (entry.Value > most) { most = entry.Value; ice = entry.Key; }
-        }
-
-        // The pieces: patches of other colours set inside the ice, not touching its edge, big enough to be pieces.
-        var patch = new int[pixels.Length];
-        var pieces = new List<List<int>>();
-        var stack = new Stack<int>();
-        for (int start = 0; start < pixels.Length; start++)
-        {
-            int sx = start % wide, sy = start / wide;
-            if (patch[start] != 0 || !Solid(sx, sy) || pixels[start].Equals(ice) || sy >= ballFrom) continue;
-            var cells = new List<int>();
-            bool edge = false;
-            patch[start] = -1;
-            stack.Push(start);
-            while (stack.Count > 0)
-            {
-                int at = stack.Pop();
-                cells.Add(at);
-                int ax = at % wide, ay = at / wide;
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        int nx = ax + dx, ny = ay + dy;
-                        if (!Solid(nx, ny)) { edge = true; continue; }
-                        int next = ny * wide + nx;
-                        if (patch[next] != 0 || pixels[next].Equals(ice)) continue;
-                        patch[next] = -1;
-                        stack.Push(next);
-                    }
-                }
-            }
-            if (!edge && cells.Count >= SmallestPiece) pieces.Add(cells);
-        }
-
-        // It is drawn TimesTaller times as tall as the player, standing on its lowest row.
-        bossTexture = texture;
-        bossBottom = bottom;
-        bossTop = top;
-        pixelsPerUnit = (top - bottom + 1) / (PlayerController.Height * TimesTaller);
-        int middle = wide / 2;
-        var pivot = new Vector2(0.5f, bottom / (float)tall);
-        whole = Sprite.Create(texture, new Rect(0, 0, wide, tall), pivot, pixelsPerUnit);
-        whole.texture.filterMode = FilterMode.Point;
-
-        var brokenPixels = (Color32[])pixels.Clone();
-        for (int y = ballFrom; y < tall; y++)
-        {
-            for (int x = 0; x < wide; x++) brokenPixels[y * wide + x] = new Color32(0, 0, 0, 0);
-        }
-        foreach (List<int> cells in pieces)
-        {
-            foreach (int at in cells) brokenPixels[at] = ice;
-        }
-        broken = MakeSprite(brokenPixels, wide, tall, new RectInt(0, 0, wide, tall), pivot);
-
-        // The tower with its pieces but no ball, as it is while the ball has not grown yet. It rises like this.
-        var noBallPixels = (Color32[])pixels.Clone();
-        for (int y = ballFrom; y < tall; y++)
-        {
-            for (int x = 0; x < wide; x++) noBallPixels[y * wide + x] = new Color32(0, 0, 0, 0);
-        }
-        noBall = MakeSprite(noBallPixels, wide, tall, new RectInt(0, 0, wide, tall), pivot);
-        bossTexture = noBall.texture;
-        bossTop = ballFrom - 1;
-        while (bossTop > bottom && !RowHasAny(noBallPixels, wide, bossTop)) bossTop--;
-
-        // The ball, and its four quarters, which fly apart when it breaks.
-        var ballBox = BoxOf(pixels, wide, 0, ballFrom, wide, tall);
-        ball = MakeSprite(pixels, wide, tall, ballBox, new Vector2(0.5f, 0.5f));
-        ballOffset = new Vector2(ballBox.x + ballBox.width / 2f - middle, ballBox.y + ballBox.height / 2f - bottom) / pixelsPerUnit;
-        ballCracks = MakeBallCracks(pixels, wide, ballBox);
-        ballBits = new Sprite[4];
-        for (int i = 0; i < 4; i++)
-        {
-            int halfWide = ballBox.width / 2, halfTall = ballBox.height / 2;
-            var quarter = new RectInt(ballBox.x + (i % 2) * halfWide, ballBox.y + (i / 2) * halfTall, i % 2 == 0 ? halfWide : ballBox.width - halfWide, i / 2 == 0 ? halfTall : ballBox.height - halfTall);
-            ballBits[i] = MakeSprite(pixels, wide, tall, quarter, new Vector2(0.5f, 0.5f));
-        }
-
-        // Each piece on its own, and where it sits on the tower, from the foot.
-        pieceSprites = new Sprite[pieces.Count];
-        pieceOffsets = new Vector2[pieces.Count];
-        for (int i = 0; i < pieces.Count; i++)
-        {
-            var only = new Color32[pixels.Length];
-            int x0 = wide, x1 = 0, y0 = tall, y1 = 0;
-            foreach (int at in pieces[i])
-            {
-                only[at] = pixels[at];
-                x0 = Mathf.Min(x0, at % wide); x1 = Mathf.Max(x1, at % wide);
-                y0 = Mathf.Min(y0, at / wide); y1 = Mathf.Max(y1, at / wide);
-            }
-            var box = new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-            pieceSprites[i] = MakeSprite(only, wide, tall, box, new Vector2(0.5f, 0.5f));
-            pieceOffsets[i] = new Vector2((x0 + x1 + 1) / 2f - middle, (y0 + y1 + 1) / 2f - bottom) / pixelsPerUnit;
-        }
-        Debug.Log("Ice boss: " + pieces.Count + " ice pieces found in the picture");
-        return pieces.Count > 0;
+        risingFrames = new Sprite[risingCount];
+        for (int i = 0; i < risingCount; i++) risingFrames[i] = Cut(risingPixels, rising.width, new RectInt(i * frameWide, 0, frameWide, frameTall), new Vector2(0.5f, 0f));
+        ballFrames = new Sprite[ballCount];
+        for (int i = 0; i < ballCount; i++) ballFrames[i] = Cut(ballPixels, balls.width, new RectInt(i * BallFrame, 0, BallFrame, BallFrame), new Vector2(0.5f, 0.5f));
+        shardSprites = new Sprite[ShardCount];
+        for (int i = 0; i < ShardCount; i++) shardSprites[i] = Cut(ballPixels, balls.width, new RectInt((ballCount + i) * BallFrame, 0, BallFrame, BallFrame), new Vector2(0.5f, 0.5f));
+        Debug.Log("Ice boss: " + risingCount + " rising frames of " + frameWide + " x " + frameTall + ", " + ballCount + " ball frames and " + ShardCount + " shards");
+        return true;
     }
 
-    static bool RowHasAny(Color32[] pixels, int wide, int y)
-    {
-        for (int x = 0; x < wide; x++)
-        {
-            if (pixels[y * wide + x].a > 0) return true;
-        }
-        return false;
-    }
-
-    static RectInt BoxOf(Color32[] pixels, int wide, int fromX, int fromY, int toX, int toY)
-    {
-        int x0 = toX, x1 = fromX, y0 = toY, y1 = fromY;
-        for (int y = fromY; y < toY; y++)
-        {
-            for (int x = fromX; x < toX; x++)
-            {
-                if (pixels[y * wide + x].a == 0) continue;
-                x0 = Mathf.Min(x0, x); x1 = Mathf.Max(x1, x);
-                y0 = Mathf.Min(y0, y); y1 = Mathf.Max(y1, y);
-            }
-        }
-        return new RectInt(x0, y0, Mathf.Max(1, x1 - x0 + 1), Mathf.Max(1, y1 - y0 + 1));
-    }
-
-    Sprite MakeSprite(Color32[] pixels, int wide, int tall, RectInt box, Vector2 pivot)
+    // One frame cut out of a sheet, as its own sharp picture.
+    Sprite Cut(Color32[] pixels, int sheetWide, RectInt box, Vector2 pivot)
     {
         var cut = new Color32[box.width * box.height];
         for (int y = 0; y < box.height; y++)
         {
-            for (int x = 0; x < box.width; x++) cut[y * box.width + x] = pixels[(box.y + y) * wide + box.x + x];
+            for (int x = 0; x < box.width; x++) cut[y * box.width + x] = pixels[(box.y + y) * sheetWide + box.x + x];
         }
         var texture = new Texture2D(box.width, box.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         texture.SetPixels32(cut);
         texture.Apply();
-        if (box.width == wide && box.height == tall) return Sprite.Create(texture, new Rect(0, 0, wide, tall), pivot, pixelsPerUnit);
         return Sprite.Create(texture, new Rect(0, 0, box.width, box.height), pivot, pixelsPerUnit);
     }
 
@@ -312,7 +182,7 @@ public class IceBoss : MonoBehaviour
 
     void Update()
     {
-        if (whole == null) return;
+        if (risingFrames == null) return;
         bool topDown = !mining.Active && !planet.InCave;
         if (!up)
         {
@@ -340,7 +210,7 @@ public class IceBoss : MonoBehaviour
 
         if (Risen >= 1f)
         {
-            if (flying.Count == 0 && Time.time >= ballStarted + BallGrowSeconds + BallCrackSeconds) Throw();
+            if (flying.Count == 0 && Time.time >= ballStarted + BallSeconds) Break();
             MovePieces();
             TakeSwings();
         }
@@ -368,19 +238,13 @@ public class IceBoss : MonoBehaviour
         body = new GameObject("Ice Boss");
         body.transform.SetParent(planet.TopDownRoot, false);
         picture = body.AddComponent<SpriteRenderer>();
-        picture.sprite = noBall;
         // All its parts are put in order as one thing, at its foot.
         body.AddComponent<UnityEngine.Rendering.SortingGroup>();
         var ballObject = new GameObject("Ball");
         ballObject.transform.SetParent(body.transform, false);
         ballObject.transform.localPosition = ballOffset;
         ballPicture = ballObject.AddComponent<SpriteRenderer>();
-        ballPicture.sprite = ball;
         ballPicture.sortingOrder = 1;
-        var ballCrackObject = new GameObject("Ball Cracks");
-        ballCrackObject.transform.SetParent(ballObject.transform, false);
-        ballCrackPicture = ballCrackObject.AddComponent<SpriteRenderer>();
-        ballCrackPicture.sortingOrder = 2;
         // Its health, as a bar over its head.
         barBack = MakeBar("Health Bar", new Color(0.08f, 0.09f, 0.12f, 0.85f), Order + 2);
         barFill = MakeBar("Health", new Color(0.84f, 0.2f, 0.22f, 1f), Order + 3);
@@ -396,12 +260,17 @@ public class IceBoss : MonoBehaviour
         var shadow = new GameObject("Shadow");
         shadow.transform.SetParent(body.transform, false);
         shadow.transform.localPosition = new Vector3(0f, 0.03f, 0f);
-        shadow.transform.localScale = new Vector3(noBall.bounds.size.x * 0.95f, 0.7f, 1f);
+        shadow.transform.localScale = new Vector3(Pillar.bounds.size.x * 0.95f, 0.7f, 1f);
         var shade = shadow.AddComponent<SpriteRenderer>();
         shade.sprite = oval;
         shade.color = new Color(0.05f, 0.1f, 0.2f, 0.3f);
         shade.sortingOrder = -1;
     }
+
+    // The pillar all the way up.
+    Sprite Pillar => risingFrames[risingFrames.Length - 1];
+    // How long its rising animation takes.
+    float RiseSeconds => risingFrames.Length / RiseFramesPerSecond;
 
     Transform MakeBar(string name, Color color, int order)
     {
@@ -436,8 +305,8 @@ public class IceBoss : MonoBehaviour
     // is all the way out.
     float Risen => Mathf.Clamp01((Time.time - roseAt - CrackSeconds) / RiseSeconds);
 
-    // The ice cracks open, then it pushes up out of the cracks, the part still under the ice unseen, with chunks of
-    // ice thrown up round it and the view shaking. Then the cracks slowly fade.
+    // The ice cracks open, then his rising animation plays, with chunks of ice thrown up round it and the view
+    // shaking. Then the cracks slowly fade.
     void ShowRising(float risen)
     {
         float since = Time.time - roseAt;
@@ -451,15 +320,12 @@ public class IceBoss : MonoBehaviour
         CameraFollow.Shake = rising && body.activeSelf ? ShakeHard * (since < CrackSeconds ? 0.5f : 1f) : 0f;
         if (!rising)
         {
-            if (picture.sprite != broken) picture.sprite = noBall;
+            picture.sprite = Pillar;
             ShowBall();
             return;
         }
         ballPicture.enabled = false;
-        ballCrackPicture.enabled = false;
-        // How many rows of the picture are out of the ice, from the top down.
-        int rows = Mathf.RoundToInt(Mathf.SmoothStep(0f, 1f, risen) * (bossTop - bossBottom + 1));
-        picture.sprite = rows > 0 ? RisingSprite(rows) : null;
+        picture.sprite = since < CrackSeconds ? null : risingFrames[Mathf.Min(risingFrames.Length - 1, Mathf.FloorToInt(risen * risingFrames.Length))];
         if (risen > 0f && Time.time >= nextChunkAt)
         {
             nextChunkAt = Time.time + 0.06f;
@@ -467,83 +333,15 @@ public class IceBoss : MonoBehaviour
         }
     }
 
-    // The ball grows on top of the tower from nothing, then cracks from its middle to its edge. While its pieces fly
-    // it is not there.
+    // His ball frames, growing and cracking, on the top of the pillar. Once it has broken it is not there until it
+    // starts to grow again.
     void ShowBall()
     {
         float since = Time.time - ballStarted;
-        bool there = flying.Count == 0 && since > 0f;
+        bool there = flying.Count == 0 && since >= 0f;
         ballPicture.enabled = there;
-        ballCrackPicture.enabled = false;
         if (!there) return;
-        float size = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(since / BallGrowSeconds));
-        ballPicture.transform.localScale = new Vector3(size, size, 1f);
-        float cracked = (since - BallGrowSeconds) / BallCrackSeconds;
-        if (cracked <= 0f) return;
-        ballCrackPicture.enabled = true;
-        ballCrackPicture.sprite = ballCracks[Mathf.Min(BallCrackSteps - 1, Mathf.FloorToInt(cracked * BallCrackSteps))];
-    }
-
-    // Cracks across the ball, drawn in steps as they spread from its middle to its edge: dark lines over the ball
-    // only, the ball's own pixels left as they are.
-    Sprite[] MakeBallCracks(Color32[] pixels, int wide, RectInt box)
-    {
-        var rand = new System.Random(11);
-        var lines = new List<List<Vector2>>();
-        for (int i = 0; i < 7; i++)
-        {
-            float angle = i * Mathf.PI * 2f / 7f + (float)rand.NextDouble() * 0.6f;
-            var line = new List<Vector2> { Vector2.zero };
-            Vector2 at = Vector2.zero;
-            for (int step = 0; step < 5; step++)
-            {
-                angle += ((float)rand.NextDouble() - 0.5f) * 0.8f;
-                at += new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 0.24f;
-                line.Add(at);
-            }
-            lines.Add(line);
-        }
-        var sprites = new Sprite[BallCrackSteps];
-        float half = Mathf.Max(box.width, box.height) / 2f;
-        for (int stage = 0; stage < BallCrackSteps; stage++)
-        {
-            float reach = (stage + 1f) / BallCrackSteps;
-            var crack = new Color32[box.width * box.height];
-            for (int y = 0; y < box.height; y++)
-            {
-                for (int x = 0; x < box.width; x++)
-                {
-                    if (pixels[(box.y + y) * wide + box.x + x].a == 0) continue;
-                    var p = new Vector2((x + 0.5f - box.width / 2f) / half, (y + 0.5f - box.height / 2f) / half);
-                    float nearest = float.MaxValue;
-                    foreach (List<Vector2> line in lines)
-                    {
-                        for (int k = 1; k < line.Count; k++)
-                        {
-                            if (line[k - 1].magnitude > reach) break;
-                            Vector2 end = line[k].magnitude > reach ? line[k - 1] + (line[k] - line[k - 1]) * Mathf.Clamp01((reach - line[k - 1].magnitude) / Mathf.Max(0.0001f, line[k].magnitude - line[k - 1].magnitude)) : line[k];
-                            nearest = Mathf.Min(nearest, DistanceToSegment(p, line[k - 1], end));
-                        }
-                    }
-                    if (nearest < 0.6f / half) crack[y * box.width + x] = new Color32(52, 104, 150, 255);
-                }
-            }
-            var texture = new Texture2D(box.width, box.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
-            texture.SetPixels32(crack);
-            texture.Apply();
-            sprites[stage] = Sprite.Create(texture, new Rect(0, 0, box.width, box.height), new Vector2(0.5f, 0.5f), pixelsPerUnit);
-        }
-        return sprites;
-    }
-
-    // The top part of the picture, a number of rows tall, standing on the ice: the rest is still under it.
-    Sprite RisingSprite(int rows)
-    {
-        if (risingSprites.TryGetValue(rows, out Sprite sprite)) return sprite;
-        int from = bossTop - rows + 1;
-        sprite = Sprite.Create(bossTexture, new Rect(0, from, bossTexture.width, bossTexture.height - from), new Vector2(0.5f, 0f), pixelsPerUnit);
-        risingSprites[rows] = sprite;
-        return sprite;
+        ballPicture.sprite = ballFrames[Mathf.Min(ballFrames.Length - 1, Mathf.FloorToInt(since / BallSeconds * ballFrames.Length))];
     }
 
     // A chunk of ice thrown up from round its foot as it breaks out.
@@ -554,7 +352,7 @@ public class IceBoss : MonoBehaviour
         chunk.transform.localScale = new Vector3(size, size, 1f);
         chunk.color = Random.value < 0.5f ? new Color32(206, 235, 248, 255) : new Color32(146, 202, 232, 255);
         float side = Random.Range(-1f, 1f);
-        chunk.transform.position = body.transform.position + new Vector3(side * noBall.bounds.size.x * 0.5f, 0.1f, 0f);
+        chunk.transform.position = body.transform.position + new Vector3(side * Pillar.bounds.size.x * 0.5f, 0.1f, 0f);
         bits.Add((chunk.transform, new Vector2(side * 2.2f + Random.Range(-0.6f, 0.6f), Random.Range(2.5f, 4.5f)), Time.time));
     }
 
@@ -626,41 +424,29 @@ public class IceBoss : MonoBehaviour
         return Vector2.Distance(p, a + along * t);
     }
 
-    // The ball breaks, and every piece comes flying at where the player is.
-    void Throw()
+    // The ball breaks into its shards, which spread out round where it was and hang there, each with its shadow on
+    // the ground under it, until their turn to shoot.
+    void Break()
     {
-        picture.sprite = broken;
-        Vector2 target = player.GroundPosition;
-        Vector3 ballAt = ballPicture.transform.position;
         ballPicture.enabled = false;
-        ballCrackPicture.enabled = false;
-        for (int i = 0; i < 4; i++)
-        {
-            Transform bit = MakeFlyingThing("Ball Piece", ballBits[i], Order + 1).transform;
-            bit.position = ballAt;
-            bits.Add((bit, new Vector2(i % 2 == 0 ? -1.4f : 1.4f, i / 2 == 0 ? -0.6f : 1.6f), Time.time));
-        }
-        for (int i = 0; i < pieceSprites.Length; i++)
+        brokeAt = Time.time;
+        for (int i = 0; i < shardSprites.Length; i++)
         {
             var piece = new Piece();
-            SpriteRenderer shape = MakeFlyingThing("Ice Piece", pieceSprites[i], Order);
-            shape.transform.localScale = new Vector3(PieceScale, PieceScale, 1f);
+            SpriteRenderer shape = MakeFlyingThing("Ice Shard", shardSprites[i], Order);
             piece.At = shape.transform;
             piece.Picture = shape;
             // Its shadow, a dark oval on the ground right under it.
-            piece.Shadow = MakeFlyingThing("Ice Piece Shadow", oval, 0);
+            piece.Shadow = MakeFlyingThing("Ice Shard Shadow", oval, 0);
             piece.Shadow.color = new Color(0.05f, 0.1f, 0.2f, 0.35f);
-            float shadowWide = Mathf.Max(0.3f, pieceSprites[i].bounds.size.x * PieceScale);
+            float shadowWide = Mathf.Max(0.3f, shardSprites[i].bounds.size.x * 0.8f);
             piece.Shadow.transform.localScale = new Vector3(shadowWide, shadowWide * 0.7f, 1f);
-            piece.Ground = foot + new Vector2(pieceOffsets[i].x, -0.05f);
-            piece.Lift = pieceOffsets[i].y;
-            Vector2 toward = target - piece.Ground;
-            float distance = Mathf.Max(0.5f, toward.magnitude);
-            piece.Heading = toward / distance;
-            piece.Drop = (piece.Lift - PieceEndsAt) / (distance / PieceSpeed);
-            piece.Reach = distance + FliesPast;
+            float angle = i * Mathf.PI * 2f / shardSprites.Length;
+            piece.Hangs = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * ShardsSpread;
+            piece.Turn = i;
             flying.Add(piece);
         }
+        MovePieces();
     }
 
     SpriteRenderer MakeFlyingThing(string name, Sprite sprite, int order)
@@ -679,16 +465,34 @@ public class IceBoss : MonoBehaviour
         for (int i = flying.Count - 1; i >= 0; i--)
         {
             Piece piece = flying[i];
-            float step = PieceSpeed * Time.deltaTime;
-            piece.Ground += piece.Heading * step;
-            piece.Flown += step;
-            float before = piece.Lift;
-            piece.Lift = Mathf.Max(PieceEndsAt, piece.Lift - piece.Drop * Time.deltaTime);
-            // Drawn as high above its shadow as it is above the ground, pointing the way it flies.
+            if (!piece.Shot)
+            {
+                // Still hanging by the pillar: spreading out from where the ball was, until its turn comes, one every
+                // half second. Then it shoots at where the player is right then.
+                float spread = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Time.time - brokeAt) / SpreadSeconds));
+                piece.Ground = foot + new Vector2(piece.Hangs.x * spread, -0.05f);
+                piece.Lift = ballOffset.y + piece.Hangs.y * spread;
+                if (Time.time >= brokeAt + piece.Turn * ShootEvery)
+                {
+                    piece.Shot = true;
+                    Vector2 toward = at - piece.Ground;
+                    float distance = Mathf.Max(0.5f, toward.magnitude);
+                    piece.Heading = toward / distance;
+                    piece.Drop = (piece.Lift - PieceEndsAt) / (distance / PieceSpeed);
+                    piece.Reach = distance + FliesPast;
+                }
+            }
+            else
+            {
+                float step = PieceSpeed * Time.deltaTime;
+                piece.Ground += piece.Heading * step;
+                piece.Flown += step;
+                piece.Lift = Mathf.Max(PieceEndsAt, piece.Lift - piece.Drop * Time.deltaTime);
+            }
+            // Drawn as high above its shadow as it is above the ground.
             piece.At.position = new Vector3(piece.Ground.x, piece.Ground.y + piece.Lift, 0f);
-            Vector2 drawnMove = piece.Heading * step + new Vector2(0f, piece.Lift - before);
-            piece.At.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(drawnMove.y, drawnMove.x) * Mathf.Rad2Deg - 90f);
             piece.Shadow.transform.position = new Vector3(piece.Ground.x, piece.Ground.y, 0f);
+            if (!piece.Shot) continue;
 
             bool hits = Vector2.Distance(piece.Ground, at) < HitsWithin && player.FeetHeight < PieceEndsAt + 0.6f;
             if (hits) health.Hurt(PieceDamage);
@@ -697,17 +501,13 @@ public class IceBoss : MonoBehaviour
                 Destroy(piece.At.gameObject);
                 Destroy(piece.Shadow.gameObject);
                 flying.RemoveAt(i);
+                // The last one is gone: the ball starts to grow again.
+                if (flying.Count == 0) ballStarted = Time.time;
             }
-        }
-        // When the last piece is gone the pieces are back in the tower, and the ball starts to grow again.
-        if (flying.Count == 0 && picture.sprite == broken)
-        {
-            picture.sprite = noBall;
-            ballStarted = Time.time;
         }
     }
 
-    // The quarters of the broken ball fly apart, fall and fade.
+    // The chunks of ice thrown up as it rises fly out, fall and fade.
     void MoveBits()
     {
         for (int i = bits.Count - 1; i >= 0; i--)
@@ -729,17 +529,14 @@ public class IceBoss : MonoBehaviour
 
     void ClearPieces()
     {
+        bool any = flying.Count > 0;
         foreach (Piece piece in flying)
         {
             Destroy(piece.At.gameObject);
             Destroy(piece.Shadow.gameObject);
         }
         flying.Clear();
-        if (picture != null && picture.sprite == broken)
-        {
-            picture.sprite = noBall;
-            ballStarted = Time.time;
-        }
+        if (any) ballStarted = Time.time;
     }
 
     // The ice axe: a click on it, from close enough, is one hit. Holding the button keeps swinging.
@@ -780,10 +577,10 @@ public class IceBoss : MonoBehaviour
         if (body != null) Destroy(body);
     }
 
-    // For checking: whether it is up, where it stands, how many hits it has left, and how many pieces are flying.
+    // For checking: whether it is up, where it stands, how many hits it has left, and how many shards are out.
     public bool Up => up;
     public Vector2 Foot => foot;
     public int HitsLeft => hitsLeft;
     public int Flying => flying.Count;
-    public int PieceCount => pieceSprites != null ? pieceSprites.Length : 0;
+    public int PieceCount => shardSprites != null ? shardSprites.Length : 0;
 }
