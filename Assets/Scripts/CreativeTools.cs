@@ -6,7 +6,8 @@ using UnityEngine;
 public class CreativeTools : MonoBehaviour
 {
     // The slowest and fastest the slider goes, in squares a second. Survival mode's walking speed is 4.
-    const float Slowest = 1f, Fastest = 40f;
+    // (The fastest was 40 until 2026-10-16.)
+    const float Slowest = 1f, Fastest = 80f;
     // The times of day the day and night button jumps to: the middle of the day, and the middle of the night.
     const float Noon = 0.25f, Midnight = 0.75f;
 

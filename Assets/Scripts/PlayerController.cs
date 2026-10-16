@@ -8,6 +8,8 @@ public class PlayerController : MonoBehaviour
 {
     public const float Width = 0.6f;
     public const float Height = 0.9f;
+    // The furthest the player moves in one go when walking top-down, in squares.
+    const float LongestStep = 0.25f;
     // In the top-down view only the player's feet touch the ground: the bottom part of the rectangle.
     const float FeetDepth = 0.4f;
 
@@ -195,13 +197,19 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // Try each direction on its own so the player slides along edges instead of stopping dead.
-        var next = new Vector2(position.x + velocity.x * dt, position.y);
-        if (Fits(next, altitude)) position = next;
-        else velocity.x = 0f;
-        next = new Vector2(position.x, position.y + velocity.y * dt);
-        if (Fits(next, altitude)) position = next;
-        else velocity.y = 0f;
+        // Try each direction on its own so the player slides along edges instead of stopping dead. The move is made
+        // in short steps, so even at the fastest speeds nobody can skip over a wall in one go.
+        Vector2 moving = velocity * dt;
+        int steps = Mathf.Max(1, Mathf.CeilToInt(Mathf.Max(Mathf.Abs(moving.x), Mathf.Abs(moving.y)) / LongestStep));
+        for (int i = 0; i < steps; i++)
+        {
+            var next = new Vector2(position.x + velocity.x * dt / steps, position.y);
+            if (Fits(next, altitude)) position = next;
+            else velocity.x = 0f;
+            next = new Vector2(position.x, position.y + velocity.y * dt / steps);
+            if (Fits(next, altitude)) position = next;
+            else velocity.y = 0f;
+        }
 
         // Stepping onto ground a hair higher than the feet lifts the player onto it.
         floor = FloorUnder(position, altitude);
