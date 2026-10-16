@@ -15,6 +15,8 @@ class ArtImport : AssetPostprocessor
         importer.alphaIsTransparency = true;
         importer.mipmapEnabled = true;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
+        // Wide sprite sheets are kept at their full size, not shrunk, so their frames stay lined up.
+        importer.maxTextureSize = 8192;
         // Lets the game read the picture's pixels, which it needs for painting a picture onto ground tiles.
         importer.isReadable = true;
     }
