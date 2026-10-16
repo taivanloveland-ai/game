@@ -86,8 +86,10 @@ public class CraftingNook : MonoBehaviour
         this.cell = cell;
 
 
-        Pickaxe = new Item("Ice pickaxe", PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => PickaxePixel(x, y)));
-        Axe = new Item("Ice axe", PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => AxePixel(x, y)));
+        // Taivan's pictures of the two tools; the drawn-in-code ones stand in if his are missing.
+        Sprite[] drawn = ToolPictures();
+        Pickaxe = new Item("Ice pickaxe", drawn != null ? drawn[0] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => PickaxePixel(x, y)));
+        Axe = new Item("Ice axe", drawn != null ? drawn[1] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => AxePixel(x, y)));
         recipes = new[]
         {
             new Recipe { Tool = Pickaxe, Ferns = FernsNeeded, Shards = ShardsNeeded, Use = "for mining" },
@@ -115,6 +117,30 @@ public class CraftingNook : MonoBehaviour
             case 'W': return WrenchMetal;
             default: return Recess;
         }
+    }
+
+    // Taivan's picture of the ice pickaxe (left) and the ice axe (right), side by side in Art/IceTools, cut into one
+    // sharp square picture each without changing a pixel. Null if the picture is missing.
+    static Sprite[] ToolPictures()
+    {
+        var sheet = Resources.Load<Texture2D>("Art/IceTools");
+        if (sheet == null) return null;
+        Color32[] pixels = PlanetOne.ReadPixels(sheet);
+        int size = sheet.height;
+        var tools = new Sprite[2];
+        for (int i = 0; i < 2; i++)
+        {
+            var cut = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++) cut[y * size + x] = pixels[y * sheet.width + i * size + x];
+            }
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            texture.SetPixels32(cut);
+            texture.Apply();
+            tools[i] = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        }
+        return tools;
     }
 
     // One pixel of the ice pickaxe picture: a wooden handle running from bottom left to top right, bound with fern
