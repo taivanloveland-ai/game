@@ -598,6 +598,13 @@ public class MiningMode : MonoBehaviour
             picture = planet.IceLookSprite(look);
             iceLook = look + 1;
         }
+        // And algae: Taivan's algae blocks, in order along the row or column.
+        if (block == PlanetOne.SideBlock.Algae && planet.AlgaeLookSprite(0) != null)
+        {
+            int look = planet.AlgaeLookAt(x);
+            picture = planet.AlgaeLookSprite(look);
+            iceLook = look + 1;
+        }
         if (picture != null) color = Color.white;
 
         // Ice without a drawn picture uses the game's own finely drawn ice blocks. Most are plain; about one in three
