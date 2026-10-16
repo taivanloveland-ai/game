@@ -501,3 +501,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"new ice shards sprite and new ice blocks sprites."** (2026-10-16):
   - His new 32 x 32 ice shard picture replaces the old one as `Assets/Resources/Art/IceShardItem.png`, unchanged and drawn sharp, on the ground and in the inventory. It sits on the ground at its lowest pixel.
   - His 128 x 32 picture of four ice blocks is in the game unchanged as `Assets/Resources/Art/IceBlocks.png`. Like the snow, every block of ice (lakes, the ice caps, the frozen road, placed ice, and ice in the side-scroller) shows one of the four, picked at random but always the same for the same block. The ice item uses the first one. The top of the ice is still a little see-through so reflections show in it. The ice drawn in code before is only a stand-in now, used if his picture is missing.
+
+- **"make the blank ice appear more."** (2026-10-16): his third ice block is the plain one, with no streaks. It now shows on **60%** of the ice (it was 1 in 4), and the three streaked ones share the rest (about 13% each). The game finds the plain one by itself, so the order of the pictures does not matter.

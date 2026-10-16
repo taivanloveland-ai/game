@@ -241,6 +241,10 @@ public class PlanetOne : MonoBehaviour
     BlockPicture snowPicture, snowPicture2, snowPicture3, icePicture;
     // Taivan's ice blocks, one look each, picked block by block like the snow; null if there are none.
     BlockPicture[] icePictures;
+    // Which of them is plain, with no marks at all (-1 for none). It shows on this share of the ice, and the others
+    // share the rest.
+    int blankIce = -1;
+    const float BlankIceShare = 0.6f;
 
     byte[,] kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
@@ -308,6 +312,10 @@ public class PlanetOne : MonoBehaviour
         icePicture = LoadBlockPicture("Art/IceBlock");
         icePictures = LoadBlockPictures("Art/IceBlocks");
         if (icePictures != null) icePicture = icePictures[0];
+        for (int i = 0; icePictures != null && i < icePictures.Length && blankIce < 0; i++)
+        {
+            if (System.Array.TrueForAll(icePictures[i].Pixels, c => c.Equals(icePictures[i].Pixels[0]))) blankIce = i;
+        }
         IceSideSprites = MakeIceSideSprites();
 
         // All the writing on screen is in the game's own font.
@@ -1297,11 +1305,16 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Which of Taivan's ice blocks a block of ice looks like, numbered from 0. Picked at random for each block, but
-    // always the same for the same block. 0 if there are none.
+    // always the same for the same block, with the plain one more often than the rest. 0 if there are none.
     public int IceLookAt(int x, int y, int level)
     {
         if (icePictures == null) return 0;
-        return Mathf.Min(icePictures.Length - 1, (int)(HashAt(x, y, variantSeed + 6007 * (level + 64)) * icePictures.Length));
+        float roll = HashAt(x, y, variantSeed + 6007 * (level + 64));
+        if (blankIce < 0 || icePictures.Length < 2) return Mathf.Min(icePictures.Length - 1, (int)(roll * icePictures.Length));
+        if (roll < BlankIceShare) return blankIce;
+        // One of the others, skipping over the plain one.
+        int other = Mathf.Min(icePictures.Length - 2, (int)((roll - BlankIceShare) / (1f - BlankIceShare) * (icePictures.Length - 1)));
+        return other >= blankIce ? other + 1 : other;
     }
 
     // The picture for a look of ice, or null if there are no ice pictures.
