@@ -35,9 +35,6 @@ public class Gatherables : MonoBehaviour
     const float FernFootUp = 0.088f;
     // How big the picture of a loose ice shard is, in blocks, before the dropped item is shrunk a little.
     const float LooseShardSize = 0.9f;
-    // How far up the loose ice shards picture its lowest shard reaches, as a share of the picture's height. It
-    // sits on the ground there.
-    const float LooseShardFootUp = 16f / 128f;
     // Where the middle of the icicle's base is in Taivan's picture: across from the left edge as a share of the width,
     // and up from the bottom in pixels. How many rows at the top of the picture are left out, and how wide and
     // tall the icicle itself is, in pixels.
@@ -281,7 +278,11 @@ public class Gatherables : MonoBehaviour
         if (shardPicture != null)
         {
             var whole = new Rect(0, 0, shardPicture.width, shardPicture.height);
-            shard.Item = new Item(shard.Item.Name, Sprite.Create(shardPicture, whole, new Vector2(0.5f, LooseShardFootUp), shardPicture.height / LooseShardSize));
+            // It sits on the ground at the lowest row of the picture with anything in it.
+            Color32[] shardPixels = PlanetOne.ReadPixels(shardPicture);
+            int lowest = 0;
+            while (lowest < shardPicture.height - 1 && !RowHasAny(shardPixels, shardPicture.width, lowest)) lowest++;
+            shard.Item = new Item(shard.Item.Name, Sprite.Create(shardPicture, whole, new Vector2(0.5f, lowest / (float)shardPicture.height), shardPicture.height / LooseShardSize));
         }
         PlantItem = plant.Item;
         ShardItem = shard.Item;
@@ -413,6 +414,15 @@ public class Gatherables : MonoBehaviour
         alone.SetPixels32(trimmed);
         alone.Apply();
         return Sprite.Create(alone, new Rect(0, 0, trimmedWidth, trimmedHeight), new Vector2(0.5f, 0f), pixelsPerUnit);
+    }
+
+    static bool RowHasAny(Color32[] pixels, int wide, int y)
+    {
+        for (int x = 0; x < wide; x++)
+        {
+            if (pixels[y * wide + x].a > 0) return true;
+        }
+        return false;
     }
 
     // True for a pixel of a fiddlehead: solid, and green or teal. The snow is white and the shadow is grey-blue.
