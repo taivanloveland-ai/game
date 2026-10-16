@@ -1049,7 +1049,7 @@ public class PlanetOne : MonoBehaviour
             algaeLight.SetTile(at, null);
             return;
         }
-        int covered = AlgaeCovered(cell.x, cell.y, level), look = AlgaeLookAt(cell.x);
+        int covered = AlgaeCovered(cell.x, cell.y, level), look = AlgaeLookAt(cell.x, cell.y);
         algaeTops[cell] = new Vector2Int(level, covered);
         algaeGlow.SetTile(at, AlgaeLayerTile(0, level, look, covered, 0));
         algaeFlash.SetTile(at, AlgaeLayerTile(1, level, 0, covered, 0));
@@ -1100,7 +1100,7 @@ public class PlanetOne : MonoBehaviour
             foreach (KeyValuePair<Vector2Int, Vector2Int> entry in algaeTops)
             {
                 cells[i] = (Vector3Int)entry.Key;
-                tiles[i] = AlgaeLayerTile(2, entry.Value.x, AlgaeLookAt(entry.Key.x), entry.Value.y, phase);
+                tiles[i] = AlgaeLayerTile(2, entry.Value.x, AlgaeLookAt(entry.Key.x, entry.Key.y), entry.Value.y, phase);
                 i++;
             }
             algaeLight.SetTiles(cells, tiles);
@@ -1306,7 +1306,7 @@ public class PlanetOne : MonoBehaviour
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(HashAt(x, y, variantSeed) * looks) : 0;
         if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
         if (material == Ice && icePictures != null) variant = IceLookAt(x, y, level - 1);
-        if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x);
+        if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x, y);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1535,10 +1535,14 @@ public class PlanetOne : MonoBehaviour
         return other >= blankIce ? other + 1 : other;
     }
 
-    // Which of Taivan's algae blocks a square of algae shows: they go in order from west to east. 0 if there are none.
-    public int AlgaeLookAt(int x)
+    // Which of Taivan's algae blocks a square of algae shows: along a row they go in order from west to east, so the
+    // lines run on unbroken, but each row starts at a different one of them, so a column is not all the same block.
+    // 0 if there are none.
+    public int AlgaeLookAt(int x, int y)
     {
-        return algaePictures == null ? 0 : ((x % algaeLooks) + algaeLooks) % algaeLooks;
+        if (algaePictures == null) return 0;
+        int start = (int)(HashAt(0, y, variantSeed + 4241) * algaeLooks);
+        return ((x + start) % algaeLooks + algaeLooks) % algaeLooks;
     }
 
     // The picture for a look of algae, or null if there are no algae pictures.
