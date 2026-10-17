@@ -111,7 +111,7 @@ public class IceBoss : MonoBehaviour
     Vector2 foot;
     bool up;
     float roseAt, nextSwingAt, hurtUntil;
-    int hitsLeft;
+    float hitsLeft;
     bool upNorth;
     bool beatenNorth, beatenSouth;
 
@@ -587,7 +587,7 @@ public class IceBoss : MonoBehaviour
     // The ice axe: a click on it, from close enough, is one hit. Holding the button keeps swinging.
     void TakeSwings()
     {
-        if (Time.time < nextSwingAt || inventory.Equipped != nook.Axe || health.Down) return;
+        if (Time.time < nextSwingAt || !nook.IsAxe(inventory.Equipped) || health.Down) return;
         if (!GameInput.LeftClickPressed() && !GameInput.LeftClickHeld()) return;
         Vector2 point = cam.ScreenToWorldPoint(GameInput.PointerPosition());
         if (!picture.bounds.Contains(new Vector3(point.x, point.y, picture.bounds.center.z))) return;
@@ -605,7 +605,8 @@ public class IceBoss : MonoBehaviour
     public void Hit()
     {
         if (!up) return;
-        hitsLeft = Mathf.Max(0, hitsLeft - planet.axeDamageTimes);
+        // The thornam ice axe does half as much again.
+        hitsLeft = Mathf.Max(0f, hitsLeft - planet.axeDamageTimes * nook.AxeDamage(inventory.Equipped));
         hurtUntil = Time.time + 0.12f;
         if (hitsLeft > 0) return;
         if (upNorth) beatenNorth = true;
@@ -629,7 +630,7 @@ public class IceBoss : MonoBehaviour
     // For checking: whether it is up, where it stands, how many hits it has left, and how many shards are out.
     public bool Up => up;
     public Vector2 Foot => foot;
-    public int HitsLeft => hitsLeft;
+    public int HitsLeft => Mathf.CeilToInt(hitsLeft - 0.001f);
     public int Flying => flying.Count;
     public int PieceCount => shardSprites != null ? shardSprites.Length : 0;
 }

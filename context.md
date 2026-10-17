@@ -560,3 +560,9 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **The algae on the maps**: no longer one flat teal. It is laid on in soft patches of five shades, from deep blue-teal through teal and green to pale mint; the rows with lines show a little lighter, as faint stripes; and its edge fades softly into the snow.
   - **The title screen**: the planet now has the algae on its equator, in the same colours, facing us as the title comes up (drawn a little bigger than it really is, so it can be seen).
   - **Thornam stick colours** (his picture): brown #624E2D (98, 78, 45), darker brown #5B482A (91, 72, 42), lighter brown #6C5632 (108, 86, 50).
+
+- **"You can upgrade your ice axe with 8 thornam sticks. it does 1.5x damage. edit my image to have the ice exactly the same as the old ice axe and the stick to be the same shape but the stick colors."** (2026-10-17):
+  - The picture, as he asked: the old ice axe exactly (from `IceTools.png`), with its handle recoloured in his thornam stick browns (its light side #624E2D, its dark side #5B482A); everything else pixel for pixel the same. Saved as `Assets/Resources/Art/ThornamIceAxe.png`. (His own new drawing, with a bigger head and longer handle, was not used, since he asked for the old ice and the old handle shape.)
+  - Called the **Thornam ice axe** (my pick; easy to rename). At the ship workbench, an ice axe and **8 thornam sticks** upgrade it: the ice axe becomes the thornam ice axe, in the same hotbar slot. It does **1.5 times** the ice axe's damage, on spiders and on the ice pillar, and does everything the ice axe does. Kept in saved games.
+  - The workbench now has four things to make, laid out two to a row so it fits on the screen.
+  - Tested: no upgrade without an ice axe; with one and 8 sticks it upgraded and used the sticks; with the temporary 4x axe damage it beat the ice pillar in 17 hits instead of 25.

@@ -559,7 +559,7 @@ public class PlanetOne : MonoBehaviour
         var spiders = gameObject.AddComponent<Spiders>();
         spiders.Setup(this, controller, mining, dayNight, health, inventory, nook, pickups, cam);
         // A thornam bush can only be cut down with the ice axe in hand.
-        gatherables.AxeEquipped = () => inventory.Equipped == nook.Axe;
+        gatherables.AxeEquipped = () => nook.IsAxe(inventory.Equipped);
         gatherables.Say = text => hud.Say(text, 2f);
         // The maps mark the ship at the middle of its hull.
         var worldMap = gameObject.AddComponent<WorldMap>();

@@ -204,7 +204,7 @@ public class Spiders : MonoBehaviour
 
         // With the ice axe equipped, a left click swings it at the spider under the mouse. Holding the button keeps
         // swinging at a steady pace.
-        if (Time.time >= nextSwingAt && inventory.Equipped == nook.Axe && !health.Down && (GameInput.LeftClickPressed() || GameInput.LeftClickHeld()))
+        if (Time.time >= nextSwingAt && nook.IsAxe(inventory.Equipped) && !health.Down && (GameInput.LeftClickPressed() || GameInput.LeftClickHeld()))
         {
             if (StrikeAt(cam.ScreenToWorldPoint(GameInput.PointerPosition())) >= Strike.Hit) nextSwingAt = Time.time + SwingSeconds;
         }
@@ -309,7 +309,7 @@ public class Spiders : MonoBehaviour
         Vector2 at = planet.Nearest(struck.Position, playerAt);
         if (Vector2.Distance(at, playerAt) > AxeReach) return Strike.TooFar;
 
-        struck.Health -= AxeDamage * planet.axeDamageTimes;
+        struck.Health -= AxeDamage * planet.axeDamageTimes * nook.AxeDamage(inventory.Equipped);
         struck.HurtUntil = Time.time + 0.15f;
         struck.Bite = -1f;
         if (struck.Health <= 0f)
