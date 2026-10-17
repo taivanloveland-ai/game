@@ -60,9 +60,11 @@ public class CraftingNook : MonoBehaviour
     // same with a head of cave crystal (Art/CrystalAxe). They swing this many times as fast as the ice axe; each hit
     // does the same. (Until 2026-10-17 the thornam ice axe did 1.5 times the damage instead.)
     public Item ThornAxe { get; private set; }
-    // Whether the ship's thrusters have been fixed, on the workbench's other tab, with this many magical orbs.
-    public bool ThrustersFixed;
-    const int OrbsToFixThrusters = 3;
+    // Whether the ship has been fixed, on the workbench's other tab. (Until 2026-10-17 this was only its thrusters,
+    // fixed with 3 magical orbs.)
+    public bool ShipFixed;
+    // What fixing the ship takes. (A battery, from the South Pole, will be needed too once it has been made.)
+    const int ShipCrystalShards = 30, ShipIceBlocks = 5, ShipIceShards = 20, ShipAlgaeClumps = 30, ShipStoneBlocks = 100, ShipOrbs = 3;
     // Which tab of the workbench is showing: crafting, or fixing the ship.
     bool fixingTab;
     public Item CrystalAxe { get; private set; }
@@ -513,40 +515,63 @@ public class CraftingNook : MonoBehaviour
         GUI.matrix = before;
     }
 
-    // The ship's tab: its thrusters, and what fixing them takes.
+    // What fixing the ship takes: each thing and how many. Worked out when first needed, once everything is made.
+    (Item Item, int Count)[] shipNeeds;
+    (Item Item, int Count)[] ShipNeeds
+    {
+        get
+        {
+            if (shipNeeds != null) return shipNeeds;
+            var blocks = planet.GetComponent<Mining>();
+            shipNeeds = new[]
+            {
+                (CrystalShard, ShipCrystalShards), (blocks.IceItem, ShipIceBlocks), (gatherables.ShardItem, ShipIceShards),
+                (gatherables.ClumpItem, ShipAlgaeClumps), (blocks.StoneItem, ShipStoneBlocks), (planet.GetComponent<IceBoss>().OrbItem, ShipOrbs),
+            };
+            return shipNeeds;
+        }
+    }
+
+    // The ship's tab: what fixing it takes, and the button to fix it.
     void DrawFixing(Rect area)
     {
-        Item orb = planet.GetComponent<IceBoss>()?.OrbItem;
         float left = area.center.x - 190f;
-        GameText.Label(new Rect(left, area.y + 10f, 380f, 30f), "Thrusters", titleStyle);
-        if (ThrustersFixed)
+        GameText.Label(new Rect(left, area.y + 10f, 380f, 30f), "The ship", titleStyle);
+        if (ShipFixed)
         {
             GameText.Label(new Rect(left, area.y + 50f, 380f, 34f), "Fixed!", lineStyle);
             return;
         }
-        GameText.Label(new Rect(left, area.y + 50f, 380f, 34f), "Broken and smoking. Fixing them takes:", lineStyle);
-        if (orb != null) DrawNeed(new Rect(left, area.y + 88f, 380f, 34f), orb, OrbsToFixThrusters);
-        GUI.enabled = CanFixThrusters;
-        if (GameText.Button(new Rect(left + 60f, area.y + 136f, 260f, 36f), "Fix the thrusters")) FixThrusters();
+        GameText.Label(new Rect(left, area.y + 46f, 380f, 34f), "Broken and smoking. Fixing it takes:", lineStyle);
+        (Item Item, int Count)[] needs = ShipNeeds;
+        for (int i = 0; i < needs.Length; i++) DrawNeed(new Rect(left, area.y + 82f + i * 36f, 380f, 34f), needs[i].Item, needs[i].Count);
+        GUI.enabled = CanFixShip;
+        if (GameText.Button(new Rect(left + 60f, area.y + 92f + needs.Length * 36f, 260f, 36f), "Fix the ship")) FixShip();
         GUI.enabled = true;
     }
 
-    bool CanFixThrusters
+    bool CanFixShip
     {
         get
         {
-            Item orb = planet.GetComponent<IceBoss>()?.OrbItem;
-            return !ThrustersFixed && orb != null && inventory.CountOf(orb) >= OrbsToFixThrusters;
+            if (ShipFixed) return false;
+            foreach ((Item item, int count) in ShipNeeds)
+            {
+                if (item == null || inventory.CountOf(item) < count) return false;
+            }
+            return true;
         }
     }
 
-    // Uses up the magical orbs and fixes the ship's thrusters. Returns false if there are not enough.
-    public bool FixThrusters()
+    // Uses up everything the ship needs and fixes it: the ship is hidden in smoke, and is whole when it clears (see
+    // CrashedShip). Returns false if there is not enough.
+    public bool FixShip()
     {
-        if (!CanFixThrusters) return false;
-        inventory.Remove(planet.GetComponent<IceBoss>().OrbItem, OrbsToFixThrusters);
-        ThrustersFixed = true;
-        hud.Say("The thrusters are fixed!", 3f);
+        if (!CanFixShip) return false;
+        foreach ((Item item, int count) in ShipNeeds) inventory.Remove(item, count);
+        ShipFixed = true;
+        Open = false;
+        hud.Say("The ship is fixed!", 4f);
         return true;
     }
 
