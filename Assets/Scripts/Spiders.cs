@@ -206,7 +206,7 @@ public class Spiders : MonoBehaviour
         // swinging at a steady pace.
         if (Time.time >= nextSwingAt && nook.IsAxe(inventory.Equipped) && !health.Down && (GameInput.LeftClickPressed() || GameInput.LeftClickHeld()))
         {
-            if (StrikeAt(cam.ScreenToWorldPoint(GameInput.PointerPosition())) >= Strike.Hit) nextSwingAt = Time.time + SwingSeconds;
+            if (StrikeAt(cam.ScreenToWorldPoint(GameInput.PointerPosition())) >= Strike.Hit) nextSwingAt = Time.time + SwingSeconds / nook.AxeSwings(inventory.Equipped);
         }
 
         foreach (Spider spider in spiders)
@@ -309,7 +309,7 @@ public class Spiders : MonoBehaviour
         Vector2 at = planet.Nearest(struck.Position, playerAt);
         if (Vector2.Distance(at, playerAt) > AxeReach) return Strike.TooFar;
 
-        struck.Health -= AxeDamage * planet.axeDamageTimes * nook.AxeDamage(inventory.Equipped);
+        struck.Health -= AxeDamage * planet.axeDamageTimes;
         struck.HurtUntil = Time.time + 0.15f;
         struck.Bite = -1f;
         if (struck.Health <= 0f)

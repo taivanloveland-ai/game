@@ -591,7 +591,8 @@ public class IceBoss : MonoBehaviour
         if (!GameInput.LeftClickPressed() && !GameInput.LeftClickHeld()) return;
         Vector2 point = cam.ScreenToWorldPoint(GameInput.PointerPosition());
         if (!picture.bounds.Contains(new Vector3(point.x, point.y, picture.bounds.center.z))) return;
-        nextSwingAt = Time.time + SwingSeconds;
+        // The upgraded axes swing faster.
+        nextSwingAt = Time.time + SwingSeconds / nook.AxeSwings(inventory.Equipped);
         if (Vector2.Distance(player.GroundPosition, foot) > AxeReach)
         {
             hud.Say("Get closer to hit it", 1.5f);
@@ -605,8 +606,7 @@ public class IceBoss : MonoBehaviour
     public void Hit()
     {
         if (!up) return;
-        // The thornam ice axe does half as much again.
-        hitsLeft = Mathf.Max(0f, hitsLeft - planet.axeDamageTimes * nook.AxeDamage(inventory.Equipped));
+        hitsLeft = Mathf.Max(0f, hitsLeft - planet.axeDamageTimes);
         hurtUntil = Time.time + 0.12f;
         if (hitsLeft > 0) return;
         if (upNorth) beatenNorth = true;

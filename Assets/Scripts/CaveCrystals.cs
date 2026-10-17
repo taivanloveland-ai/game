@@ -4,7 +4,8 @@ using UnityEngine;
 // Purple crystals in the frost caves (Taivan's pictures, Assets/Resources/Art/CaveCrystals: three of them side by side,
 // each one square wide and two tall). About forty grow on the floor of each cave, scattered through its tunnels and
 // rooms, and nothing walks through them. Each gives off light: the caves are dark, and round every crystal a soft
-// purple light reaches about four squares. They are mined with the ice pickaxe, eight hits each, and drop nothing yet.
+// purple light reaches about four squares. They are mined with the ice pickaxe, eight hits each, and each breaks into
+// three crystal shards.
 // A crystal mined stays gone, in saved games too. They are seen and mined in the top-down view.
 public class CaveCrystals : MonoBehaviour
 {
@@ -14,6 +15,8 @@ public class CaveCrystals : MonoBehaviour
     // How many hits of the ice pickaxe break one, how close the player must be, and how often holding the button hits.
     const int Hits = 8;
     const float Reach = 3.5f, HeldHitSeconds = 0.4f;
+    // How many crystal shards one breaks into.
+    const int ShardsDropped = 3;
     // How dark the caves are, as how much of the view the dark covers (0 none, 1 black), how far a crystal's light
     // reaches in squares, and the colour of its light.
     const float Darkness = 0.72f, LightReach = 4f;
@@ -30,6 +33,7 @@ public class CaveCrystals : MonoBehaviour
     CraftingNook nook;
     Hud hud;
     Camera cam;
+    Pickups pickups;
 
     Sprite[] pictures;
     Sprite[] crackSprites;
@@ -50,8 +54,9 @@ public class CaveCrystals : MonoBehaviour
     Texture2D darkTexture;
     Color32[] darkPixels;
 
-    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Inventory inventory, CraftingNook nook, Hud hud, Camera cam)
+    public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, Inventory inventory, CraftingNook nook, Hud hud, Camera cam, Pickups pickups)
     {
+        this.pickups = pickups;
         this.planet = planet;
         this.player = player;
         this.mining = mining;
@@ -232,6 +237,8 @@ public class CaveCrystals : MonoBehaviour
         hits = 0;
         cracks.enabled = false;
         mined.Add((planet.CaveIndex, cell));
+        // It breaks into its shards, which slide to the player.
+        for (int i = 0; i < ShardsDropped; i++) pickups.Drop(nook.CrystalShard, new Vector2(cell.x + 0.5f, cell.y + 0.5f) + Random.insideUnitCircle * 0.4f);
         Destroy(crystal.gameObject);
         shown.Remove(cell);
     }
