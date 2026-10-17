@@ -3,7 +3,8 @@ using UnityEngine;
 
 // The wrecked ship, as Taivan drew it (Assets/Resources/Art/CrashedShip): its hull with the workbench nook in its
 // doorway and three broken thrusters on top, smoke rising from each. Once it is fixed (at the workbench) a cloud of
-// smoke covers it, and when the smoke clears his picture of the fixed ship is there (Art/CrashedShipFixed). It stands over the ship's squares, which nobody walks through, in the top-down view.
+// smoke covers it, and when the smoke clears his picture of the fixed ship is there (Art/CrashedShipFixed), with light
+// flowing along its green lines. It stands over the ship's squares, which nobody walks through, in the top-down view.
 public class CrashedShip : MonoBehaviour
 {
     // How many of his pixels make one square: the ship is drawn about three and a half squares wide.
@@ -15,6 +16,11 @@ public class CrashedShip : MonoBehaviour
     const float PuffEvery = 0.35f, RiseSpeed = 0.7f, Drift = 0.25f, PuffSmall = 0.35f, PuffBig = 1.1f, PuffSeconds = 2.6f;
     static readonly Color SmokeColor = new Color(0.55f, 0.57f, 0.6f, 0.7f);
     const int Order = 61;
+    // The fixed ship's green lines flow: patches of light run along them from west to east, this many of his pixels
+    // apart, each this many pixels from its middle to where it fades, moving this many pixels a second.
+    const int FlowApart = 24;
+    const float FlowHalfLength = 5f, FlowSpeed = 14f;
+    static readonly Color32 LineGreen = new Color32(0x96, 0xE2, 0xCC, 255);
     // The cloud when it is fixed: this many puffs, thrown up over this many seconds, each this big and lasting this
     // long. The fixed ship is put in place, hidden in the cloud, this many seconds after it starts.
     const int CloudPuffs = 70;
@@ -35,6 +41,8 @@ public class CrashedShip : MonoBehaviour
     MiningMode mining;
     SpriteRenderer ship;
     Sprite broken, fixedUp, puffSprite;
+    // The fixed ship with the light at each step along its green lines.
+    Sprite[] flowing;
     Vector2 foot;
     float nextPuffAt;
     readonly List<Puff> puffs = new List<Puff>();
@@ -54,6 +62,7 @@ public class CrashedShip : MonoBehaviour
         this.foot = foot;
         broken = Load("Art/CrashedShip");
         fixedUp = Load("Art/CrashedShipFixed");
+        if (fixedUp != null) flowing = MakeFlow(fixedUp);
         if (broken == null) return;
         var go = new GameObject("Crashed Ship");
         go.transform.SetParent(planet.TopDownRoot, false);
@@ -71,6 +80,31 @@ public class CrashedShip : MonoBehaviour
     }
 
     // His picture, unchanged and drawn sharp, standing on its lowest row. Null if it is missing.
+    // The fixed ship once for each step of the light along its green lines: his picture, with the green brightened
+    // toward white where a patch of light is.
+    static Sprite[] MakeFlow(Sprite ship)
+    {
+        Texture2D source = ship.texture;
+        Color32[] pixels = source.GetPixels32();
+        var frames = new Sprite[FlowApart];
+        for (int step = 0; step < FlowApart; step++)
+        {
+            var lit = (Color32[])pixels.Clone();
+            for (int i = 0; i < lit.Length; i++)
+            {
+                if (!lit[i].Equals(LineGreen)) continue;
+                float from = Mathf.Repeat(i % source.width - step, FlowApart);
+                float light = Mathf.Clamp01(1f - Mathf.Min(from, FlowApart - from) / FlowHalfLength);
+                lit[i] = Color32.Lerp(LineGreen, new Color32(240, 255, 250, 255), light * 0.85f);
+            }
+            var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            texture.SetPixels32(lit);
+            texture.Apply();
+            frames[step] = Sprite.Create(texture, new Rect(0, 0, source.width, source.height), new Vector2(ship.pivot.x / source.width, ship.pivot.y / source.height), PixelsPerSquare);
+        }
+        return frames;
+    }
+
     static Sprite Load(string path)
     {
         var picture = Resources.Load<Texture2D>(path);
@@ -99,7 +133,8 @@ public class CrashedShip : MonoBehaviour
             wasFixed = true;
             if (Time.timeSinceLevelLoad > 2f) { cloudSince = Time.time; cloudThrown = 0; }
         }
-        if (nook.ShipFixed && fixedUp != null && (cloudSince < 0f || Time.time - cloudSince >= SwapAfter)) ship.sprite = fixedUp;
+        if (nook.ShipFixed && fixedUp != null && (cloudSince < 0f || Time.time - cloudSince >= SwapAfter))
+            ship.sprite = flowing[Mathf.FloorToInt(Time.time * FlowSpeed) % flowing.Length];
         if (cloudSince >= 0f && shown) ThrowCloud(at);
 
         // The broken thrusters smoke.
