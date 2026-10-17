@@ -29,6 +29,10 @@ public class TitleScreen : MonoBehaviour
     static readonly Color Snow = new Color32(226, 234, 242, 255), Ice = new Color32(146, 202, 232, 255), Rock = new Color32(93, 107, 126, 255);
     static readonly Color Water = new Color32(38, 78, 122, 255), Peak = new Color32(245, 249, 252, 255);
     static readonly Color Night = new Color32(5, 8, 16, 255), Air = new Color32(150, 204, 240, 255);
+    // The algae, on the equator: where its middle is, as a share of the way round (facing us as the title comes up),
+    // and how far it reaches, in degrees
+    // (drawn a little bigger than it really is, so it can be seen).
+    const float AlgaeRound = 0.97f, AlgaeReach = 22f;
     // The way to the sun, for the planet's day and night sides.
     static readonly Vector3 ToSun = new Vector3(0.72f, 0.42f, 0.55f).normalized;
 
@@ -337,6 +341,11 @@ public class TitleScreen : MonoBehaviour
                     // The lowlands: snow, lakes of ice and grey rock, as on the ground.
                     float e = Noise(around, up, 11, BlobsRound) * 0.65f + Noise(around * 2.6f, up * 2.6f, 23, 91) * 0.35f;
                     land = e > 0.6f ? Rock : e < 0.42f ? Ice : Snow;
+                    // The algae, round its middle on the equator, with a wavy edge, in the colours it has on the map.
+                    float across = Mathf.Abs(column / (float)MapWide - AlgaeRound);
+                    across = Mathf.Min(across, 1f - across) * 360f;
+                    float edge = Mathf.Sqrt(across * across + latitude * latitude) / (AlgaeReach * (0.75f + 0.5f * Noise(around * 3f, up * 3f, 101, 105)));
+                    if (edge < 1f && e <= 0.6f) land = PlanetOne.AlgaeMapColor(Mathf.InverseLerp(0.25f, 0.75f, Noise(around * 4f, up * 4f, 113, 140)), row % 3 == 0, edge);
                 }
                 landMap[row * MapWide + column] = land;
                 nightMap[row * MapWide + column] = Color.Lerp(Night, land, 0.1f);

@@ -175,7 +175,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 
 ## Temporary settings to undo later
 
-- **Temporary now:** in creative mode, a straight road to both ice caps (since 2026-10-14; `roadToCapsInCreative` in `PlanetOne.cs`, set it to false to undo); and the ice axe does 4 times its damage (since 2026-10-16; `axeDamageTimes` in `PlanetOne.cs`, set it to 1 to undo). Otherwise as undone on 2026-10-12: no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` is off).
+- **Temporary now:** in creative mode, a straight road to both ice caps (since 2026-10-14; `roadToCapsInCreative` in `PlanetOne.cs`, set it to false to undo), with a road along the equator to the algae (since 2026-10-17, same switch); and the ice axe does 4 times its damage (since 2026-10-16; `axeDamageTimes` in `PlanetOne.cs`, set it to 1 to undo). Otherwise as undone on 2026-10-12: no starting pickaxe or blocks, walking speed **4**, and no test cave by the ship (`caveByCrashSite` is off).
 - **Day length (asked 2026-10-10, not temporary):** "days are 24 minutes 12 day 12 night". `cycleSeconds` in `DayNight.cs` is 1440. Before this it was 6 minutes, then 1 minute for testing.
 
 ## Mining (asked 2026-10-10)
@@ -554,3 +554,9 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - His picture is in the game unchanged as `Assets/Resources/Art/CaveCrystals.png`: three crystals side by side, each one square wide and two tall. About **40** grow on the floor of each frost cave, at least 4 squares apart, none right by the way in, always in the same places for the same cave of the same world; each is one of his three, picked by its spot. Nothing walks through them.
   - Mined with the **ice pickaxe, 8 hits** (from within about 3 squares; holding the button keeps hitting). His crack pictures spread across it as it is hit. They drop **nothing yet**. A mined crystal stays gone, kept in saved games (save files are now version 5).
   - The caves are **quite dark** now (about 70% dark), and each crystal gives off a soft **purple light** about **4 squares** round it. Mining one takes its light away. This is in the top-down view.
+
+- **"temporarily make road to algae. make it so the algae biome is less ugly on teh map and add some more colors on the map to the algae biome.  also make it visible on teh planet on teh title screen . also give me thornam stick colors"** (2026-10-17):
+  - **Road to the algae** (TEMPORARY, creative mode only, like the road to the caps): 3 squares wide along the equator, from the north-south road (14 squares east of the ship) to the middle of the algae, the short way round, flat the whole way. It goes with `roadToCapsInCreative`.
+  - **The algae on the maps**: no longer one flat teal. It is laid on in soft patches of five shades, from deep blue-teal through teal and green to pale mint; the rows with lines show a little lighter, as faint stripes; and its edge fades softly into the snow.
+  - **The title screen**: the planet now has the algae on its equator, in the same colours, facing us as the title comes up (drawn a little bigger than it really is, so it can be seen).
+  - **Thornam stick colours** (his picture): brown #624E2D (98, 78, 45), darker brown #5B482A (91, 72, 42), lighter brown #6C5632 (108, 86, 50).
