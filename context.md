@@ -547,3 +547,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - Wearing them: **no sliding on ice** (start, turn and stop instantly, as on snow), and the player moves **1.5 times as fast**: 6 instead of 4 (on snow, which is a little slower, about 5.4 instead of 3.6). In both views.
   - What is worn is kept in saved games (save files are now version 4; older saves still load).
   - Tested: 1 second on snow went 3.5 squares without them and 5.2 with them; on ice, a moment after starting the player was at 1.1 without them (still sliding up to speed) and 7.2 with them (full speed at once).
+
+- **"make the blank algae the old sprite."** (2026-10-17): the plain rows between his lined algae rows now show the algae as it was before his blocks: the speckled teal with lighter and darker flecks (`AlgaePixel` in `PlanetOne.cs`), in its three looks picked square by square, with the flecks the size they always were. Still no lines, light or flashes on those rows.

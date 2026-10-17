@@ -990,14 +990,20 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < algaeStripWide; x++) algaeLineMask[y * algaeStripWide + x] = !pixels[y * sheetWide + x].Equals(algae);
         }
-        // And plain algae, without lines, kept after his blocks, for the rows between the lined ones.
-        var plain = new Texture2D(algaeStripTall, algaeStripTall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
-        var fill = new Color32[algaeStripTall * algaeStripTall];
-        for (int i = 0; i < fill.Length; i++) fill[i] = algae;
-        plain.SetPixels32(fill);
-        plain.Apply();
-        System.Array.Resize(ref algaePictures, algaeLooks + 1);
-        algaePictures[algaeLooks] = LoadBlockPicture(plain);
+        // And for the rows between the lined ones, the algae as it was before his blocks: speckled, with no lines, in
+        // its three looks. Kept after his blocks. Each speck is drawn as big as it always was (two of the old tile's
+        // sixteen pixels), at his blocks' size.
+        System.Array.Resize(ref algaePictures, algaeLooks + PlainAlgaeLooks);
+        int scale = algaeStripTall / TilePixels;
+        for (int look = 0; look < PlainAlgaeLooks; look++)
+        {
+            var plain = new Texture2D(algaeStripTall, algaeStripTall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+            var fill = new Color32[algaeStripTall * algaeStripTall];
+            for (int i = 0; i < fill.Length; i++) fill[i] = AlgaePixel(look, (i % algaeStripTall) / scale, (algaeStripTall - 1 - i / algaeStripTall) / scale);
+            plain.SetPixels32(fill);
+            plain.Apply();
+            algaePictures[algaeLooks + look] = LoadBlockPicture(plain);
+        }
     }
 
     // Whether each row of the planet has lines in its algae: a lined row, then one to three plain rows (how many is
@@ -1005,6 +1011,8 @@ public class PlanetOne : MonoBehaviour
     bool[] linedRows;
     int linedRowsSeed;
     const int PlainRowsFrom = 1, PlainRowsTo = 3;
+    // The plain algae has this many looks: the speckled algae drawn before his blocks.
+    const int PlainAlgaeLooks = 3;
 
     bool RowIsLined(int y)
     {
@@ -1565,8 +1573,8 @@ public class PlanetOne : MonoBehaviour
     public int AlgaeLookAt(int x, int y)
     {
         if (algaePictures == null) return 0;
-        // Plain algae, without lines, on the rows between the lined ones.
-        if (!RowIsLined(y)) return algaeLooks;
+        // The old speckled algae, without lines, on the rows between the lined ones.
+        if (!RowIsLined(y)) return algaeLooks + Mathf.Min(PlainAlgaeLooks - 1, (int)(HashAt(x, y, variantSeed + 7177) * PlainAlgaeLooks));
         int start = (int)(HashAt(0, y, variantSeed + 4241) * algaeLooks);
         return ((x + start) % algaeLooks + algaeLooks) % algaeLooks;
     }
