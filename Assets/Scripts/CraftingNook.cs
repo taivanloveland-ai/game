@@ -5,6 +5,8 @@ using UnityEngine;
 // and 15 ferns and 10 ice shards make an ice axe. And 20 algae clumps, 15 thorns and 2 thornam vines make thornam
 // cleats, worn in the boots slot. An ice axe and 8 thornam sticks make a thornam ice axe, which swings half as fast
 // again; and a thornam ice axe and 20 crystal shards make a crystal axe, which swings twice as fast as the ice axe.
+// The pickaxe upgrades the same way, with the same things: the thornam pickaxe swings faster, and the crystal pickaxe
+// also breaks things in half the hits.
 // The nook is on the ship's front, so it is used from the top-down view.
 public class CraftingNook : MonoBehaviour
 {
@@ -61,6 +63,20 @@ public class CraftingNook : MonoBehaviour
     public Item CrystalAxe { get; private set; }
     const float ThornAxeSwings = 1.5f, CrystalAxeSwings = 2f;
     const int ThornAxeSticksNeeded = 8, CrystalAxeShardsNeeded = 20;
+    // The pickaxe's upgrades, the same way: the thornam pickaxe (Art/ThornamPickaxe), whose thornam stick swings
+    // faster, and the crystal pickaxe (Art/CrystalPickaxe), whose crystal top is more efficient: it breaks things
+    // in this share of the hits, and swings as fast as the thornam pickaxe.
+    public Item ThornPickaxe { get; private set; }
+    public Item CrystalPickaxe { get; private set; }
+    const float ThornPickaxeSwings = 1.5f, CrystalPickaxeHits = 0.5f;
+
+    // True for any of the pickaxes.
+    public bool IsPickaxe(Item item) => item != null && (item == Pickaxe || item == ThornPickaxe || item == CrystalPickaxe);
+    // How many times as fast as the ice pickaxe a pickaxe swings.
+    public float PickaxeSwings(Item item) => item == ThornPickaxe || item == CrystalPickaxe ? ThornPickaxeSwings : 1f;
+    // How many hits a pickaxe takes to break something that takes the ice pickaxe this many.
+    public int PickaxeHits(Item item, int hits) => item == CrystalPickaxe ? Mathf.Max(1, Mathf.CeilToInt(hits * CrystalPickaxeHits)) : hits;
+
     // Crystal shards, which the cave crystals break into (Taivan's picture, Art/CrystalShard).
     public Item CrystalShard { get; private set; }
 
@@ -116,6 +132,8 @@ public class CraftingNook : MonoBehaviour
         Cleats = new Item("Thornam cleats", Picture("Art/ThornamCleats") ?? Pickaxe.Icon) { Boots = true };
         ThornAxe = new Item("Thornam ice axe", Picture("Art/ThornamIceAxe") ?? Axe.Icon);
         CrystalAxe = new Item("Crystal axe", Picture("Art/CrystalAxe") ?? Axe.Icon);
+        ThornPickaxe = new Item("Thornam pickaxe", Picture("Art/ThornamPickaxe") ?? Pickaxe.Icon);
+        CrystalPickaxe = new Item("Crystal pickaxe", Picture("Art/CrystalPickaxe") ?? Pickaxe.Icon);
         CrystalShard = new Item("Crystal shard", Picture("Art/CrystalShard") ?? gatherables.ShardItem.Icon);
         recipes = new[]
         {
@@ -124,6 +142,8 @@ public class CraftingNook : MonoBehaviour
             new Recipe { Tool = Cleats, Needs = new[] { (gatherables.ClumpItem, CleatsClumpsNeeded), (gatherables.ThornItem, CleatsThornsNeeded), (gatherables.VineItem, CleatsVinesNeeded) }, Use = "worn: grip on ice, run faster" },
             new Recipe { Tool = ThornAxe, Upgrades = Axe, Needs = new[] { (gatherables.StickItem, ThornAxeSticksNeeded) }, Use = "your ice axe, upgraded: swings faster" },
             new Recipe { Tool = CrystalAxe, Upgrades = ThornAxe, Needs = new[] { (CrystalShard, CrystalAxeShardsNeeded) }, Use = "your thornam ice axe, upgraded: swings faster still" },
+            new Recipe { Tool = ThornPickaxe, Upgrades = Pickaxe, Needs = new[] { (gatherables.StickItem, ThornAxeSticksNeeded) }, Use = "your ice pickaxe, upgraded: swings faster" },
+            new Recipe { Tool = CrystalPickaxe, Upgrades = ThornPickaxe, Needs = new[] { (CrystalShard, CrystalAxeShardsNeeded) }, Use = "your thornam pickaxe, upgraded: fewer hits" },
         };
 
         // The picture sits on the ship's front face, which is drawn one square up from the ground in front of it.
@@ -405,6 +425,16 @@ public class CraftingNook : MonoBehaviour
         return Make(recipes[4]);
     }
 
+    public bool UpgradePickaxe()
+    {
+        return Make(recipes[5]);
+    }
+
+    public bool UpgradeToCrystalPickaxe()
+    {
+        return Make(recipes[6]);
+    }
+
     void OnGUI()
     {
         if (!Open) return;
@@ -420,13 +450,16 @@ public class CraftingNook : MonoBehaviour
         // As tall as the longest list of what something takes.
         int rows = 0;
         foreach (Recipe each in recipes) rows = Mathf.Max(rows, each.Needs.Length + (each.Upgrades != null ? 1 : 0));
-        // Two to a row, so it fits on the screen.
+        // As many to a row as fit across the screen. If it is still too big, it is all drawn smaller to fit.
         const float column = 400f;
-        const int across = 2;
+        int across = Mathf.Clamp((int)((Screen.width - 40f) / column), 2, recipes.Length);
         float block = 112f + rows * 38f + 50f;
         int lines = (recipes.Length + across - 1) / across;
         float height = 40f + lines * block;
         float width = column * Mathf.Min(across, recipes.Length) + 20f;
+        float shrink = Mathf.Min(1f, (Screen.height - 20f) / height, (Screen.width - 20f) / width);
+        Matrix4x4 before = GUI.matrix;
+        GUI.matrix = Matrix4x4.TRS(new Vector3(Screen.width / 2f, Screen.height / 2f, 0f), Quaternion.identity, new Vector3(shrink, shrink, 1f)) * Matrix4x4.TRS(new Vector3(-Screen.width / 2f, -Screen.height / 2f, 0f), Quaternion.identity, Vector3.one) * before;
         var panel = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
         GUI.Box(panel, GUIContent.none);
         GUI.Box(panel, GUIContent.none);
@@ -456,6 +489,7 @@ public class CraftingNook : MonoBehaviour
             if (GameText.Button(new Rect(left + 70f, top + block - 46f, column - 140f, 36f), recipe.Upgrades != null ? "Upgrade" : "Craft")) Make(recipe);
             GUI.enabled = true;
         }
+        GUI.matrix = before;
     }
 
     // One line of the recipe: the item's picture, its name, and how many the player has out of how many are needed.

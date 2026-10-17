@@ -131,9 +131,9 @@ public class CaveCrystals : MonoBehaviour
         // A click on a crystal with the pickaxe is one hit. Holding the button keeps hitting, at a steady pace.
         bool pressed = GameInput.LeftClickPressed();
         bool held = !pressed && GameInput.LeftClickHeld() && Time.time >= nextHeldHit;
-        if ((!pressed && !held) || inventory.Equipped != nook.Pickaxe || GameInput.Blocked) return;
+        if ((!pressed && !held) || !nook.IsPickaxe(inventory.Equipped) || GameInput.Blocked) return;
         if (!CrystalUnder(cam.ScreenToWorldPoint(GameInput.PointerPosition()), out Vector2Int cell)) return;
-        nextHeldHit = Time.time + HeldHitSeconds;
+        nextHeldHit = Time.time + HeldHitSeconds / nook.PickaxeSwings(inventory.Equipped);
         if (Vector2.Distance(player.GroundPosition, new Vector2(cell.x + 0.5f, cell.y + 0.5f)) > Reach)
         {
             if (pressed) hud.Say("Get closer to mine it", 1.5f);
@@ -223,12 +223,14 @@ public class CaveCrystals : MonoBehaviour
         if (hits == 0 || cell != damaged) hits = 0;
         damaged = cell;
         hits++;
-        if (hits < Hits)
+        // The crystal pickaxe breaks them in fewer hits.
+        int needed = nook.PickaxeHits(inventory.Equipped, Hits);
+        if (hits < needed)
         {
             if (crackSprites != null)
             {
                 int last = crackSprites.Length - 1;
-                cracks.sprite = crackSprites[Mathf.Clamp(Mathf.RoundToInt((hits - 1) * last / (float)(Hits - 2)), 0, last)];
+                cracks.sprite = crackSprites[needed <= 2 ? last / 2 : Mathf.Clamp(Mathf.RoundToInt((hits - 1) * last / (float)(needed - 2)), 0, last)];
                 cracks.transform.position = crystal.bounds.center;
                 cracks.enabled = true;
             }

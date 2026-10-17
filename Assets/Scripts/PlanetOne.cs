@@ -609,6 +609,8 @@ public class PlanetOne : MonoBehaviour
         {
             if (!inventory.Tools.Contains(nook.ThornAxe)) inventory.AddTool(nook.ThornAxe);
             if (!inventory.Tools.Contains(nook.CrystalAxe)) inventory.AddTool(nook.CrystalAxe);
+            if (!inventory.Tools.Contains(nook.ThornPickaxe)) inventory.AddTool(nook.ThornPickaxe);
+            if (!inventory.Tools.Contains(nook.CrystalPickaxe)) inventory.AddTool(nook.CrystalPickaxe);
             foreach (Item item in new[]
             {
                 gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem,
