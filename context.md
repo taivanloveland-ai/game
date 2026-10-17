@@ -590,3 +590,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Smoke**: blocky grey puffs rise from the top of each of the three thrusters, drifting and growing as they fade.
   - **The workbench has two tabs**: Crafting (as before) and **Fix the ship**: the thrusters, and what fixing them takes, **3 magical orbs**. Fixing them uses the orbs, says "The thrusters are fixed!", and **stops the smoke**. It is kept in saved games (version 6). When he draws the fixed ship it goes in as `Assets/Resources/Art/CrashedShipFixed.png`, and the game shows it once the thrusters are fixed.
   - Tested: the smoke rose from all three; fixing worked once (not twice) and the smoke stopped. Saving a fixed ship was not tested.
+
+- **"update context commit push"** (2026-10-17): everything since the last such request was already in these notes, saved and uploaded; this line records the request.
