@@ -164,9 +164,10 @@ public class Mining : MonoBehaviour
         }
         // A click is one hit. Holding the button down keeps hitting whatever the mouse is over, at a steady pace.
         bool pressed = GameInput.LeftClickPressed();
-        bool held = !pressed && GameInput.LeftClickHeld() && Time.time >= nextHeldHit && inventory.Equipped == nook.Pickaxe;
+        bool held = !pressed && GameInput.LeftClickHeld() && Time.time >= nextHeldHit && nook.IsPickaxe(inventory.Equipped);
         if (!pressed && !held) return;
-        nextHeldHit = Time.time + HeldHitSeconds;
+        // The upgraded pickaxes swing faster.
+        nextHeldHit = Time.time + HeldHitSeconds / nook.PickaxeSwings(inventory.Equipped);
         ClickAt(cam.ScreenToWorldPoint(GameInput.PointerPosition()));
     }
 
@@ -204,11 +205,11 @@ public class Mining : MonoBehaviour
         }
         PlanetOne.SideBlock block = planet.SideBlockAt(square.x, square.y, level);
         if (block == PlanetOne.SideBlock.Air) return Result.Nothing;
-        if (inventory.Equipped != nook.Pickaxe)
+        if (!nook.IsPickaxe(inventory.Equipped))
         {
             // With a block in hand the click is for building, so there is nothing to say about mining. Top-down,
             // clicks on the ground are too common to comment on each one.
-            if (side && (inventory.Equipped == null || !inventory.Equipped.Placeable)) hud.Say(inventory.Tools.Contains(nook.Pickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
+            if (side && (inventory.Equipped == null || !inventory.Equipped.Placeable)) hud.Say(inventory.Tools.Exists(nook.IsPickaxe) ? "Equip the pickaxe to mine: press its number" : "You need a pickaxe to mine");
             return Result.NoPickaxe;
         }
         if (side)
@@ -230,7 +231,8 @@ public class Mining : MonoBehaviour
         if (hits == 0 || target != damaged) hits = 0;
         damaged = target;
         hits++;
-        int needed = HitsFor(block);
+        // The crystal pickaxe breaks things in fewer hits.
+        int needed = nook.PickaxeHits(inventory.Equipped, HitsFor(block));
         if (hits < needed)
         {
             cracks.sprite = crackSprites[CrackStage(hits, needed)];
