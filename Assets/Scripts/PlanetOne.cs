@@ -402,6 +402,26 @@ public class PlanetOne : MonoBehaviour
         cam.transparencySortMode = TransparencySortMode.CustomAxis;
         cam.transparencySortAxis = Vector3.up;
 
+#if UNITY_EDITOR
+        // Started again by Update Content on the pause screen: straight back into the game that was saved.
+        string resume = PlayerPrefs.GetString(ResumeAfterUpdateKey, "");
+        if (resume.Length > 0)
+        {
+            PlayerPrefs.DeleteKey(ResumeAfterUpdateKey);
+            PlayerPrefs.Save();
+            string[] parts = resume.Split(' ');
+            bool creative = parts[0] == "creative";
+            int slot = int.Parse(parts[1]);
+            SaveGame.Loaded saved = SaveGame.Load(creative, slot);
+            if (saved != null)
+            {
+                var resumed = gameObject.AddComponent<TitleScreen>();
+                resumed.Setup(this, cam);
+                resumed.Choose(creative, slot, saved, saved.Name);
+                return;
+            }
+        }
+#endif
         // The game opens on the title screen, and the world is made once a mode has been picked there. (Started
         // with -skipTitle on the command line, as the automatic checks are, it goes straight into survival mode;
         // with -creative as well, into creative mode. "-slot 3" plays in the third save slot, and -load with it
@@ -418,8 +438,13 @@ public class PlanetOne : MonoBehaviour
             FinishSetup(creative);
             return;
         }
-        gameObject.AddComponent<TitleScreen>().Setup(this, cam);
+        var title = gameObject.AddComponent<TitleScreen>();
+        title.Setup(this, cam);
     }
+
+    // Left by Update Content on the pause screen: which saved game to go straight back into when the game starts
+    // again ("creative 2", or "survival 0").
+    public const string ResumeAfterUpdateKey = "ResumeAfterUpdate";
 
     Camera cam;
     // What is being made right now, for the loading screen, and whether the game has begun.

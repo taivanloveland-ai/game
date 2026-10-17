@@ -59,6 +59,7 @@ public class SaveGame : MonoBehaviour
 
     // The slot this game is saved in, counting from 0, or -1 if it has none.
     public int Slot => slot;
+    public bool Creative => creative;
 
     public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, DayNight dayNight, Inventory inventory, Pickups pickups, Gatherables gatherables,
         CraftingNook nook, Mining pickaxeWork, Health health, Spiders spiders, WorldMap map, Caves caves, int slot, bool creative, string saveName)
