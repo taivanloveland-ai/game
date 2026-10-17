@@ -592,3 +592,9 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - Tested: the smoke rose from all three; fixing worked once (not twice) and the smoke stopped. Saving a fixed ship was not tested.
 
 - **"update context commit push"** (2026-10-17): everything since the last such request was already in these notes, saved and uploaded; this line records the request.
+
+- **"You need 30 crystals, 5 ice blocks, 20 ice shards, 30 algae clumps, 100 stone blocks, 3 magical orbs, and the battery at the south pole. The battery is not made yet, so dont put it in yet. once the player puts in the materials, the broken ship is covered with smoke and when the smoke disappears, the fixed ship is there. ill draw the battery now."** (2026-10-17), with his picture of the fixed ship.
+  - His fixed ship is in unchanged as `Assets/Resources/Art/CrashedShipFixed.png` (same 64 x 96 canvas, standing in the same place).
+  - The workbench's **Fix the ship** tab now asks for the whole list: **30 crystal shards** ("30 crystals", taken as crystal shards, since the crystals themselves cannot be carried), **5 ice blocks, 20 ice shards, 30 algae clumps, 100 stone blocks and 3 magical orbs**. The **battery** from the South Pole is left out until he has drawn it. (Before, only the thrusters were fixed, with 3 magical orbs.)
+  - Fixing it uses all of those, closes the workbench and says "The ship is fixed!". A thick cloud of pale smoke billows up over the broken ship, the fixed ship is put in place hidden in it, and as the smoke clears the fixed ship is there. The smoke from the thrusters stops. Kept in saved games (a saved game that was fixed starts with the fixed ship, no cloud).
+  - Tested with pictures before, in the smoke, and after.

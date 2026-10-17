@@ -202,7 +202,7 @@ public class SaveGame : MonoBehaviour
                 pickups.Write(w);
                 map.Write(w);
                 planet.GetComponent<CaveCrystals>().Write(w);
-                w.Write(nook.ThrustersFixed);
+                w.Write(nook.ShipFixed);
             }
             if (File.Exists(path)) File.Delete(path);
             File.Move(fresh, path);
@@ -253,7 +253,7 @@ public class SaveGame : MonoBehaviour
             pickups.Read(r, Find);
             map.Read(r);
             if (loaded.Version >= 5) planet.GetComponent<CaveCrystals>().Read(r);
-            nook.ThrustersFixed = loaded.Version >= 6 && r.ReadBoolean();
+            nook.ShipFixed = loaded.Version >= 6 && r.ReadBoolean();
 
             // Last, the player goes back where they were: into their cave first, if they were in one.
             health.Restore(healthThen);
