@@ -32,7 +32,8 @@ public class PlanetOne : MonoBehaviour
     // cliff a few squares east of the ship.
     [System.NonSerialized] public bool caveByCrashSite = false;
     // For testing only, and to be turned off later: in creative mode, a straight road of snow from the crash site to
-    // both ice caps, cut flat through the mountains in the north and frozen over the ocean in the south.
+    // both ice caps, cut flat through the mountains in the north and frozen over the ocean in the south, and one along
+    // the equator to the algae.
     [System.NonSerialized] public bool roadToCapsInCreative = true;
     // For testing only, and 1 in the real game: every hit of the ice axe does this many times its usual damage, to
     // spiders and to the ice pillar.
@@ -63,6 +64,28 @@ public class PlanetOne : MonoBehaviour
     // number of squares across.
     const int AlgaeAway = 1000, AlgaeRadius = 300;
     const float AlgaeEdgeBlobSize = 90f;
+    // Where the middle of this world's algae is, across, and the number its shapes are made from.
+    int algaeX, algaeSeed;
+
+    // The algae on the maps: its colours, from deep blue-teal through teal and green to pale mint, laid on in soft
+    // patches, the lined rows a little lighter, fading toward the snow at its edge.
+    static readonly Color32[] AlgaeMapShades =
+    {
+        new Color32(28, 104, 122, 255), new Color32(40, 140, 140, 255), new Color32(46, 160, 142, 255),
+        new Color32(66, 176, 126, 255), new Color32(104, 202, 178, 255),
+    };
+    const float AlgaeMapPatchSize = 70f;
+
+    // One colour of algae on a map: patch (0 to 1) picks along its shades, lined rows are a little lighter, and toward
+    // the edge (edge 0 in the middle, 1 at the edge) it pales into the snow round it. Used by the maps and the title.
+    public static Color AlgaeMapColor(float patch, bool lined, float edge)
+    {
+        float along = Mathf.Clamp01(patch) * (AlgaeMapShades.Length - 1);
+        int low = Mathf.Min(AlgaeMapShades.Length - 2, Mathf.FloorToInt(along));
+        Color c = Color.Lerp(AlgaeMapShades[low], AlgaeMapShades[low + 1], along - low);
+        if (lined) c = Color.Lerp(c, AlgaeLight, 0.22f);
+        return Color.Lerp(c, new Color32(206, 228, 226, 255), Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.72f, 1f, edge)) * 0.55f);
+    }
     // How strongly the algae glows in the middle of the night: how solid its bright copy is, drawn over the dark.
     const float AlgaeGlow = 0.6f;
     public static readonly Color32 AlgaeColor = new Color32(46, 160, 142, 255), AlgaeLight = new Color32(126, 218, 194, 255), AlgaeDark = new Color32(30, 122, 114, 255);
@@ -463,6 +486,8 @@ public class PlanetOne : MonoBehaviour
         if (creative)
         {
             // In creative mode the whole map is drawn from the start.
+            // (Which rows of the algae have lines is worked out first, before the map is drawn on many cores at once.)
+            RowIsLined(0);
             LoadingStage = "Drawing the map";
             var colours = new Color32[width * height];
             System.Threading.Tasks.Parallel.For(0, height, y =>
@@ -620,9 +645,9 @@ public class PlanetOne : MonoBehaviour
         variantSeed = rand.Next();
         int mountainSeed = rand.Next();
         int capSeed = rand.Next();
-        int algaeSeed = rand.Next();
+        algaeSeed = rand.Next();
         // East of the crash site in some worlds, west in others.
-        int algaeX = cx + (rand.Next(2) == 0 ? AlgaeAway : -AlgaeAway);
+        algaeX = cx + (rand.Next(2) == 0 ? AlgaeAway : -AlgaeAway);
 
         // How far each ice sheet reaches, column by column.
         northCap = new int[width];
@@ -792,8 +817,9 @@ public class PlanetOne : MonoBehaviour
     }
 
     // For testing: a road 3 squares wide running straight north and south, just east of the crag in front of the
-    // northern cave, from one ice cap to the other, and a short stretch from the crash site across to it. Along it
-    // the land is flat at ground level: rock is snow, and the ocean is frozen into ice.
+    // northern cave, from one ice cap to the other, and a short stretch from the crash site across to it; and (since
+    // 2026-10-17) a road along the equator from it to the middle of the algae. Along them the land is flat at ground
+    // level: rock is snow, and the ocean is frozen into ice.
     void MakeRoadToCaps(int cx, int cy)
     {
         int roadX = cx + RoadEast;
@@ -812,6 +838,14 @@ public class PlanetOne : MonoBehaviour
         for (int y = cy - 3; y < cy; y++)
         {
             for (int x = cx; x < roadX; x++) Flatten(x, y);
+        }
+        // And along the equator from that road to the middle of the algae, the short way round.
+        int toAlgae = algaeX - roadX;
+        if (toAlgae > width / 2) toAlgae -= width;
+        if (toAlgae < -width / 2) toAlgae += width;
+        for (int y = height / 2 - 1; y <= height / 2 + 1; y++)
+        {
+            for (int step = 0; step != toAlgae; step += System.Math.Sign(toAlgae)) Flatten(roadX + step, y);
         }
     }
 
@@ -2497,7 +2531,14 @@ public class PlanetOne : MonoBehaviour
         {
             case Stone: return StoneColor;
             case Water: return WaterColor;
-            case Algae: return AlgaeColor;
+            case Algae:
+            {
+                float across = Mathf.Abs(x - algaeX), up = y - height / 2;
+                across = Mathf.Min(across, width - across);
+                float reach = AlgaeRadius * (0.7f + 0.6f * LoopingNoise(x, y, AlgaeEdgeBlobSize, algaeSeed, 2));
+                float patch = LoopingNoise(x, y, AlgaeMapPatchSize, algaeSeed + 11, 3);
+                return AlgaeMapColor(Mathf.InverseLerp(0.25f, 0.75f, patch), algaePictures != null && RowIsLined(y), Mathf.Sqrt(across * across + up * up) / reach);
+            }
             case Ice: return IceBase[ground[x, y]];
             case Rock: return RockColors[0];
             case Ship: return ShipColor;
