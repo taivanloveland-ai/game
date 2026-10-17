@@ -3,7 +3,8 @@ using UnityEngine;
 // A little nook in the side of the crashed ship, with a hammer and a wrench hanging in it. Right clicking it walks
 // the player over and opens a small crafting menu. It makes two tools: 8 ferns and 5 ice shards make an ice pickaxe,
 // and 15 ferns and 10 ice shards make an ice axe. And 20 algae clumps, 15 thorns and 2 thornam vines make thornam
-// cleats, worn in the boots slot.
+// cleats, worn in the boots slot. And an ice axe and 8 thornam sticks make a thornam ice axe, which does half as much
+// damage again.
 // The nook is on the ship's front, so it is used from the top-down view.
 public class CraftingNook : MonoBehaviour
 {
@@ -53,6 +54,16 @@ public class CraftingNook : MonoBehaviour
     public Item Axe { get; private set; }
     // Thornam cleats: boots with thorns on their soles (Taivan's picture, Art/ThornamCleats).
     public Item Cleats { get; private set; }
+    // The thornam ice axe: the ice axe with a thornam stick for a handle (Art/ThornamIceAxe). It does this many times
+    // the ice axe's damage.
+    public Item ThornAxe { get; private set; }
+    const float ThornAxeDamage = 1.5f;
+    const int ThornAxeSticksNeeded = 8;
+
+    // True for either axe.
+    public bool IsAxe(Item item) => item != null && (item == Axe || item == ThornAxe);
+    // How many times the ice axe's damage an axe does.
+    public float AxeDamage(Item item) => item == ThornAxe ? ThornAxeDamage : 1f;
 
     // Something the workbench can make, what it takes, and a few words on what it is for.
     class Recipe
@@ -60,6 +71,8 @@ public class CraftingNook : MonoBehaviour
         public Item Tool;
         // What it takes: each thing, and how many of it.
         public (Item Item, int Count)[] Needs;
+        // The tool it is made from, if it is an upgrade: that tool is needed, and becomes the new one.
+        public Item Upgrades;
         public string Use;
     }
 
@@ -97,11 +110,13 @@ public class CraftingNook : MonoBehaviour
         Pickaxe = new Item("Ice pickaxe", drawn != null ? drawn[0] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => PickaxePixel(x, y)));
         Axe = new Item("Ice axe", drawn != null ? drawn[1] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => AxePixel(x, y)));
         Cleats = new Item("Thornam cleats", Picture("Art/ThornamCleats") ?? Pickaxe.Icon) { Boots = true };
+        ThornAxe = new Item("Thornam ice axe", Picture("Art/ThornamIceAxe") ?? Axe.Icon);
         recipes = new[]
         {
             new Recipe { Tool = Pickaxe, Needs = new[] { (gatherables.PlantItem, FernsNeeded), (gatherables.ShardItem, ShardsNeeded) }, Use = "for mining" },
             new Recipe { Tool = Axe, Needs = new[] { (gatherables.PlantItem, AxeFernsNeeded), (gatherables.ShardItem, AxeShardsNeeded) }, Use = "for spiders and bushes" },
             new Recipe { Tool = Cleats, Needs = new[] { (gatherables.ClumpItem, CleatsClumpsNeeded), (gatherables.ThornItem, CleatsThornsNeeded), (gatherables.VineItem, CleatsVinesNeeded) }, Use = "worn: grip on ice, run faster" },
+            new Recipe { Tool = ThornAxe, Upgrades = Axe, Needs = new[] { (gatherables.StickItem, ThornAxeSticksNeeded) }, Use = "your ice axe, upgraded: 1.5x damage" },
         };
 
         // The picture sits on the ship's front face, which is drawn one square up from the ground in front of it.
@@ -324,6 +339,7 @@ public class CraftingNook : MonoBehaviour
     // True if the player has what a recipe needs.
     bool CanMake(Recipe recipe)
     {
+        if (recipe.Upgrades != null && !inventory.Tools.Contains(recipe.Upgrades)) return false;
         foreach ((Item item, int count) in recipe.Needs)
         {
             if (inventory.CountOf(item) < count) return false;
@@ -338,6 +354,15 @@ public class CraftingNook : MonoBehaviour
         if (!CanMake(recipe)) return false;
         foreach ((Item item, int count) in recipe.Needs) inventory.Remove(item, count);
         bool tool = recipe.Tool != Cleats;
+        if (recipe.Upgrades != null)
+        {
+            // The old tool becomes the new one, in the same place on the hotbar.
+            inventory.Tools[inventory.Tools.IndexOf(recipe.Upgrades)] = recipe.Tool;
+            int slot = System.Array.IndexOf(inventory.Hotbar, recipe.Upgrades);
+            if (slot >= 0) inventory.Hotbar[slot] = recipe.Tool;
+            hud.Say("Upgraded your ice axe to a " + recipe.Tool.Name.ToLower());
+            return true;
+        }
         if (tool) inventory.AddTool(recipe.Tool);
         else inventory.Add(recipe.Tool);
         hud.Say((tool ? "Crafted an " : "Crafted ") + recipe.Tool.Name.ToLower() + (recipe.Tool.Boots ? ". Put them on in the boots slot [Tab]" : ""), recipe.Tool.Boots ? 3f : 1.2f);
@@ -363,6 +388,11 @@ public class CraftingNook : MonoBehaviour
         return Make(recipes[2]);
     }
 
+    public bool UpgradeAxe()
+    {
+        return Make(recipes[3]);
+    }
+
     void OnGUI()
     {
         if (!Open) return;
@@ -377,10 +407,14 @@ public class CraftingNook : MonoBehaviour
         // One column for each thing that can be made, side by side.
         // As tall as the longest list of what something takes.
         int rows = 0;
-        foreach (Recipe each in recipes) rows = Mathf.Max(rows, each.Needs.Length);
+        foreach (Recipe each in recipes) rows = Mathf.Max(rows, each.Needs.Length + (each.Upgrades != null ? 1 : 0));
+        // Two to a row, so it fits on the screen.
         const float column = 400f;
-        float height = 112f + rows * 38f + 50f;
-        float width = column * recipes.Length + 20f;
+        const int across = 2;
+        float block = 112f + rows * 38f + 50f;
+        int lines = (recipes.Length + across - 1) / across;
+        float height = 40f + lines * block;
+        float width = column * Mathf.Min(across, recipes.Length) + 20f;
         var panel = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
         GUI.Box(panel, GUIContent.none);
         GUI.Box(panel, GUIContent.none);
@@ -390,14 +424,24 @@ public class CraftingNook : MonoBehaviour
         for (int i = 0; i < recipes.Length; i++)
         {
             Recipe recipe = recipes[i];
-            float left = panel.x + 10f + i * column;
-            GUI.DrawTexture(new Rect(left + 16f, panel.y + 46f, 56f, 56f), recipe.Tool.Icon.texture, ScaleMode.ScaleToFit);
-            GameText.Label(new Rect(left + 86f, panel.y + 46f, column - 96f, 56f), recipe.Tool.Name + "\n" + recipe.Use, lineStyle);
+            float left = panel.x + 10f + (i % across) * column;
+            float top = panel.y + (i / across) * block;
+            GUI.DrawTexture(new Rect(left + 16f, top + 46f, 56f, 56f), recipe.Tool.Icon.texture, ScaleMode.ScaleToFit);
+            GameText.Label(new Rect(left + 86f, top + 46f, column - 96f, 56f), recipe.Tool.Name + "\n" + recipe.Use, lineStyle);
+            int line = 0;
+            if (recipe.Upgrades != null)
+            {
+                var row = new Rect(left + 16f, top + 112f, column - 32f, 34f);
+                bool have = inventory.Tools.Contains(recipe.Upgrades);
+                GUI.DrawTexture(new Rect(row.x + 8f, row.y + 2f, 30f, 30f), recipe.Upgrades.Icon.texture, ScaleMode.ScaleToFit);
+                GameText.Label(new Rect(row.x + 50f, row.y, row.width - 50f, row.height), recipe.Upgrades.Name + (have ? "   (yours)" : "   (needed)"), have ? lineStyle : missingStyle);
+                line = 1;
+            }
 
-            for (int n = 0; n < recipe.Needs.Length; n++) DrawNeed(new Rect(left + 16f, panel.y + 112f + n * 38f, column - 32f, 34f), recipe.Needs[n].Item, recipe.Needs[n].Count);
+            for (int n = 0; n < recipe.Needs.Length; n++) DrawNeed(new Rect(left + 16f, top + 112f + (n + line) * 38f, column - 32f, 34f), recipe.Needs[n].Item, recipe.Needs[n].Count);
 
             GUI.enabled = CanMake(recipe);
-            if (GameText.Button(new Rect(left + 70f, panel.yMax - 46f, column - 140f, 36f), "Craft")) Make(recipe);
+            if (GameText.Button(new Rect(left + 70f, top + block - 46f, column - 140f, 36f), recipe.Upgrades != null ? "Upgrade" : "Craft")) Make(recipe);
             GUI.enabled = true;
         }
     }
