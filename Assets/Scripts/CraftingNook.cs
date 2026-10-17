@@ -60,6 +60,11 @@ public class CraftingNook : MonoBehaviour
     // same with a head of cave crystal (Art/CrystalAxe). They swing this many times as fast as the ice axe; each hit
     // does the same. (Until 2026-10-17 the thornam ice axe did 1.5 times the damage instead.)
     public Item ThornAxe { get; private set; }
+    // Whether the ship's thrusters have been fixed, on the workbench's other tab, with this many magical orbs.
+    public bool ThrustersFixed;
+    const int OrbsToFixThrusters = 3;
+    // Which tab of the workbench is showing: crafting, or fixing the ship.
+    bool fixingTab;
     public Item CrystalAxe { get; private set; }
     const float ThornAxeSwings = 1.5f, CrystalAxeSwings = 2f;
     const int ThornAxeSticksNeeded = 8, CrystalAxeShardsNeeded = 20;
@@ -154,6 +159,8 @@ public class CraftingNook : MonoBehaviour
         renderer.sprite = PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0f), (x, y) => NookPixel(x, y));
         // Sorted by its bottom edge, which puts it over the ship and under a player standing in front of it.
         renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+        // Taivan's picture of the ship has the nook in it already.
+        if (CrashedShip.HasPicture) renderer.enabled = false;
     }
 
     static Color32 NookPixel(int x, int y)
@@ -455,7 +462,8 @@ public class CraftingNook : MonoBehaviour
         int across = Mathf.Clamp((int)((Screen.width - 40f) / column), 2, recipes.Length);
         float block = 112f + rows * 38f + 50f;
         int lines = (recipes.Length + across - 1) / across;
-        float height = 40f + lines * block;
+        const float tabs = 40f;
+        float height = 40f + tabs + lines * block;
         float width = column * Mathf.Min(across, recipes.Length) + 20f;
         float shrink = Mathf.Min(1f, (Screen.height - 20f) / height, (Screen.width - 20f) / width);
         Matrix4x4 before = GUI.matrix;
@@ -465,12 +473,25 @@ public class CraftingNook : MonoBehaviour
         GUI.Box(panel, GUIContent.none);
         GameText.Label(new Rect(panel.x, panel.y + 8f, width, 26f), "Ship workbench", titleStyle);
         if (GameText.Button(new Rect(panel.xMax - 34f, panel.y + 6f, 28f, 24f), "X")) Open = false;
+        // The two tabs: crafting, and fixing the ship.
+        float tabWide = Mathf.Min(220f, width / 2f - 20f);
+        GUI.color = fixingTab ? new Color(0.7f, 0.7f, 0.7f) : Color.white;
+        if (GameText.Button(new Rect(panel.center.x - tabWide - 4f, panel.y + 38f, tabWide, 30f), "Crafting")) fixingTab = false;
+        GUI.color = fixingTab ? Color.white : new Color(0.7f, 0.7f, 0.7f);
+        if (GameText.Button(new Rect(panel.center.x + 4f, panel.y + 38f, tabWide, 30f), "Fix the ship")) fixingTab = true;
+        GUI.color = Color.white;
+        if (fixingTab)
+        {
+            DrawFixing(new Rect(panel.x, panel.y + 40f + tabs, panel.width, panel.height - 40f - tabs));
+            GUI.matrix = before;
+            return;
+        }
 
         for (int i = 0; i < recipes.Length; i++)
         {
             Recipe recipe = recipes[i];
             float left = panel.x + 10f + (i % across) * column;
-            float top = panel.y + (i / across) * block;
+            float top = panel.y + tabs + (i / across) * block;
             GUI.DrawTexture(new Rect(left + 16f, top + 46f, 56f, 56f), recipe.Tool.Icon.texture, ScaleMode.ScaleToFit);
             GameText.Label(new Rect(left + 86f, top + 46f, column - 96f, 56f), recipe.Tool.Name + "\n" + recipe.Use, lineStyle);
             int line = 0;
@@ -490,6 +511,43 @@ public class CraftingNook : MonoBehaviour
             GUI.enabled = true;
         }
         GUI.matrix = before;
+    }
+
+    // The ship's tab: its thrusters, and what fixing them takes.
+    void DrawFixing(Rect area)
+    {
+        Item orb = planet.GetComponent<IceBoss>()?.OrbItem;
+        float left = area.center.x - 190f;
+        GameText.Label(new Rect(left, area.y + 10f, 380f, 30f), "Thrusters", titleStyle);
+        if (ThrustersFixed)
+        {
+            GameText.Label(new Rect(left, area.y + 50f, 380f, 34f), "Fixed!", lineStyle);
+            return;
+        }
+        GameText.Label(new Rect(left, area.y + 50f, 380f, 34f), "Broken and smoking. Fixing them takes:", lineStyle);
+        if (orb != null) DrawNeed(new Rect(left, area.y + 88f, 380f, 34f), orb, OrbsToFixThrusters);
+        GUI.enabled = CanFixThrusters;
+        if (GameText.Button(new Rect(left + 60f, area.y + 136f, 260f, 36f), "Fix the thrusters")) FixThrusters();
+        GUI.enabled = true;
+    }
+
+    bool CanFixThrusters
+    {
+        get
+        {
+            Item orb = planet.GetComponent<IceBoss>()?.OrbItem;
+            return !ThrustersFixed && orb != null && inventory.CountOf(orb) >= OrbsToFixThrusters;
+        }
+    }
+
+    // Uses up the magical orbs and fixes the ship's thrusters. Returns false if there are not enough.
+    public bool FixThrusters()
+    {
+        if (!CanFixThrusters) return false;
+        inventory.Remove(planet.GetComponent<IceBoss>().OrbItem, OrbsToFixThrusters);
+        ThrustersFixed = true;
+        hud.Say("The thrusters are fixed!", 3f);
+        return true;
     }
 
     // One line of the recipe: the item's picture, its name, and how many the player has out of how many are needed.

@@ -269,6 +269,8 @@ public class PlanetOne : MonoBehaviour
     BlockPicture snowPicture, snowPicture2, snowPicture3, icePicture;
     // Taivan's ice blocks, one look each, picked block by block like the snow; null if there are none.
     BlockPicture[] icePictures;
+    // Whether the ship is drawn from Taivan's picture (see CrashedShip) rather than as blocks.
+    bool shipPictured;
     // Which of them is plain, with no marks at all (-1 for none). It shows on this share of the ice, and the others
     // share the rest.
     int blankIce = -1;
@@ -379,6 +381,7 @@ public class PlanetOne : MonoBehaviour
             if (System.Array.TrueForAll(icePictures[i].Pixels, c => c.Equals(icePictures[i].Pixels[0]))) blankIce = i;
         }
         IceSideSprites = MakeIceSideSprites();
+        shipPictured = CrashedShip.HasPicture;
 
         // All the writing on screen is in the game's own font.
         gameObject.AddComponent<GameFont>();
@@ -622,6 +625,8 @@ public class PlanetOne : MonoBehaviour
             }
         };
         giveEverything?.Invoke();
+        // The wrecked ship as he drew it, smoking.
+        gameObject.AddComponent<CrashedShip>().Setup(this, nook, mining, new Vector2(cx + 0.5f, cy + 1f));
         // The glowing crystals in the frost caves, and the caves' dark.
         var crystals = gameObject.AddComponent<CaveCrystals>();
         crystals.Setup(this, controller, mining, inventory, nook, hud, cam, pickups);
@@ -754,10 +759,11 @@ public class PlanetOne : MonoBehaviour
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
         });
-        // The wrecked ship sits just above the spot where the player starts.
+        // The wrecked ship sits just above the spot where the player starts, three squares wide and two deep. (It was
+        // five wide until Taivan drew it, 2026-10-17.)
         for (int y = cy + 1; y < cy + 3; y++)
         {
-            for (int x = cx - 2; x < cx + 3; x++) kind[x, y] = Ship;
+            for (int x = cx - 1; x < cx + 2; x++) kind[x, y] = Ship;
         }
 
         LoadingStage = "Raising the mountains";
@@ -1435,6 +1441,8 @@ public class PlanetOne : MonoBehaviour
         int variant = !pictured && rims == 0 && drop == 0 ? (int)(HashAt(x, y, variantSeed) * looks) : 0;
         if (material == Snow && snowPicture != null) variant = SnowLookAt(x, y, level - 1);
         if (material == Ice && icePictures != null) variant = IceLookAt(x, y, level - 1);
+        // Taivan's picture of the ship is drawn over its squares, so from above they are just the snow it stands on.
+        if (material == Ship && shipPictured) return TerrainTile(Snow, 0, 0, 0, 0, snowPicture != null ? SnowLookAt(x, y, -1) : 0);
         if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x, y);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
