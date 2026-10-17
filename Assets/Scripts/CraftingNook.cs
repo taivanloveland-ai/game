@@ -63,7 +63,8 @@ public class CraftingNook : MonoBehaviour
     // Whether the ship has been fixed, on the workbench's other tab. (Until 2026-10-17 this was only its thrusters,
     // fixed with 3 magical orbs.)
     public bool ShipFixed;
-    // What fixing the ship takes. (A battery, from the South Pole, will be needed too once it has been made.)
+    // What fixing the ship takes, and the battery from the South Pole (Taivan's picture, Art/Battery).
+    public Item Battery { get; private set; }
     const int ShipCrystalShards = 30, ShipIceBlocks = 5, ShipIceShards = 20, ShipAlgaeClumps = 30, ShipStoneBlocks = 100, ShipOrbs = 3;
     // Which tab of the workbench is showing: crafting, or fixing the ship.
     bool fixingTab;
@@ -141,6 +142,7 @@ public class CraftingNook : MonoBehaviour
         CrystalAxe = new Item("Crystal axe", Picture("Art/CrystalAxe") ?? Axe.Icon);
         ThornPickaxe = new Item("Thornam pickaxe", Picture("Art/ThornamPickaxe") ?? Pickaxe.Icon);
         CrystalPickaxe = new Item("Crystal pickaxe", Picture("Art/CrystalPickaxe") ?? Pickaxe.Icon);
+        Battery = Picture("Art/Battery") != null ? new Item("Battery", Picture("Art/Battery")) : null;
         CrystalShard = new Item("Crystal shard", Picture("Art/CrystalShard") ?? gatherables.ShardItem.Icon);
         recipes = new[]
         {
@@ -527,6 +529,7 @@ public class CraftingNook : MonoBehaviour
             {
                 (CrystalShard, ShipCrystalShards), (blocks.IceItem, ShipIceBlocks), (gatherables.ShardItem, ShipIceShards),
                 (gatherables.ClumpItem, ShipAlgaeClumps), (blocks.StoneItem, ShipStoneBlocks), (planet.GetComponent<IceBoss>().OrbItem, ShipOrbs),
+                (Battery, 1),
             };
             return shipNeeds;
         }
