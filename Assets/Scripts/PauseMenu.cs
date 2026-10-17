@@ -3,6 +3,8 @@ using UnityEngine.SceneManagement;
 
 // The pause screen. Escape opens it, unless a menu (the world map, the items, the workbench) is open, which Escape
 // closes instead. While it is up the game stands still. From top to bottom: Resume, Save, Settings, Save and Quit.
+// Played inside Unity there is also Update Content: it saves, stops the game so Unity takes in the newest changes,
+// and starts it again straight into the same saved game.
 // Settings has the music volume, whether the mini map shows, the zoom, and full screen. Save and Quit goes back to
 // the title screen.
 public class PauseMenu : MonoBehaviour
@@ -94,6 +96,24 @@ public class PauseMenu : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
+#if UNITY_EDITOR
+    // Saves the game, stops it so Unity takes in the newest changes, and leaves word to start it again straight into
+    // this saved game (see ExternalRefresh, which presses Play again, and PlanetOne, which loads the game).
+    void UpdateContent()
+    {
+        if (saves.Slot < 0 || !saves.Save())
+        {
+            note = saves.Slot < 0 ? "This game has no save slot" : "Could not save";
+            noteUntil = Time.unscaledTime + 2.5f;
+            return;
+        }
+        GameSettings.Keep();
+        PlayerPrefs.SetString(PlanetOne.ResumeAfterUpdateKey, (saves.Creative ? "creative " : "survival ") + saves.Slot);
+        PlayerPrefs.Save();
+        UnityEditor.EditorApplication.ExitPlaymode();
+    }
+#endif
+
     void OnGUI()
     {
         if (!Paused) return;
@@ -143,8 +163,13 @@ public class PauseMenu : MonoBehaviour
         if (GameText.Button(new Rect(left, top, wide, tall), "Resume", buttonStyle)) Resume();
         if (GameText.Button(new Rect(left, top + (tall + gap), wide, tall), "Save", buttonStyle)) Save();
         if (GameText.Button(new Rect(left, top + (tall + gap) * 2f, wide, tall), "Settings", buttonStyle)) settings = true;
-        if (GameText.Button(new Rect(left, top + (tall + gap) * 3f, wide, tall), "Save and Quit", buttonStyle)) SaveAndQuit();
-        if (Time.unscaledTime < noteUntil) GameText.Label(new Rect(panel.x, top + (tall + gap) * 4f, panel.width, tall * 0.7f), note, noteStyle);
+        int below = 3;
+#if UNITY_EDITOR
+        if (GameText.Button(new Rect(left, top + (tall + gap) * below, wide, tall), "Update Content", buttonStyle)) UpdateContent();
+        below++;
+#endif
+        if (GameText.Button(new Rect(left, top + (tall + gap) * below, wide, tall), "Save and Quit", buttonStyle)) SaveAndQuit();
+        if (Time.unscaledTime < noteUntil) GameText.Label(new Rect(panel.x, top + (tall + gap) * (below + 1), panel.width, tall * 0.7f), note, noteStyle);
     }
 
     void DrawSettings(float left, float top, float wide, float tall, float gap)

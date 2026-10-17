@@ -22,7 +22,8 @@ static class ExternalRefresh
     const string ScriptChangesWhilePlaying = "ScriptCompilationDuringPlay";
     const int RecompileAfterFinishedPlaying = 1;
 
-    static double nextCheck;
+    static double nextCheck, resumeAfter;
+    static bool refreshedForResume;
     // Whether the editor is being held back from picking up changed files. Kept in the session, since the editor
     // reloads its code on entering and leaving play, which would otherwise forget it and leave the hold on for good.
     const string HoldingKey = "ExternalRefresh.Holding";
@@ -47,6 +48,8 @@ static class ExternalRefresh
     static void OnPlayModeChanged(PlayModeStateChange change)
     {
         if (change == PlayModeStateChange.EnteredPlayMode) Hold();
+        // Gives the newest changes a moment to start being taken in before play may start again.
+        if (change == PlayModeStateChange.EnteredEditMode) resumeAfter = EditorApplication.timeSinceStartup + 2.0;
         else if (change == PlayModeStateChange.EnteredEditMode) Release();
     }
 
@@ -73,6 +76,26 @@ static class ExternalRefresh
     {
         if (EditorApplication.timeSinceStartup < nextCheck) return;
         nextCheck = EditorApplication.timeSinceStartup + SecondsBetweenChecks;
+        // Update Content on the pause screen stopped the game to take in the newest changes. Once they are in, play
+        // starts again (and the game goes straight back into the saved game).
+        if (UnityEngine.PlayerPrefs.HasKey(PlanetOne.ResumeAfterUpdateKey) && !EditorApplication.isPlayingOrWillChangePlaymode
+            && !EditorApplication.isCompiling && !EditorApplication.isUpdating && EditorApplication.timeSinceStartup >= resumeAfter)
+        {
+            // First make sure every change has been taken in (if any code changed, Unity reloads it, and this carries on
+            // afterwards); then play.
+            if (!refreshedForResume)
+            {
+                refreshedForResume = true;
+                AssetDatabase.AllowAutoRefresh();
+                holding = false;
+                AssetDatabase.Refresh();
+                return;
+            }
+            refreshedForResume = false;
+            WriteStatus("starting again after Update Content");
+            EditorApplication.EnterPlaymode();
+            return;
+        }
         if (!File.Exists(RequestPath)) return;
 
         string request = File.ReadAllText(RequestPath).Trim();
