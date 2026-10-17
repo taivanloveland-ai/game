@@ -549,6 +549,10 @@ public class PlanetOne : MonoBehaviour
         weather.Setup(this, controller, cam, dayNight, health, hud, Square);
         // The ice boss, which rises on the polar ice caps.
         gameObject.AddComponent<IceBoss>().Setup(this, controller, mining, health, inventory, nook, hud, cam, Square, weather, pickups, gatherables);
+        // The glowing crystals in the frost caves, and the caves' dark.
+        var crystals = gameObject.AddComponent<CaveCrystals>();
+        crystals.Setup(this, controller, mining, inventory, nook, hud, cam);
+        pickaxeWork.ClickTaken = crystals.TakesClick;
         // Creative mode also has a panel for the player's speed, the weather and the time of day.
         if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller, weather, dayNight);
 
@@ -1817,7 +1821,8 @@ public class PlanetOne : MonoBehaviour
     // That crag is roughly this many squares from its middle to its edge, east to west and north to south.
     const float CragHalfWidth = 7.5f, CragHalfDepth = 6f;
     // A cave is this many squares across, and its stone walls are this many blocks tall: too tall to jump.
-    const int CaveSize = 160, CaveWallHeight = 4;
+    public const int CaveSize = 160;
+    const int CaveWallHeight = 4;
     // The cave is dug by a few tunnels that wander from the way in, branching now and then and opening out into
     // rooms. They stay this far from the cave's edges.
     const int CaveMargin = 14, CaveTunnelSteps = 1800, MostCaveTunnels = 14;
