@@ -38,6 +38,8 @@ public class PlanetOne : MonoBehaviour
     // For testing only, and 1 in the real game: every hit of the ice axe does this many times its usual damage, to
     // spiders and to the ice pillar.
     [System.NonSerialized] public int axeDamageTimes = 4;
+    // In creative mode: gives the player every item they do not have yet.
+    System.Action giveEverything;
     // Whether the world being made gets that road.
     bool makeRoad;
 
@@ -533,7 +535,7 @@ public class PlanetOne : MonoBehaviour
         var nook = gameObject.AddComponent<CraftingNook>();
         nook.Setup(this, controller, mining, gatherables, inventory, hud, cam, new Vector2Int(cx, cy + 1));
         controller.WearingCleats = () => inventory.Boots != null && inventory.Boots == nook.Cleats;
-        // Creative mode starts with both tools and blocks that never run out.
+        // Creative mode starts with the tools and blocks that never run out (and, below, every other item).
         if (startWithPickaxe || creative) inventory.AddTool(nook.Pickaxe);
         if (creative) inventory.AddTool(nook.Axe);
         inventory.Infinite = creative;
@@ -574,6 +576,20 @@ public class PlanetOne : MonoBehaviour
         weather.Setup(this, controller, cam, dayNight, health, hud, Square);
         // The ice boss, which rises on the polar ice caps.
         gameObject.AddComponent<IceBoss>().Setup(this, controller, mining, health, inventory, nook, hud, cam, Square, weather, pickups, gatherables);
+        // Creative mode has every item in the game, never running out.
+        if (creative) giveEverything = () =>
+        {
+            if (!inventory.Tools.Contains(nook.ThornAxe)) inventory.AddTool(nook.ThornAxe);
+            foreach (Item item in new[]
+            {
+                gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem,
+                gatherables.StickItem, spiders.SilkItem, spiders.LegItem, spiders.FangItem, GetComponent<IceBoss>().OrbItem, nook.Cleats,
+            })
+            {
+                if (item != null && inventory.CountOf(item) == 0) inventory.Add(item, 999);
+            }
+        };
+        giveEverything?.Invoke();
         // The glowing crystals in the frost caves, and the caves' dark.
         var crystals = gameObject.AddComponent<CaveCrystals>();
         crystals.Setup(this, controller, mining, inventory, nook, hud, cam);
@@ -588,6 +604,8 @@ public class PlanetOne : MonoBehaviour
         gameObject.AddComponent<PauseMenu>().Setup(this, saves, cam, hud, worldMap, nook);
         if (loading != null) saves.Apply(loading);
         else if (saveSlot >= 0) saves.Save();
+        // A creative game saved before every item was given out gets the ones it is missing.
+        giveEverything?.Invoke();
         loading = null;
         Ready = true;
     }
