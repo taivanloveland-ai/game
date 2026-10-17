@@ -911,7 +911,7 @@ public class PlanetOne : MonoBehaviour
     }
 
     // How far east of the crash site the road to the ice caps runs: clear of the crag in front of the northern cave.
-    const int RoadEast = 14;
+    public const int RoadEast = 14;
 
     // How far in from the edge of a polar ice cap a square on the surface is, in squares: 0 or less off the caps (and
     // in the caves). North tells which cap.

@@ -1,7 +1,8 @@
 using UnityEngine;
 
 // The battery the ship needs (Taivan's picture, Assets/Resources/Art/Battery). It lies on the South Pole's snowy cap,
-// due south of the crash site, right by where the snow gives way to the freezing ocean. Walking over it picks it up.
+// right below the bridge (the frozen road over the ocean, 15 squares east of the crash site), by where the snow
+// gives way to the freezing ocean. Walking over it picks it up.
 // Once taken it is gone for good, in saved games too.
 public class SouthPoleBattery : MonoBehaviour
 {
@@ -28,7 +29,8 @@ public class SouthPoleBattery : MonoBehaviour
         this.inventory = inventory;
         this.nook = nook;
         this.hud = hud;
-        int x = planet.CrashSite.x;
+        // Right below the bridge: where the frozen road over the ocean (in creative mode, for now) comes onto the cap.
+        int x = planet.CrashSite.x + PlanetOne.RoadEast + 1;
         spot = new Vector2(x + 0.5f, planet.SouthCapEdge(x) - InFromEdge);
         if (nook.Battery == null) return;
         var go = new GameObject("Battery");
