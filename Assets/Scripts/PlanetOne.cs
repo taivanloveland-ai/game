@@ -358,6 +358,9 @@ public class PlanetOne : MonoBehaviour
 
     // How far each pole's ice sheet reaches at each column of the map, in squares from the pole.
     int[] northCap, southCap;
+    // How far the South Pole's snowy cap reaches up a column of the map, in squares from the bottom: the first row of
+    // the ocean beyond it.
+    public int SouthCapEdge(int x) => southCap[((x % width) + width) % width];
     // How far the ocean round the South Pole reaches at each column of the map, in squares from the pole.
     int[] southOcean;
 
@@ -618,7 +621,7 @@ public class PlanetOne : MonoBehaviour
             {
                 gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem,
                 gatherables.StickItem, spiders.SilkItem, spiders.LegItem, spiders.FangItem, GetComponent<IceBoss>().OrbItem, nook.Cleats,
-                nook.CrystalShard,
+                nook.CrystalShard, nook.Battery,
             })
             {
                 if (item != null && inventory.CountOf(item) == 0) inventory.Add(item, 999);
@@ -627,6 +630,8 @@ public class PlanetOne : MonoBehaviour
         giveEverything?.Invoke();
         // The wrecked ship as he drew it, smoking.
         gameObject.AddComponent<CrashedShip>().Setup(this, nook, mining, new Vector2(cx + 0.5f, cy + 1f));
+        // The battery the ship needs, on the South Pole's cap.
+        gameObject.AddComponent<SouthPoleBattery>().Setup(this, controller, mining, inventory, nook, hud);
         // The glowing crystals in the frost caves, and the caves' dark.
         var crystals = gameObject.AddComponent<CaveCrystals>();
         crystals.Setup(this, controller, mining, inventory, nook, hud, cam, pickups);
