@@ -14,8 +14,8 @@ public class SaveGame : MonoBehaviour
     public const int Slots = 5;
     // Changed whenever the layout of the file changes. A file with another number is not read.
     // (Version 1 had no name, versions 1 and 2 had no day count, versions 1 to 3 had no boots, and versions 1 to 4
-    // had no cave crystals; their saves can still be read.)
-    const int Version = 5;
+    // had no cave crystals, and versions 1 to 5 had not fixed the ship; their saves can still be read.)
+    const int Version = 6;
     // The longest name a save can be given.
     public const int LongestName = 18;
 
@@ -44,6 +44,7 @@ public class SaveGame : MonoBehaviour
     PlayerController player;
     MiningMode mining;
     DayNight dayNight;
+    CraftingNook nook;
     Inventory inventory;
     Pickups pickups;
     Gatherables gatherables;
@@ -68,6 +69,7 @@ public class SaveGame : MonoBehaviour
         this.player = player;
         this.mining = mining;
         this.dayNight = dayNight;
+        this.nook = nook;
         this.inventory = inventory;
         this.pickups = pickups;
         this.gatherables = gatherables;
@@ -200,6 +202,7 @@ public class SaveGame : MonoBehaviour
                 pickups.Write(w);
                 map.Write(w);
                 planet.GetComponent<CaveCrystals>().Write(w);
+                w.Write(nook.ThrustersFixed);
             }
             if (File.Exists(path)) File.Delete(path);
             File.Move(fresh, path);
@@ -250,6 +253,7 @@ public class SaveGame : MonoBehaviour
             pickups.Read(r, Find);
             map.Read(r);
             if (loaded.Version >= 5) planet.GetComponent<CaveCrystals>().Read(r);
+            nook.ThrustersFixed = loaded.Version >= 6 && r.ReadBoolean();
 
             // Last, the player goes back where they were: into their cave first, if they were in one.
             health.Restore(healthThen);
