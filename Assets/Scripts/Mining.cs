@@ -37,6 +37,8 @@ public class Mining : MonoBehaviour
     public Item IceItem { get; private set; }
     public Item StoneItem { get; private set; }
     public Item AlgaeItem { get; private set; }
+    // Set by things that take a click with the pickaxe for themselves (the cave crystals): true for a click they took.
+    public System.Func<Vector2, bool> ClickTaken;
 
     PlanetOne planet;
     PlayerController player;
@@ -196,6 +198,7 @@ public class Mining : MonoBehaviour
         {
             // A click on a fern or ice shard collects it instead.
             if (gatherables.ThingUnder(point)) return Result.Nothing;
+            if (ClickTaken != null && ClickTaken(point)) return Result.Nothing;
             square = planet.SquareAt(point);
             level = planet.TopAt(square.x, square.y) - 1;
         }
