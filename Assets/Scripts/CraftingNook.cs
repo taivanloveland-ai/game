@@ -3,8 +3,8 @@ using UnityEngine;
 // A little nook in the side of the crashed ship, with a hammer and a wrench hanging in it. Right clicking it walks
 // the player over and opens a small crafting menu. It makes two tools: 8 ferns and 5 ice shards make an ice pickaxe,
 // and 15 ferns and 10 ice shards make an ice axe. And 20 algae clumps, 15 thorns and 2 thornam vines make thornam
-// cleats, worn in the boots slot. And an ice axe and 8 thornam sticks make a thornam ice axe, which does half as much
-// damage again.
+// cleats, worn in the boots slot. An ice axe and 8 thornam sticks make a thornam ice axe, which swings half as fast
+// again; and a thornam ice axe and 20 crystal shards make a crystal axe, which swings twice as fast as the ice axe.
 // The nook is on the ship's front, so it is used from the top-down view.
 public class CraftingNook : MonoBehaviour
 {
@@ -54,16 +54,20 @@ public class CraftingNook : MonoBehaviour
     public Item Axe { get; private set; }
     // Thornam cleats: boots with thorns on their soles (Taivan's picture, Art/ThornamCleats).
     public Item Cleats { get; private set; }
-    // The thornam ice axe: the ice axe with a thornam stick for a handle (Art/ThornamIceAxe). It does this many times
-    // the ice axe's damage.
+    // The thornam ice axe: the ice axe with a thornam stick for a handle (Art/ThornamIceAxe). And the crystal axe: the
+    // same with a head of cave crystal (Art/CrystalAxe). They swing this many times as fast as the ice axe; each hit
+    // does the same. (Until 2026-10-17 the thornam ice axe did 1.5 times the damage instead.)
     public Item ThornAxe { get; private set; }
-    const float ThornAxeDamage = 1.5f;
-    const int ThornAxeSticksNeeded = 8;
+    public Item CrystalAxe { get; private set; }
+    const float ThornAxeSwings = 1.5f, CrystalAxeSwings = 2f;
+    const int ThornAxeSticksNeeded = 8, CrystalAxeShardsNeeded = 20;
+    // Crystal shards, which the cave crystals break into (Taivan's picture, Art/CrystalShard).
+    public Item CrystalShard { get; private set; }
 
-    // True for either axe.
-    public bool IsAxe(Item item) => item != null && (item == Axe || item == ThornAxe);
-    // How many times the ice axe's damage an axe does.
-    public float AxeDamage(Item item) => item == ThornAxe ? ThornAxeDamage : 1f;
+    // True for any of the axes.
+    public bool IsAxe(Item item) => item != null && (item == Axe || item == ThornAxe || item == CrystalAxe);
+    // How many times as fast as the ice axe an axe swings.
+    public float AxeSwings(Item item) => item == CrystalAxe ? CrystalAxeSwings : item == ThornAxe ? ThornAxeSwings : 1f;
 
     // Something the workbench can make, what it takes, and a few words on what it is for.
     class Recipe
@@ -111,12 +115,15 @@ public class CraftingNook : MonoBehaviour
         Axe = new Item("Ice axe", drawn != null ? drawn[1] : PlanetOne.PaintSprite(PickaxePixels, PickaxePixels, new Vector2(0.5f, 0.5f), PickaxePixels, true, (x, y) => AxePixel(x, y)));
         Cleats = new Item("Thornam cleats", Picture("Art/ThornamCleats") ?? Pickaxe.Icon) { Boots = true };
         ThornAxe = new Item("Thornam ice axe", Picture("Art/ThornamIceAxe") ?? Axe.Icon);
+        CrystalAxe = new Item("Crystal axe", Picture("Art/CrystalAxe") ?? Axe.Icon);
+        CrystalShard = new Item("Crystal shard", Picture("Art/CrystalShard") ?? gatherables.ShardItem.Icon);
         recipes = new[]
         {
             new Recipe { Tool = Pickaxe, Needs = new[] { (gatherables.PlantItem, FernsNeeded), (gatherables.ShardItem, ShardsNeeded) }, Use = "for mining" },
             new Recipe { Tool = Axe, Needs = new[] { (gatherables.PlantItem, AxeFernsNeeded), (gatherables.ShardItem, AxeShardsNeeded) }, Use = "for spiders and bushes" },
             new Recipe { Tool = Cleats, Needs = new[] { (gatherables.ClumpItem, CleatsClumpsNeeded), (gatherables.ThornItem, CleatsThornsNeeded), (gatherables.VineItem, CleatsVinesNeeded) }, Use = "worn: grip on ice, run faster" },
-            new Recipe { Tool = ThornAxe, Upgrades = Axe, Needs = new[] { (gatherables.StickItem, ThornAxeSticksNeeded) }, Use = "your ice axe, upgraded: 1.5x damage" },
+            new Recipe { Tool = ThornAxe, Upgrades = Axe, Needs = new[] { (gatherables.StickItem, ThornAxeSticksNeeded) }, Use = "your ice axe, upgraded: swings faster" },
+            new Recipe { Tool = CrystalAxe, Upgrades = ThornAxe, Needs = new[] { (CrystalShard, CrystalAxeShardsNeeded) }, Use = "your thornam ice axe, upgraded: swings faster still" },
         };
 
         // The picture sits on the ship's front face, which is drawn one square up from the ground in front of it.
@@ -360,7 +367,7 @@ public class CraftingNook : MonoBehaviour
             inventory.Tools[inventory.Tools.IndexOf(recipe.Upgrades)] = recipe.Tool;
             int slot = System.Array.IndexOf(inventory.Hotbar, recipe.Upgrades);
             if (slot >= 0) inventory.Hotbar[slot] = recipe.Tool;
-            hud.Say("Upgraded your ice axe to a " + recipe.Tool.Name.ToLower());
+            hud.Say("Upgraded your " + recipe.Upgrades.Name.ToLower() + " to a " + recipe.Tool.Name.ToLower());
             return true;
         }
         if (tool) inventory.AddTool(recipe.Tool);
@@ -391,6 +398,11 @@ public class CraftingNook : MonoBehaviour
     public bool UpgradeAxe()
     {
         return Make(recipes[3]);
+    }
+
+    public bool UpgradeToCrystalAxe()
+    {
+        return Make(recipes[4]);
     }
 
     void OnGUI()

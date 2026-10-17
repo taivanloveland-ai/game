@@ -297,6 +297,9 @@ public class PlanetOne : MonoBehaviour
     // Squares this many rows nearer are looked at for anything covering a square of algae.
     const int CoverRows = 24;
     Tilemap algaeFlash, algaeLight;
+    // Listens for the drum hits of the night theme, so the lines can flash to them.
+    readonly BeatFollower beats = new BeatFollower();
+    bool followingNightSong;
     float lightPhase, boom, loudness, slowLevel, fastLevel, slowBass, fastBass, peakBass, nextBoomAt;
     int lightShown;
         // The squares of algae being drawn: how high their tops are, and how many of his pixels up from the bottom of each
@@ -605,10 +608,12 @@ public class PlanetOne : MonoBehaviour
         if (creative) giveEverything = () =>
         {
             if (!inventory.Tools.Contains(nook.ThornAxe)) inventory.AddTool(nook.ThornAxe);
+            if (!inventory.Tools.Contains(nook.CrystalAxe)) inventory.AddTool(nook.CrystalAxe);
             foreach (Item item in new[]
             {
                 gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem,
                 gatherables.StickItem, spiders.SilkItem, spiders.LegItem, spiders.FangItem, GetComponent<IceBoss>().OrbItem, nook.Cleats,
+                nook.CrystalShard,
             })
             {
                 if (item != null && inventory.CountOf(item) == 0) inventory.Add(item, 999);
@@ -617,7 +622,7 @@ public class PlanetOne : MonoBehaviour
         giveEverything?.Invoke();
         // The glowing crystals in the frost caves, and the caves' dark.
         var crystals = gameObject.AddComponent<CaveCrystals>();
-        crystals.Setup(this, controller, mining, inventory, nook, hud, cam);
+        crystals.Setup(this, controller, mining, inventory, nook, hud, cam, pickups);
         pickaxeWork.ClickTaken = crystals.TakesClick;
         // Creative mode also has a panel for the player's speed, the weather and the time of day.
         if (creative) gameObject.AddComponent<CreativeTools>().Setup(controller, weather, dayNight);
@@ -1187,13 +1192,21 @@ public class PlanetOne : MonoBehaviour
         float bass = Music.Bass;
         slowBass = Mathf.Lerp(slowBass, bass, Mathf.Clamp01(dt * 0.7f));
         fastBass = Mathf.Lerp(fastBass, bass, Mathf.Clamp01(dt * 20f));
-        // Only the big ones: nearly as loud as the loudest of the last few seconds.
+        // To the day theme the lines flash on its big booms only: nearly as loud as the loudest of the last few seconds.
+        // To the night theme they flash on every drum hit.
+        bool nightSong = sky != null && sky.Night >= 0.5f;
         peakBass = Mathf.Max(peakBass * Mathf.Exp(-dt * 0.3f), fastBass);
-        if (fastBass > slowBass * BoomJump && fastBass >= peakBass * 0.9f && fastBass > 0.01f && Time.time >= nextBoomAt)
+        if (!nightSong && fastBass > slowBass * BoomJump && fastBass >= peakBass * 0.9f && fastBass > 0.01f && Time.time >= nextBoomAt)
         {
             boom = 1f;
             nextBoomAt = Time.time + 0.4f;
         }
+        if (nightSong != followingNightSong)
+        {
+            followingNightSong = nightSong;
+            beats.Forget();
+        }
+        if (beats.Hear(bass, Time.unscaledTime, dt) && nightSong) boom = 1f;
         boom = Mathf.Max(0f, boom - BoomFade * dt);
     }
 
@@ -1227,6 +1240,7 @@ public class PlanetOne : MonoBehaviour
     public float AlgaeLightPhase => lightPhase;
     public float MusicLoudness => loudness;
     public float MusicBoom => boom;
+    public BeatFollower Beats => beats;
 
     // True if a spot is open at a level but has ground over it: the inside of a tunnel or a cave.
     public bool IsTunnel(int x, int y, int level)
