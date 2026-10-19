@@ -1,16 +1,18 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// The wrecked ship, as Taivan drew it (Assets/Resources/Art/CrashedShip): its hull with the workbench nook in its
-// doorway and three broken thrusters on top, smoke rising from each. Once it is fixed (at the workbench) a cloud of
+// The wrecked ship, as Taivan drew it (Assets/Resources/Art/CrashedShip): nose down in the snow, cracked, with red
+// sparks, and smoke rising from its grey body. (His second drawing, 2026-10-18; Art/CrashedShipBack, the ship seen
+// from behind, is kept for later.) Once it is fixed (at the workbench) a cloud of
 // smoke covers it, and when the smoke clears his picture of the fixed ship is there (Art/CrashedShipFixed), with light
 // flowing along its green lines. It stands over the ship's squares, which nobody walks through, in the top-down view.
 public class CrashedShip : MonoBehaviour
 {
-    // How many of his pixels make one square: the ship is drawn about three and a half squares wide.
+    // How many of his pixels make one square: the wreck is drawn about three squares wide.
     const float PixelsPerSquare = 18f;
-    // Where the smoke comes from on his picture, in his pixels from the left and from the top: the top of each thruster.
-    static readonly Vector2[] Thrusters = { new Vector2(27f, 52f), new Vector2(42f, 60f), new Vector2(55f, 68f) };
+    // Where the smoke comes from on his picture, in his pixels from the left and from the top: three spots along the
+    // top of the wreck's grey body. (Until 2026-10-18 it came from the three thrusters on top of his first picture.)
+    static readonly Vector2[] Thrusters = { new Vector2(32f, 8f), new Vector2(41f, 4f), new Vector2(50f, 9f) };
     // A puff of smoke is let go from each thruster this often, rises this fast (squares a second), drifts sideways
     // a little, grows from the first size to the second, and fades away over this many seconds.
     const float PuffEvery = 0.35f, RiseSpeed = 0.7f, Drift = 0.25f, PuffSmall = 0.35f, PuffBig = 1.1f, PuffSeconds = 2.6f;
