@@ -8,14 +8,17 @@ using UnityEngine;
 // flowing along its green lines. It stands over the ship's squares, which nobody walks through, in the top-down view.
 public class CrashedShip : MonoBehaviour
 {
-    // How many of his pixels make one square: the wreck is drawn about three squares wide.
-    const float PixelsPerSquare = 18f;
+    // How many of his pixels make one square: the wreck is drawn about nine squares wide.
+    // (18 until 2026-10-18, when Taivan asked for it 3 times bigger.)
+    const float PixelsPerSquare = 6f;
+    // The smoke is drawn this many times bigger to go with it.
+    const float SmokeScale = 3f;
     // Where the smoke comes from on his picture, in his pixels from the left and from the top: three spots along the
     // top of the wreck's grey body. (Until 2026-10-18 it came from the three thrusters on top of his first picture.)
     static readonly Vector2[] Thrusters = { new Vector2(32f, 8f), new Vector2(41f, 4f), new Vector2(50f, 9f) };
     // A puff of smoke is let go from each thruster this often, rises this fast (squares a second), drifts sideways
     // a little, grows from the first size to the second, and fades away over this many seconds.
-    const float PuffEvery = 0.35f, RiseSpeed = 0.7f, Drift = 0.25f, PuffSmall = 0.35f, PuffBig = 1.1f, PuffSeconds = 2.6f;
+    const float PuffEvery = 0.35f, RiseSpeed = 0.7f * SmokeScale, Drift = 0.25f * SmokeScale, PuffSmall = 0.35f * SmokeScale, PuffBig = 1.1f * SmokeScale, PuffSeconds = 2.6f;
     static readonly Color SmokeColor = new Color(0.55f, 0.57f, 0.6f, 0.7f);
     const int Order = 61;
     // The fixed ship's green lines flow: patches of light run along them from west to east, this many of his pixels
@@ -27,7 +30,7 @@ public class CrashedShip : MonoBehaviour
     // long. The fixed ship is put in place, hidden in the cloud, this many seconds after it starts.
     // (It was thinner until 2026-10-18, when Taivan asked for it to cover the whole ship completely.)
     const int CloudPuffs = 170;
-    const float CloudRising = 0.6f, CloudPuffSmall = 1.8f, CloudPuffBig = 2.8f, CloudPuffSeconds = 4.2f, SwapAfter = 1.3f;
+    const float CloudRising = 0.6f, CloudPuffSmall = 1.8f * SmokeScale, CloudPuffBig = 2.8f * SmokeScale, CloudPuffSeconds = 4.2f, SwapAfter = 1.3f;
     static readonly Color CloudColor = new Color(0.82f, 0.84f, 0.87f, 1f);
 
     class Puff
