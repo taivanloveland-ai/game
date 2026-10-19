@@ -311,7 +311,8 @@ public class Gatherables : MonoBehaviour
         clump.Shadow = !UsePicture(clump, "Art/AlgaeClump", ClumpPicturePixelsPerUnit);
         ClumpItem = clump.Item;
         var rand = new System.Random(planet.seed + 1);
-        for (int y = 0; y < planet.height; y++)
+        // Nothing grows on the rocky planet.
+        for (int y = 0; y < (PlanetOne.Rocky ? 0 : planet.height); y++)
         {
             for (int x = 0; x < planet.width; x++)
             {

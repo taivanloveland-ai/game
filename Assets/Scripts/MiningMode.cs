@@ -164,7 +164,7 @@ public class MiningMode : MonoBehaviour
         composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
         tileCollider.compositeOperation = Collider2D.CompositeOperation.Merge;
 
-        rockTopTile = PlanetOne.MakeTile(Color.white, PlanetOne.PaintSprite((x, y) => PlanetOne.PaintRockTop(x, y, 1)), true);
+        rockTopTile = PlanetOne.MakeTile(Color.white, PlanetOne.PaintSprite((x, y) => PlanetOne.DesertIf(PlanetOne.PaintRockTop(x, y, 1))), true);
 
         int columns = WindowColumns, levels = Depth + PlanetOne.BuildLimit;
         covered = new bool[columns, levels];
@@ -606,6 +606,8 @@ public class MiningMode : MonoBehaviour
             iceLook = look + 1;
         }
         if (picture != null) color = Color.white;
+        // On the rocky planet, every colour is turned to the desert's.
+        else if (PlanetOne.Rocky) color = (Color)PlanetOne.Desert((Color32)color);
 
         // Ice without a drawn picture uses the game's own finely drawn ice blocks. Most are plain; about one in three
         // carries a glint or a crack. The block is tinted toward a deeper blue the further down it is.

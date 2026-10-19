@@ -43,6 +43,27 @@ public class PlanetOne : MonoBehaviour
     // Whether the world being made gets that road.
     bool makeRoad;
 
+    // Which planet is being made: Planet 1, the ice planet, or (true) the rocky planet, the next planet the fixed ship
+    // flies to (Taivan's request of 2026-10-18). The rocky planet is red desert rock, 1.25 times as big, and for now
+    // just its ground: no ice caps, ocean, algae, mountains, caves, plants, spiders, ice pillar or weather. It is made
+    // the same way as Planet 1 otherwise, from the same saved game's seed, with every colour turned to the desert's.
+    public static bool Rocky;
+    public const int RockyWidth = 7200, RockyHeight = 3600;
+    // For checking: a new game started with -rocky on the command line begins on the rocky planet.
+    static bool StartRocky => System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-rocky") >= 0;
+    // A trip in the ship: the saved game to carry on with on the other planet once the scene has started again, its
+    // slot, and whether the player begins sitting in the ship.
+    static SaveGame.Loaded travelling;
+    static int travellingSlot;
+    static bool arriveAboard;
+
+    // Where the player starts on a planet: just in front of the ship.
+    public static Vector2 StartSpot(bool rocky)
+    {
+        int wide = rocky ? RockyWidth : 5760, tall = rocky ? RockyHeight : 2880;
+        return new Vector2(wide / 2 + 0.5f, tall / 4 - 0.5f);
+    }
+
     // What one block of a row looks like from the side in mining mode.
     public enum SideBlock : byte { Air, Snow, Ice, Stone, Rock, RockTop, Ship, Water, Algae }
 
@@ -422,6 +443,7 @@ public class PlanetOne : MonoBehaviour
         // A fresh start, whether the game has just opened or has come back to the title screen from a game.
         Time.timeScale = 1f;
         GameInput.Blocked = false;
+        GameInput.InShip = false;
         GameInput.PointerOverInventory = null;
         GameInput.PointerOverMap = null;
         GameInput.PointerOverTools = null;
@@ -441,6 +463,16 @@ public class PlanetOne : MonoBehaviour
         cam.transparencySortMode = TransparencySortMode.CustomAxis;
         cam.transparencySortAxis = Vector3.up;
 
+        // Landing on the other planet in the ship: straight into the game saved for the trip.
+        if (travelling != null)
+        {
+            SaveGame.Loaded trip = travelling;
+            travelling = null;
+            var landing = gameObject.AddComponent<TitleScreen>();
+            landing.Setup(this, cam);
+            landing.Choose(trip.Creative, travellingSlot, trip, trip.Name);
+            return;
+        }
 #if UNITY_EDITOR
         // Started again by Update Content on the pause screen: straight back into the game that was saved.
         string resume = PlayerPrefs.GetString(ResumeAfterUpdateKey, "");
@@ -526,14 +558,18 @@ public class PlanetOne : MonoBehaviour
     // scene, so it can run away from the main thread.
     void MakeWorld(bool creative)
     {
+        // Which planet: the saved game says, and a new game begins on Planet 1.
+        Rocky = loading != null ? loading.Planet == 1 : StartRocky;
+        width = Rocky ? RockyWidth : 5760;
+        height = Rocky ? RockyHeight : 2880;
         // The ship came down in the southern half of the planet, half way between the equator and the South Pole.
         int cx = width / 2, cy = height / 4;
         CrashSite = new Vector2Int(cx, cy - 1);
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var picker = new System.Random();
         // A saved game's world is made again from its own seed. A new game's world is picked at random.
-        bool pick = randomWorld && loading == null;
-        makeRoad = creative && roadToCapsInCreative;
+        bool pick = randomWorld && loading == null && !Rocky;
+        makeRoad = creative && roadToCapsInCreative && !Rocky;
         if (loading != null) seed = loading.Seed;
         if (pick) seed = picker.Next(1, 1000000);
         GenerateLand(cx, cy);
@@ -548,7 +584,7 @@ public class PlanetOne : MonoBehaviour
         // Logged so a world worth keeping can be built again by typing its seed in and unticking Random World.
         Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(reachable * 100f) + "% of its snow and ice can be walked to, worked out in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds)");
         LoadingStage = "Digging the frost caves";
-        FindCaveEntrances();
+        if (!Rocky) FindCaveEntrances();
         if (creative)
         {
             // In creative mode the whole map is drawn from the start.
@@ -568,6 +604,7 @@ public class PlanetOne : MonoBehaviour
     void FinishSetup(bool creative)
     {
         int cx = width / 2, cy = height / 4;
+        if (Rocky) MakeDesertPictures();
         BuildTerrain();
 
         PlayerController controller = BuildPlayer(new Vector2(cx + 0.5f, cy - 0.5f));
@@ -663,6 +700,18 @@ public class PlanetOne : MonoBehaviour
         crashedShip.Setup(this, nook, mining, new Vector2(cx + 0.5f, cy + 1f));
         // Getting in the fixed ship, and flying it.
         var flight = gameObject.AddComponent<ShipFlight>();
+        // From the rocky planet, the way back is to Planet 1; and the ship stands on desert sand.
+        if (Rocky)
+        {
+            flight.NextPlanetName = "Planet 1";
+            flight.HomeName = "the rocky planet";
+            flight.PaintNext = ShipFlight.PaintIcy;
+            flight.PaintHome = ShipFlight.PaintRocky;
+            flight.NextColor = new Color32(0xE4, 0xEE, 0xF4, 255);
+            flight.GroundColor = Desert(SnowColors[0][0]);
+            flight.GroundShade = Desert(SnowFace);
+            flight.GroundSpeck = Desert(RockEdge);
+        }
         flight.Setup(this, controller, mining, nook, crashedShip, hud, cam, dayNight);
         hud.HideHotbar = () => worldMap.Open || flight.Aboard;
         // The battery the ship needs, on the South Pole's cap.
@@ -679,12 +728,34 @@ public class PlanetOne : MonoBehaviour
         var saves = gameObject.AddComponent<SaveGame>();
         saves.Setup(this, controller, mining, dayNight, inventory, pickups, gatherables, nook, pickaxeWork, health, spiders, worldMap, caves, saveSlot, creative, saveName);
         gameObject.AddComponent<PauseMenu>().Setup(this, saves, cam, hud, worldMap, nook);
+        // Reaching the other planet in the ship: the game is saved for the trip, and the other planet is made.
+        flight.Arrived = () => TravelOnward(saves);
         if (loading != null) saves.Apply(loading);
         else if (saveSlot >= 0) saves.Save();
         // A creative game saved before every item was given out gets the ones it is missing.
         giveEverything?.Invoke();
         loading = null;
+        // Just landed here in the ship: the player sits in it, seeing it from behind on the new ground.
+        if (arriveAboard)
+        {
+            arriveAboard = false;
+            flight.GetIn();
+            hud.Say("You landed on " + (Rocky ? "the rocky planet" : "Planet 1") + "!", 4f);
+        }
         Ready = true;
+    }
+
+    // Flies on to the other planet: saves the game as it will be there (the player in the ship in front of its
+    // workbench), and starts the scene again to make that planet.
+    void TravelOnward(SaveGame saves)
+    {
+        travelling = saves.Travel(!Rocky);
+        travellingSlot = saveSlot;
+        arriveAboard = true;
+        GameSettings.Keep();
+        Time.timeScale = 1f;
+        GameInput.InShip = false;
+        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
     }
 
     PlayerController BuildPlayer(Vector2 position)
@@ -735,7 +806,8 @@ public class PlanetOne : MonoBehaviour
     void GenerateLand(int cx, int cy)
     {
         LoadingStage = "Shaping the land";
-        var rand = new System.Random(seed);
+        // The rocky planet is made from the same seed, mixed so it is not shaped like Planet 1.
+        var rand = new System.Random(Rocky ? seed * 7919 + 13 : seed);
         int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
         variantSeed = rand.Next();
         int mountainSeed = rand.Next();
@@ -753,6 +825,8 @@ public class PlanetOne : MonoBehaviour
             northCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, height / 2, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, 0, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southOcean[x] = southCap[x] + OceanWidth + Mathf.RoundToInt((LoopingNoise(x, 0, OceanBlobSize, capSeed + 7, 2) * 2f - 1f) * OceanWobble);
+            // The rocky planet has no ice caps and no ocean.
+            if (Rocky) northCap[x] = southCap[x] = southOcean[x] = 0;
         }
 
         kind = new byte[width, height];
@@ -785,7 +859,7 @@ public class PlanetOne : MonoBehaviour
                 // The algae biome, on the equator.
                 float algaeAcross = Mathf.Abs(x - algaeX), algaeUp = y - height / 2;
                 algaeAcross = Mathf.Min(algaeAcross, width - algaeAcross);
-                if (algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
+                if (!Rocky && algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
                 {
                     float reach = AlgaeRadius * (0.7f + 0.6f * LoopingNoise(x, y, AlgaeEdgeBlobSize, algaeSeed, 2));
                     if (algaeAcross * algaeAcross + algaeUp * algaeUp < reach * reach) algae[x, y] = 1;
@@ -794,7 +868,8 @@ public class PlanetOne : MonoBehaviour
                 // Flatten the land around the crash site so the start is open snow.
                 e = 0.5f + (e - 0.5f) * Mathf.Clamp01((fromCrash - 6f) / 6f);
 
-                kind[x, y] = e > RockAbove ? Rock : e < IceBelow ? Ice : Snow;
+                // (On the rocky planet there is no ice: the ground is all desert, with rocks.)
+                kind[x, y] = e > RockAbove ? Rock : e < IceBelow && !Rocky ? Ice : Snow;
                 // Patches of ground one block higher. The crash site itself stays at ground level.
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
@@ -808,7 +883,8 @@ public class PlanetOne : MonoBehaviour
         }
 
         LoadingStage = "Raising the mountains";
-        RaiseMountains(mountainSeed);
+        if (Rocky) mountain = new byte[width, height];
+        else RaiseMountains(mountainSeed);
         if (makeRoad) MakeRoadToCaps(cx, cy);
 
         for (int y = 0; y < height; y++)
@@ -1629,7 +1705,9 @@ public class PlanetOne : MonoBehaviour
         // so their detail is as fine as the snow picture's.
         bool fine = pictured || material == Ice;
         int detail = fine ? PictureDetail : 1;
-        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) =>
+        // On the rocky planet every colour is turned to the desert's.
+        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) => DesertIf(TilePixel(fineX, fineY)));
+        Color32 TilePixel(int fineX, int fineY)
         {
             int x = fineX / detail, y = fineY / detail;
             if (y >= TilePixels)
@@ -1656,7 +1734,7 @@ public class PlanetOne : MonoBehaviour
             Color32 ice = IcePixel(groundLevel, variant, fineX, fineY);
             if (glassy) ice.a = IceGlassAlpha;
             return ice;
-        });
+        }
         tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
@@ -2632,7 +2710,9 @@ public class PlanetOne : MonoBehaviour
     public Transform TopDownRoot => topDownRoot.transform;
 
     // The colour a spot is shown in on the maps: white snow, blue ice, grey rock and ship, each paler where raised.
-    public Color32 MapColorAt(int x, int y)
+    public Color32 MapColorAt(int x, int y) => DesertIf(PlanetMapColorAt(x, y));
+
+    Color32 PlanetMapColorAt(int x, int y)
     {
         Vector2Int spot = Wrap(x, y);
         x = spot.x;
@@ -2835,6 +2915,43 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Pixel position inside one tile, with (0, 0) at the top left. Rims are the lighter edges of a rock top.
+    // The rocky planet's colours: Planet 1's colours, from dark to light, turned to red desert rock, from a deep
+    // red-brown through rusty red to pale orange sand. (Snow becomes sand, rock and stone become red rock.)
+    static readonly Color32[] DesertSteps =
+    {
+        new Color32(0x3A, 0x14, 0x10, 255), new Color32(0x6A, 0x24, 0x18, 255), new Color32(0x8E, 0x34, 0x20, 255),
+        new Color32(0xB0, 0x4A, 0x2C, 255), new Color32(0xC8, 0x62, 0x36, 255), new Color32(0xD8, 0x80, 0x4C, 255),
+    };
+
+    public static Color32 Desert(Color32 c)
+    {
+        float light = (0.3f * c.r + 0.59f * c.g + 0.11f * c.b) / 255f;
+        float along = Mathf.Clamp01(light) * (DesertSteps.Length - 1);
+        int low = Mathf.Min(DesertSteps.Length - 2, (int)along);
+        Color32 desert = Color32.Lerp(DesertSteps[low], DesertSteps[low + 1], along - low);
+        desert.a = c.a;
+        return desert;
+    }
+
+    // A colour as it is on the planet being played.
+    public static Color32 DesertIf(Color32 c) => Rocky ? Desert(c) : c;
+
+    // On the rocky planet, his snow pictures (seen from the side, and in the inventory) are turned to desert sand.
+    // From above they are turned as each tile is painted.
+    void MakeDesertPictures()
+    {
+        foreach (BlockPicture picture in new[] { snowPicture, snowPicture2, snowPicture3 })
+        {
+            if (picture == null) continue;
+            var sand = new Color32[picture.Pixels.Length];
+            for (int i = 0; i < sand.Length; i++) sand[i] = Desert(picture.Pixels[i]);
+            var texture = new Texture2D(picture.Width, picture.Height, TextureFormat.RGBA32, false) { filterMode = picture.Sprite.texture.filterMode, wrapMode = TextureWrapMode.Clamp };
+            texture.SetPixels32(sand);
+            texture.Apply();
+            picture.Sprite = Sprite.Create(texture, new Rect(0, 0, picture.Width, picture.Height), new Vector2(0.5f, 0.5f), picture.Width);
+        }
+    }
+
     public static Color32 PaintRockTop(int x, int y, int rims)
     {
         bool lit = ((rims & 1) != 0 && y < 2) || ((rims & 2) != 0 && x < 1) || ((rims & 4) != 0 && x > TilePixels - 2);
