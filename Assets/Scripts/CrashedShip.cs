@@ -9,10 +9,14 @@ using UnityEngine;
 public class CrashedShip : MonoBehaviour
 {
     // How many of his pixels make one square: the wreck is drawn about nine squares wide.
-    // (18 until 2026-10-18, when Taivan asked for it 3 times bigger.)
-    const float PixelsPerSquare = 6f;
+    // (18 until 2026-10-18, when Taivan asked for it 3 times bigger, then 2 times: 9.)
+    const float PixelsPerSquare = 9f;
     // The smoke is drawn this many times bigger to go with it.
-    const float SmokeScale = 3f;
+    const float SmokeScale = 2f;
+    // His pictures are smoothed by doubling them up this many times (each time rounding off the steps of diagonal
+    // edges, keeping his colours), and then drawn smoothly.
+    const int SmoothSteps = 2;
+    const int Upscale = 1 << SmoothSteps;
     // Where the smoke comes from on his picture, in his pixels from the left and from the top: three spots along the
     // top of the wreck's grey body. (Until 2026-10-18 it came from the three thrusters on top of his first picture.)
     static readonly Vector2[] Thrusters = { new Vector2(32f, 8f), new Vector2(41f, 4f), new Vector2(50f, 9f) };
@@ -99,16 +103,42 @@ public class CrashedShip : MonoBehaviour
             for (int i = 0; i < lit.Length; i++)
             {
                 if (!lit[i].Equals(LineGreen)) continue;
-                float from = Mathf.Repeat(i % source.width - step, FlowApart);
+                // In his pixels: the picture has been doubled up.
+                float from = Mathf.Repeat((i % source.width) / (float)Upscale - step, FlowApart);
                 float light = Mathf.Clamp01(1f - Mathf.Min(from, FlowApart - from) / FlowHalfLength);
                 lit[i] = Color32.Lerp(LineGreen, new Color32(240, 255, 250, 255), light * 0.85f);
             }
-            var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
             texture.SetPixels32(lit);
             texture.Apply();
-            frames[step] = Sprite.Create(texture, new Rect(0, 0, source.width, source.height), new Vector2(ship.pivot.x / source.width, ship.pivot.y / source.height), PixelsPerSquare);
+            frames[step] = Sprite.Create(texture, new Rect(0, 0, source.width, source.height), new Vector2(ship.pivot.x / source.width, ship.pivot.y / source.height), PixelsPerSquare * Upscale);
         }
         return frames;
+    }
+
+    // Gives each see-through pixel next to the picture the colour of a pixel of the picture beside it, a few rings out,
+    // leaving it see-through.
+    static void BleedEdges(Color32[] pixels, int wide, int tall)
+    {
+        var coloured = new bool[pixels.Length];
+        for (int i = 0; i < pixels.Length; i++) coloured[i] = pixels[i].a > 0;
+        for (int ring = 0; ring < 3; ring++)
+        {
+            var next = (bool[])coloured.Clone();
+            for (int y = 0; y < tall; y++)
+            {
+                for (int x = 0; x < wide; x++)
+                {
+                    int i = y * wide + x;
+                    if (coloured[i]) continue;
+                    int from = x > 0 && coloured[i - 1] ? i - 1 : x < wide - 1 && coloured[i + 1] ? i + 1 : y > 0 && coloured[i - wide] ? i - wide : y < tall - 1 && coloured[i + wide] ? i + wide : -1;
+                    if (from < 0) continue;
+                    pixels[i] = new Color32(pixels[from].r, pixels[from].g, pixels[from].b, 0);
+                    next[i] = true;
+                }
+            }
+            coloured = next;
+        }
     }
 
     static Sprite Load(string path)
@@ -116,12 +146,47 @@ public class CrashedShip : MonoBehaviour
         var picture = Resources.Load<Texture2D>(path);
         if (picture == null) return null;
         Color32[] pixels = PlanetOne.ReadPixels(picture);
-        var texture = new Texture2D(picture.width, picture.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        // Drawn smooth, not in sharp square pixels (Taivan asked, 2026-10-18). So that smoothing does not give it a dark
+        // edge, the see-through pixels round it take the colour of the pixels next to them (still see-through).
+        int wide = picture.width, tall = picture.height;
+        int lowest = 0;
+        while (lowest < tall - 1 && System.Array.FindIndex(pixels, lowest * wide, wide, c => c.a > 0) < 0) lowest++;
+        for (int i = 0; i < SmoothSteps; i++) pixels = Smooth(pixels, ref wide, ref tall);
+        BleedEdges(pixels, wide, tall);
+        var texture = new Texture2D(wide, tall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
         texture.SetPixels32(pixels);
         texture.Apply();
-        int lowest = 0;
-        while (lowest < picture.height - 1 && System.Array.FindIndex(pixels, lowest * picture.width, picture.width, c => c.a > 0) < 0) lowest++;
-        return Sprite.Create(texture, new Rect(0, 0, picture.width, picture.height), new Vector2(0.5f, lowest / (float)picture.height), PixelsPerSquare);
+        return Sprite.Create(texture, new Rect(0, 0, wide, tall), new Vector2(0.5f, lowest / (float)picture.height), PixelsPerSquare * Upscale);
+    }
+
+    // Doubles a picture's size, rounding off the steps of its diagonal edges (each pixel becomes four, and a corner of
+    // the four takes the colour of its two neighbours on that side when they match). Only his own colours are used.
+    static Color32[] Smooth(Color32[] pixels, ref int wide, ref int tall)
+    {
+        int w = wide, h = tall;
+        var bigger = new Color32[w * 2 * h * 2];
+        Color32 At(int x, int y) => pixels[Mathf.Clamp(y, 0, h - 1) * w + Mathf.Clamp(x, 0, w - 1)];
+        bool Same(Color32 a, Color32 b) => a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                Color32 p = At(x, y), up = At(x, y + 1), down = At(x, y - 1), left = At(x - 1, y), right = At(x + 1, y);
+                Color32 upLeft = p, upRight = p, downLeft = p, downRight = p;
+                if (Same(up, left) && !Same(up, right) && !Same(left, down)) upLeft = up;
+                if (Same(up, right) && !Same(up, left) && !Same(right, down)) upRight = up;
+                if (Same(down, left) && !Same(down, right) && !Same(left, up)) downLeft = down;
+                if (Same(down, right) && !Same(down, left) && !Same(right, up)) downRight = down;
+                int bx = x * 2, by = y * 2, bw = w * 2;
+                bigger[by * bw + bx] = downLeft;
+                bigger[by * bw + bx + 1] = downRight;
+                bigger[(by + 1) * bw + bx] = upLeft;
+                bigger[(by + 1) * bw + bx + 1] = upRight;
+            }
+        }
+        wide = w * 2;
+        tall = h * 2;
+        return bigger;
     }
 
     void Update()
@@ -155,7 +220,9 @@ public class CrashedShip : MonoBehaviour
                 var puff = go.AddComponent<SpriteRenderer>();
                 puff.sprite = puffSprite;
                 puff.sortingOrder = Order;
-                var start = new Vector2((thruster.x - picture.width / 2f) / PixelsPerSquare, (picture.height - thruster.y) / PixelsPerSquare - broken.pivot.y / PixelsPerSquare);
+                // His pixels, before the picture was doubled up.
+                float wide = picture.width / (float)Upscale, tall = picture.height / (float)Upscale;
+                var start = new Vector2((thruster.x - wide / 2f) / PixelsPerSquare, (tall - thruster.y) / PixelsPerSquare - broken.pivot.y / Upscale / PixelsPerSquare);
                 puffs.Add(new Puff { Picture = puff, Start = start, Sideways = new Vector2(Random.Range(-Drift, Drift), 0f), Born = Time.time });
             }
         }
