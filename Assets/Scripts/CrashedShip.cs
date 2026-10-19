@@ -23,9 +23,10 @@ public class CrashedShip : MonoBehaviour
     static readonly Color32 LineGreen = new Color32(0x96, 0xE2, 0xCC, 255);
     // The cloud when it is fixed: this many puffs, thrown up over this many seconds, each this big and lasting this
     // long. The fixed ship is put in place, hidden in the cloud, this many seconds after it starts.
-    const int CloudPuffs = 70;
-    const float CloudRising = 1f, CloudPuffBig = 2.2f, CloudPuffSeconds = 3.6f, SwapAfter = 1.3f;
-    static readonly Color CloudColor = new Color(0.82f, 0.84f, 0.87f, 0.95f);
+    // (It was thinner until 2026-10-18, when Taivan asked for it to cover the whole ship completely.)
+    const int CloudPuffs = 170;
+    const float CloudRising = 0.6f, CloudPuffSmall = 1.8f, CloudPuffBig = 2.8f, CloudPuffSeconds = 4.2f, SwapAfter = 1.3f;
+    static readonly Color CloudColor = new Color(0.82f, 0.84f, 0.87f, 1f);
 
     class Puff
     {
@@ -164,12 +165,12 @@ public class CrashedShip : MonoBehaviour
                 continue;
             }
             float since = Time.time - puff.Born;
-            puff.Picture.transform.position = at + puff.Start + Vector2.up * (puff.Cloud ? RiseSpeed * 0.3f : RiseSpeed) * since + puff.Sideways * since;
-            float size = puff.Cloud ? Mathf.Lerp(PuffBig, CloudPuffBig, age) : Mathf.Lerp(PuffSmall, PuffBig, age);
+            puff.Picture.transform.position = at + puff.Start + Vector2.up * (puff.Cloud ? RiseSpeed * 0.12f : RiseSpeed) * since + puff.Sideways * since;
+            float size = puff.Cloud ? Mathf.Lerp(CloudPuffSmall, CloudPuffBig, age) : Mathf.Lerp(PuffSmall, PuffBig, age);
             puff.Picture.transform.localScale = new Vector3(size, size, 1f);
             Color c = puff.Cloud ? CloudColor : SmokeColor;
             // The cloud stays thick for a while, then thins away.
-            c.a *= puff.Cloud ? Mathf.Clamp01(age * 8f) * Mathf.Clamp01((1f - age) * 2.2f) : Mathf.Clamp01(age * 6f) * (1f - age);
+            c.a *= puff.Cloud ? Mathf.Clamp01(age * 12f) * Mathf.Clamp01((1f - age) * 1.7f) : Mathf.Clamp01(age * 6f) * (1f - age);
             puff.Picture.color = c;
         }
     }
@@ -187,7 +188,8 @@ public class CrashedShip : MonoBehaviour
             var puff = go.AddComponent<SpriteRenderer>();
             puff.sprite = puffSprite;
             puff.sortingOrder = Order;
-            var start = new Vector2(Random.Range(-0.6f, 0.6f) * bounds.size.x, Random.Range(0.05f, 0.75f) * bounds.size.y);
+            // All over the picture, from the ground to the top of the tall fixed ship.
+            var start = new Vector2(Random.Range(-0.5f, 0.5f) * bounds.size.x, Random.Range(0f, 0.95f) * bounds.size.y);
             puffs.Add(new Puff { Picture = puff, Start = start, Sideways = new Vector2(Random.Range(-Drift, Drift), 0f), Born = Time.time, Cloud = true });
         }
         if (since > CloudRising + CloudPuffSeconds) cloudSince = -1f;
