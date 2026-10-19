@@ -69,24 +69,54 @@ public class PlanetOne : MonoBehaviour
     // Where the middle of this world's algae is, across, and the number its shapes are made from.
     int algaeX, algaeSeed;
 
-    // The algae on the maps: its colours, from deep blue-teal through teal and green to pale mint, laid on in soft
-    // patches, the lined rows a little lighter, fading toward the snow at its edge.
+    // The algae's shades, on the ground and on the maps alike: deep blue-teal, teal, his algae colour, and green. They
+    // lie in big patches with sharp edges, never blended together. (Until 2026-10-18 the maps blended five shades
+    // softly, and the ground was all one colour.)
     static readonly Color32[] AlgaeMapShades =
     {
-        new Color32(28, 104, 122, 255), new Color32(40, 140, 140, 255), new Color32(46, 160, 142, 255),
-        new Color32(66, 176, 126, 255), new Color32(104, 202, 178, 255),
+        new Color32(28, 104, 122, 255), new Color32(40, 140, 140, 255), new Color32(46, 160, 142, 255), new Color32(66, 176, 126, 255),
     };
     const float AlgaeMapPatchSize = 70f;
 
-    // One colour of algae on a map: patch (0 to 1) picks along its shades, lined rows are a little lighter, and toward
-    // the edge (edge 0 in the middle, 1 at the edge) it pales into the snow round it. Used by the maps and the title.
+    // Which shade a patch value (0 to 1) falls in.
+    public static int AlgaeShadeOf(float patch) => Mathf.Clamp(Mathf.FloorToInt(patch * AlgaeMapShades.Length), 0, AlgaeMapShades.Length - 1);
+
+    // One colour of algae on a map: patch (0 to 1) picks one of its shades, lined rows are a little lighter, and a band
+    // round its edge (edge 0 in the middle, 1 at the edge) is paler. Every step is sharp. Used by the maps and the title.
     public static Color AlgaeMapColor(float patch, bool lined, float edge)
     {
-        float along = Mathf.Clamp01(patch) * (AlgaeMapShades.Length - 1);
-        int low = Mathf.Min(AlgaeMapShades.Length - 2, Mathf.FloorToInt(along));
-        Color c = Color.Lerp(AlgaeMapShades[low], AlgaeMapShades[low + 1], along - low);
+        Color c = AlgaeMapShades[AlgaeShadeOf(patch)];
         if (lined) c = Color.Lerp(c, AlgaeLight, 0.22f);
-        return Color.Lerp(c, new Color32(206, 228, 226, 255), Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.72f, 1f, edge)) * 0.55f);
+        if (edge > 0.88f) c = Color.Lerp(c, new Color32(206, 228, 226, 255), 0.35f);
+        return c;
+    }
+
+    // Which shade the algae is at a square, the same as on the map.
+    public int AlgaeShadeAt(int x, int y)
+    {
+        Vector2Int spot = Wrap(x, y);
+        return AlgaeShadeOf(Mathf.InverseLerp(0.25f, 0.75f, LoopingNoise(spot.x, spot.y, AlgaeMapPatchSize, algaeSeed + 11, 3)));
+    }
+
+    // One of his algae blocks (or the old speckled algae) in one of the shades: its algae colour changed to the shade,
+    // its lines and specks left as they are. Made the first time each is needed.
+    readonly Dictionary<int, BlockPicture> shadedAlgae = new Dictionary<int, BlockPicture>();
+    Color32 algaeBase;
+    BlockPicture ShadedAlgae(int look, int shade)
+    {
+        int key = look * 16 + shade;
+        if (shadedAlgae.TryGetValue(key, out BlockPicture picture)) return picture;
+        Color32[] pixels = (Color32[])algaePictures[look].Pixels.Clone();
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (pixels[i].r == algaeBase.r && pixels[i].g == algaeBase.g && pixels[i].b == algaeBase.b) pixels[i] = AlgaeMapShades[shade];
+        }
+        var texture = new Texture2D(algaePictures[look].Width, algaePictures[look].Height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        texture.SetPixels32(pixels);
+        texture.Apply();
+        picture = LoadBlockPicture(texture);
+        shadedAlgae[key] = picture;
+        return picture;
     }
     // How strongly the algae glows in the middle of the night: how solid its bright copy is, drawn over the dark.
     const float AlgaeGlow = 0.6f;
@@ -1090,6 +1120,7 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < algaeStripWide; x++) algaeLineMask[y * algaeStripWide + x] = !pixels[y * sheetWide + x].Equals(algae);
         }
+        algaeBase = algae;
         // And for the rows between the lined ones, the algae as it was before his blocks: speckled, with no lines, in
         // its three looks. Kept after his blocks. Each speck is drawn as big as it always was (two of the old tile's
         // sixteen pixels), at his blocks' size.
@@ -1138,9 +1169,9 @@ public class PlanetOne : MonoBehaviour
     // One square of one of the algae's layers: kind 0 is its glow (his picture), 1 its flash (its lines, white), and
     // 2 the light in its lines (white, as bright as the light is there). See-through below the covered rows, and at the
     // height of the square's top.
-    Tile AlgaeLayerTile(int kind, int level, int look, int covered, int phase)
+    Tile AlgaeLayerTile(int kind, int level, int look, int covered, int phase, int shade = 0)
     {
-        long key = ((long)kind << 56) | ((long)(level + 64) << 40) | ((long)look << 32) | ((long)covered << 16) | (long)phase;
+        long key = ((long)kind << 56) | ((long)(level + 64) << 40) | ((long)look << 32) | ((long)shade << 24) | ((long)covered << 16) | (long)phase;
         if (algaeLayerTiles.TryGetValue(key, out Tile tile)) return tile;
         int size = algaeStripTall;
         var pixels = new Color32[size * size];
@@ -1149,7 +1180,7 @@ public class PlanetOne : MonoBehaviour
             for (int x = 0; x < size; x++)
             {
                 int along = look * size + x;
-                if (kind == 0) pixels[y * size + x] = algaePictures[look].Pixels[y * size + x];
+                if (kind == 0) pixels[y * size + x] = ShadedAlgae(look, shade).Pixels[y * size + x];
                 // Plain algae has no lines to flash or light.
                 else if (look >= algaeLooks) continue;
                 else if (kind == 1) { if (algaeLineMask[y * algaeStripWide + along]) pixels[y * size + x] = new Color32(255, 255, 255, 255); }
@@ -1187,7 +1218,7 @@ public class PlanetOne : MonoBehaviour
         }
         int covered = AlgaeCovered(cell.x, cell.y, level), look = AlgaeLookAt(cell.x, cell.y);
         algaeTops[cell] = new Vector2Int(level, covered);
-        algaeGlow.SetTile(at, AlgaeLayerTile(0, level, look, covered, 0));
+        algaeGlow.SetTile(at, AlgaeLayerTile(0, level, look, covered, 0, AlgaeShadeAt(cell.x, cell.y)));
         algaeFlash.SetTile(at, AlgaeLayerTile(1, level, look, covered, 0));
         algaeLight.SetTile(at, AlgaeLayerTile(2, level, look, covered, lightShown));
     }
@@ -1449,7 +1480,8 @@ public class PlanetOne : MonoBehaviour
         if (material == Ice && icePictures != null) variant = IceLookAt(x, y, level - 1);
         // Taivan's picture of the ship is drawn over its squares, so from above they are just the snow it stands on.
         if (material == Ship && shipPictured) return TerrainTile(Snow, 0, 0, 0, 0, snowPicture != null ? SnowLookAt(x, y, -1) : 0);
-        if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x, y);
+        // Which of his blocks, and in which shade: the shade goes above the block's number.
+        if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x, y) | (AlgaeShadeAt(x, y) << 4);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1565,12 +1597,12 @@ public class PlanetOne : MonoBehaviour
     Tile TerrainTile(byte material, int groundLevel, int level, int drop, int rims, int variant, long faceBlocks = 0, bool glassy = false)
     {
         // The south face can be up to MaxFaceBlocks tall, which is too much to fit in one number with the rest.
-        var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (variant << 19) | (glassy ? 1 << 23 : 0)), faceBlocks);
+        var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (glassy ? 1 << 23 : 0)) | ((long)variant << 32), faceBlocks);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
 
         // Snow has three looks, picked square by square: Taivan's three snow pictures.
         // So has ice: Taivan's ice blocks.
-        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : material == Algae && algaePictures != null ? algaePictures[variant] : PictureFor(material);
+        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : material == Algae && algaePictures != null ? ShadedAlgae(variant & 15, variant >> 4) : PictureFor(material);
         bool pictured = picture != null;
         Color32 topColor, rimColor;
         switch (material)
