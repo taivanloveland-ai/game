@@ -13,10 +13,6 @@ public class CrashedShip : MonoBehaviour
     const float PixelsPerSquare = 9f;
     // The smoke is drawn this many times bigger to go with it.
     const float SmokeScale = 2f;
-    // His pictures are smoothed by doubling them up this many times (each time rounding off the steps of diagonal
-    // edges, keeping his colours), and then drawn smoothly.
-    const int SmoothSteps = 2;
-    const int Upscale = 1 << SmoothSteps;
     // Where the smoke comes from on his picture, in his pixels from the left and from the top: three spots along the
     // top of the wreck's grey body. (Until 2026-10-18 it came from the three thrusters on top of his first picture.)
     static readonly Vector2[] Thrusters = { new Vector2(32f, 8f), new Vector2(41f, 4f), new Vector2(50f, 9f) };
@@ -50,6 +46,8 @@ public class CrashedShip : MonoBehaviour
     CraftingNook nook;
     MiningMode mining;
     SpriteRenderer ship;
+    // A soft shadow on the snow under it, so it looks as if it stands there.
+    SpriteRenderer shadow;
     Sprite broken, fixedUp, puffSprite;
     // The fixed ship with the light at each step along its green lines.
     Sprite[] flowing;
@@ -80,6 +78,18 @@ public class CrashedShip : MonoBehaviour
         ship.sprite = broken;
         // Sorted by its foot, so the player walks in front of it or behind it correctly.
         ship.spriteSortPoint = SpriteSortPoint.Pivot;
+        var shade = new GameObject("Crashed Ship Shadow");
+        shade.transform.SetParent(planet.TopDownRoot, false);
+        shadow = shade.AddComponent<SpriteRenderer>();
+        shadow.sprite = PlanetOne.PaintSprite(32, 16, new Vector2(0.5f, 0.5f), 32f, (x, y) =>
+        {
+            float dx = (x + 0.5f - 16f) / 16f, dy = (y + 0.5f - 8f) / 8f, r = dx * dx + dy * dy;
+            return r > 1f ? new Color32(0, 0, 0, 0) : new Color32(255, 255, 255, (byte)Mathf.RoundToInt(255f * (1f - r)));
+        });
+        shadow.sprite.texture.filterMode = FilterMode.Bilinear;
+        shadow.color = new Color(0.05f, 0.1f, 0.2f, 0.28f);
+        // Sorted a little behind the ship, so the ship is drawn over it.
+        shadow.spriteSortPoint = SpriteSortPoint.Pivot;
         // A round puff of smoke in big square pixels, like his pictures: thicker in the middle, in three steps.
         puffSprite = PlanetOne.PaintSprite(8, 8, new Vector2(0.5f, 0.5f), 8f, (x, y) =>
         {
@@ -103,15 +113,14 @@ public class CrashedShip : MonoBehaviour
             for (int i = 0; i < lit.Length; i++)
             {
                 if (!lit[i].Equals(LineGreen)) continue;
-                // In his pixels: the picture has been doubled up.
-                float from = Mathf.Repeat((i % source.width) / (float)Upscale - step, FlowApart);
+                float from = Mathf.Repeat(i % source.width - step, FlowApart);
                 float light = Mathf.Clamp01(1f - Mathf.Min(from, FlowApart - from) / FlowHalfLength);
                 lit[i] = Color32.Lerp(LineGreen, new Color32(240, 255, 250, 255), light * 0.85f);
             }
             var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
             texture.SetPixels32(lit);
             texture.Apply();
-            frames[step] = Sprite.Create(texture, new Rect(0, 0, source.width, source.height), new Vector2(ship.pivot.x / source.width, ship.pivot.y / source.height), PixelsPerSquare * Upscale);
+            frames[step] = Sprite.Create(texture, new Rect(0, 0, source.width, source.height), new Vector2(ship.pivot.x / source.width, ship.pivot.y / source.height), PixelsPerSquare);
         }
         return frames;
     }
@@ -146,47 +155,17 @@ public class CrashedShip : MonoBehaviour
         var picture = Resources.Load<Texture2D>(path);
         if (picture == null) return null;
         Color32[] pixels = PlanetOne.ReadPixels(picture);
-        // Drawn smooth, not in sharp square pixels (Taivan asked, 2026-10-18). So that smoothing does not give it a dark
-        // edge, the see-through pixels round it take the colour of the pixels next to them (still see-through).
+        // His pixels exactly, drawn softly rather than as hard squares (Taivan asked for it not to be "mega pixely" and to
+        // stay his picture, 2026-10-18; rounding off its edges was tried and taken out). So that the soft drawing does
+        // not give it a dark edge, the see-through pixels round it take the colour of the pixels next to them (still see-through).
         int wide = picture.width, tall = picture.height;
         int lowest = 0;
         while (lowest < tall - 1 && System.Array.FindIndex(pixels, lowest * wide, wide, c => c.a > 0) < 0) lowest++;
-        for (int i = 0; i < SmoothSteps; i++) pixels = Smooth(pixels, ref wide, ref tall);
         BleedEdges(pixels, wide, tall);
         var texture = new Texture2D(wide, tall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
         texture.SetPixels32(pixels);
         texture.Apply();
-        return Sprite.Create(texture, new Rect(0, 0, wide, tall), new Vector2(0.5f, lowest / (float)picture.height), PixelsPerSquare * Upscale);
-    }
-
-    // Doubles a picture's size, rounding off the steps of its diagonal edges (each pixel becomes four, and a corner of
-    // the four takes the colour of its two neighbours on that side when they match). Only his own colours are used.
-    static Color32[] Smooth(Color32[] pixels, ref int wide, ref int tall)
-    {
-        int w = wide, h = tall;
-        var bigger = new Color32[w * 2 * h * 2];
-        Color32 At(int x, int y) => pixels[Mathf.Clamp(y, 0, h - 1) * w + Mathf.Clamp(x, 0, w - 1)];
-        bool Same(Color32 a, Color32 b) => a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                Color32 p = At(x, y), up = At(x, y + 1), down = At(x, y - 1), left = At(x - 1, y), right = At(x + 1, y);
-                Color32 upLeft = p, upRight = p, downLeft = p, downRight = p;
-                if (Same(up, left) && !Same(up, right) && !Same(left, down)) upLeft = up;
-                if (Same(up, right) && !Same(up, left) && !Same(right, down)) upRight = up;
-                if (Same(down, left) && !Same(down, right) && !Same(left, up)) downLeft = down;
-                if (Same(down, right) && !Same(down, left) && !Same(right, up)) downRight = down;
-                int bx = x * 2, by = y * 2, bw = w * 2;
-                bigger[by * bw + bx] = downLeft;
-                bigger[by * bw + bx + 1] = downRight;
-                bigger[(by + 1) * bw + bx] = upLeft;
-                bigger[(by + 1) * bw + bx + 1] = upRight;
-            }
-        }
-        wide = w * 2;
-        tall = h * 2;
-        return bigger;
+        return Sprite.Create(texture, new Rect(0, 0, wide, tall), new Vector2(0.5f, lowest / (float)picture.height), PixelsPerSquare);
     }
 
     void Update()
@@ -197,6 +176,10 @@ public class CrashedShip : MonoBehaviour
         Vector2 at = planet.Nearest(foot, Camera.main.transform.position);
         ship.transform.position = at;
         ship.enabled = shown;
+        shadow.enabled = shown;
+        // Under the ship, about as wide as its body, on the snow it rests on.
+        shadow.transform.position = at + new Vector2(-0.4f, 1.3f);
+        shadow.transform.localScale = new Vector3(ship.bounds.size.x * 0.55f, 2.4f, 1f);
         // Fixed just now: a cloud of smoke covers it, and the fixed ship is there when it clears. (A saved game that was
         // fixed starts with the fixed ship.)
         if (nook.ShipFixed && !wasFixed)
@@ -220,9 +203,7 @@ public class CrashedShip : MonoBehaviour
                 var puff = go.AddComponent<SpriteRenderer>();
                 puff.sprite = puffSprite;
                 puff.sortingOrder = Order;
-                // His pixels, before the picture was doubled up.
-                float wide = picture.width / (float)Upscale, tall = picture.height / (float)Upscale;
-                var start = new Vector2((thruster.x - wide / 2f) / PixelsPerSquare, (tall - thruster.y) / PixelsPerSquare - broken.pivot.y / Upscale / PixelsPerSquare);
+                var start = new Vector2((thruster.x - picture.width / 2f) / PixelsPerSquare, (picture.height - thruster.y) / PixelsPerSquare - broken.pivot.y / PixelsPerSquare);
                 puffs.Add(new Puff { Picture = puff, Start = start, Sideways = new Vector2(Random.Range(-Drift, Drift), 0f), Born = Time.time });
             }
         }
