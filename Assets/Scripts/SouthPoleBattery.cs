@@ -44,7 +44,8 @@ public class SouthPoleBattery : MonoBehaviour
     void Update()
     {
         if (picture == null) return;
-        bool shown = !Taken && !planet.InCave && !mining.Active;
+        // It is on Planet 1, not the rocky planet.
+        bool shown = !Taken && !planet.InCave && !mining.Active && !PlanetOne.Rocky;
         picture.enabled = shown;
         if (!shown) return;
         // The planet joins up with itself, so it is drawn at its copy nearest the player.

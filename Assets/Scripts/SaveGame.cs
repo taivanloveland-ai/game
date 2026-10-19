@@ -14,9 +14,12 @@ public class SaveGame : MonoBehaviour
     public const int Slots = 5;
     // Changed whenever the layout of the file changes. A file with another number is not read.
     // (Version 1 had no name, versions 1 and 2 had no day count, versions 1 to 3 had no boots, and versions 1 to 4
-    // had no cave crystals, versions 1 to 5 had not fixed the ship, and versions 1 to 6 had no battery; their saves can
-    // still be read.)
-    const int Version = 7;
+    // had no cave crystals, versions 1 to 5 had not fixed the ship, versions 1 to 6 had no battery, and versions 1 to 7
+    // had only Planet 1; their saves can still be read.)
+    // Since version 8 the save holds both planets: which one the player is on, and for each planet what has changed
+    // there (the blocks dug and built, what has been harvested, the spiders killed, what lies loose on the ground, what
+    // the map has seen, and the crystals mined), the planet being played first.
+    const int Version = 8;
     // The longest name a save can be given.
     public const int LongestName = 18;
 
@@ -37,6 +40,8 @@ public class SaveGame : MonoBehaviour
         public int Seed;
         public string Name = "";
         public int Version;
+        // Which planet the player is on: 0 for Planet 1, 1 for the rocky planet.
+        public int Planet;
         // Everything after the first few lines of the file.
         public byte[] Rest;
     }
@@ -58,6 +63,8 @@ public class SaveGame : MonoBehaviour
     string saveName;
     // Every kind of item in the game, by name, for putting a saved inventory back.
     readonly Dictionary<string, Item> items = new Dictionary<string, Item>();
+    // What has changed on the planet the player is not on, as it was saved, kept to be saved again.
+    byte[] otherPlanet = new byte[0];
 
     // The slot this game is saved in, counting from 0, or -1 if it has none.
     public int Slot => slot;
@@ -134,19 +141,22 @@ public class SaveGame : MonoBehaviour
     public static Loaded Load(bool creative, int slot)
     {
         if (Peek(creative, slot) == null) return null;
-        using (var r = new BinaryReader(new GZipStream(File.OpenRead(PathFor(creative, slot)), CompressionMode.Decompress)))
+        using (var r = new BinaryReader(new GZipStream(File.OpenRead(PathFor(creative, slot)), CompressionMode.Decompress))) return Read(r);
+    }
+
+    static Loaded Read(BinaryReader r)
+    {
+        int version = r.ReadInt32();
+        var loaded = new Loaded { Version = version, Creative = r.ReadBoolean(), Seed = r.ReadInt32() };
+        r.ReadInt64();
+        if (version >= 2) loaded.Name = r.ReadString();
+        if (version >= 8) loaded.Planet = r.ReadInt32();
+        using (var rest = new MemoryStream())
         {
-            int version = r.ReadInt32();
-            var loaded = new Loaded { Version = version, Creative = r.ReadBoolean(), Seed = r.ReadInt32() };
-            r.ReadInt64();
-            if (version >= 2) loaded.Name = r.ReadString();
-            using (var rest = new MemoryStream())
-            {
-                r.BaseStream.CopyTo(rest);
-                loaded.Rest = rest.ToArray();
-            }
-            return loaded;
+            r.BaseStream.CopyTo(rest);
+            loaded.Rest = rest.ToArray();
         }
+        return loaded;
     }
 
     public static void Delete(bool creative, int slot)
@@ -159,53 +169,52 @@ public class SaveGame : MonoBehaviour
     public bool Save()
     {
         if (slot < 0) return false;
-        try
+        return WriteFile(w => Write(w, PlanetOne.Rocky ? 1 : 0, player.GroundPosition, player.FeetHeight, planet.CaveIndex, PlanetChanges(), otherPlanet));
+    }
+
+    // Saves the game as it will be on the other planet, just landed there: the player in front of the ship's
+    // workbench, and the two planets' changes swapped round. Gives it back to be carried on with straight away (and
+    // writes it in the slot, if the game has one).
+    public Loaded Travel(bool toRocky)
+    {
+        byte[] leaving = PlanetChanges();
+        System.Action<BinaryWriter> write = w => Write(w, toRocky ? 1 : 0, PlanetOne.StartSpot(toRocky), 0f, -1, otherPlanet, leaving);
+        if (slot >= 0) WriteFile(write);
+        using (var memory = new MemoryStream())
         {
-            string path = PathFor(creative, slot);
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            // Written beside the real file first, so a save that goes wrong part way never spoils the one before.
-            string fresh = path + ".new";
-            using (var w = new BinaryWriter(new GZipStream(File.Create(fresh), System.IO.Compression.CompressionLevel.Fastest)))
+            using (var w = new BinaryWriter(memory, System.Text.Encoding.UTF8, true)) write(w);
+            memory.Position = 0;
+            using (var r = new BinaryReader(memory)) return Read(r);
+        }
+    }
+
+    // What has changed on the planet being played.
+    byte[] PlanetChanges()
+    {
+        using (var memory = new MemoryStream())
+        {
+            using (var w = new BinaryWriter(memory))
             {
-                w.Write(Version);
-                w.Write(creative);
-                w.Write(planet.seed);
-                w.Write(System.DateTime.Now.Ticks);
-                w.Write(saveName);
-
-                // The player: where they are, in which land, how they are, and the time of day.
-                Vector2 ground = player.GroundPosition;
-                w.Write(ground.x);
-                w.Write(ground.y);
-                w.Write(player.FeetHeight);
-                w.Write(planet.CaveIndex);
-                w.Write(health.Current);
-                w.Write(dayNight.time);
-                w.Write(dayNight.Day);
-                w.Write(player.speed);
-
-                // What they carry.
-                w.Write(inventory.Stacks.Count);
-                foreach (Inventory.Stack stack in inventory.Stacks)
-                {
-                    w.Write(stack.Item.Name);
-                    w.Write(stack.Count);
-                }
-                w.Write(inventory.Tools.Count);
-                foreach (Item tool in inventory.Tools) w.Write(tool.Name);
-                foreach (Item held in inventory.Hotbar) w.Write(held != null ? held.Name : "");
-                w.Write(inventory.EquippedSlot);
-                w.Write(inventory.Boots != null ? inventory.Boots.Name : "");
-
                 planet.WriteChanges(w);
                 gatherables.Write(w);
                 spiders.Write(w);
                 pickups.Write(w);
                 map.Write(w);
                 planet.GetComponent<CaveCrystals>().Write(w);
-                w.Write(nook.ShipFixed);
-                w.Write(planet.GetComponent<SouthPoleBattery>().Taken);
             }
+            return memory.ToArray();
+        }
+    }
+
+    bool WriteFile(System.Action<BinaryWriter> write)
+    {
+        try
+        {
+            string path = PathFor(creative, slot);
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            // Written beside the real file first, so a save that goes wrong part way never spoils the one before.
+            string fresh = path + ".new";
+            using (var w = new BinaryWriter(new GZipStream(File.Create(fresh), System.IO.Compression.CompressionLevel.Fastest))) write(w);
             if (File.Exists(path)) File.Delete(path);
             File.Move(fresh, path);
             return true;
@@ -215,6 +224,59 @@ public class SaveGame : MonoBehaviour
             Debug.LogError("Could not save the game: " + problem);
             return false;
         }
+    }
+
+    // The whole save: which planet the player is on, where they are there, and the changes to the planet they are on
+    // and to the other one.
+    void Write(BinaryWriter w, int planetOn, Vector2 ground, float feet, int cave, byte[] here, byte[] there)
+    {
+        w.Write(Version);
+        w.Write(creative);
+        w.Write(planet.seed);
+        w.Write(System.DateTime.Now.Ticks);
+        w.Write(saveName);
+        w.Write(planetOn);
+
+        // The player: where they are, in which land, how they are, and the time of day.
+        w.Write(ground.x);
+        w.Write(ground.y);
+        w.Write(feet);
+        w.Write(cave);
+        w.Write(health.Current);
+        w.Write(dayNight.time);
+        w.Write(dayNight.Day);
+        w.Write(player.speed);
+
+        // What they carry.
+        w.Write(inventory.Stacks.Count);
+        foreach (Inventory.Stack stack in inventory.Stacks)
+        {
+            w.Write(stack.Item.Name);
+            w.Write(stack.Count);
+        }
+        w.Write(inventory.Tools.Count);
+        foreach (Item tool in inventory.Tools) w.Write(tool.Name);
+        foreach (Item held in inventory.Hotbar) w.Write(held != null ? held.Name : "");
+        w.Write(inventory.EquippedSlot);
+        w.Write(inventory.Boots != null ? inventory.Boots.Name : "");
+
+        w.Write(here.Length);
+        w.Write(here);
+        w.Write(there.Length);
+        w.Write(there);
+        w.Write(nook.ShipFixed);
+        w.Write(planet.GetComponent<SouthPoleBattery>().Taken);
+    }
+
+    // Puts back what has changed on the planet being played.
+    void ReadPlanet(BinaryReader r, int version)
+    {
+        planet.ReadChanges(r);
+        gatherables.Read(r);
+        spiders.Read(r);
+        pickups.Read(r, Find);
+        map.Read(r);
+        if (version >= 5) planet.GetComponent<CaveCrystals>().Read(r);
     }
 
     // Puts a saved game back, once its world has been made again from its seed and the game set going.
@@ -249,12 +311,17 @@ public class SaveGame : MonoBehaviour
             inventory.EquippedSlot = r.ReadInt32();
             inventory.Boots = loaded.Version >= 4 ? Find(r.ReadString()) : null;
 
-            planet.ReadChanges(r);
-            gatherables.Read(r);
-            spiders.Read(r);
-            pickups.Read(r, Find);
-            map.Read(r);
-            if (loaded.Version >= 5) planet.GetComponent<CaveCrystals>().Read(r);
+            if (loaded.Version >= 8)
+            {
+                // The planet being played (nothing yet, the first time there), then the other one, kept as it is.
+                byte[] here = r.ReadBytes(r.ReadInt32());
+                otherPlanet = r.ReadBytes(r.ReadInt32());
+                if (here.Length > 0)
+                {
+                    using (var changes = new BinaryReader(new MemoryStream(here))) ReadPlanet(changes, loaded.Version);
+                }
+            }
+            else ReadPlanet(r, loaded.Version);
             nook.ShipFixed = loaded.Version >= 6 && r.ReadBoolean();
             planet.GetComponent<SouthPoleBattery>().Taken = loaded.Version >= 7 && r.ReadBoolean();
 
