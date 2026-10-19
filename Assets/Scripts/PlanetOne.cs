@@ -764,12 +764,12 @@ public class PlanetOne : MonoBehaviour
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
         });
-        // The wrecked ship sits just above the spot where the player starts, nine squares wide and three deep. (It was
-        // five wide and two deep until Taivan drew it, 2026-10-17, then three wide until he made it 3 times bigger,
-        // 2026-10-18.)
-        for (int y = cy + 1; y < cy + 4; y++)
+        // The wrecked ship sits just above the spot where the player starts, six squares wide and two deep. (It was
+        // five wide until Taivan drew it, 2026-10-17, then three wide; then nine wide and three deep when he made it 3
+        // times bigger, and six when he made that 2 times, 2026-10-18.)
+        for (int y = cy + 1; y < cy + 3; y++)
         {
-            for (int x = cx - 4; x < cx + 5; x++) kind[x, y] = Ship;
+            for (int x = cx - 2; x < cx + 4; x++) kind[x, y] = Ship;
         }
 
         LoadingStage = "Raising the mountains";
