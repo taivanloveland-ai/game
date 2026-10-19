@@ -368,6 +368,10 @@ public class CrashedShip : MonoBehaviour
     // The size of its picture, in squares.
     public Vector2 Size => ship != null ? (Vector2)ship.sprite.bounds.size : Vector2.zero;
 
+    // The standing ship's pictures, for drawing it in space: its body as it is now (with the light along its lines),
+    // the grey inside, the player in there, and the purple crystal. Null without his picture.
+    public Sprite[] StandingPictures => inside == null ? null : new[] { flowing[Mathf.FloorToInt(Time.time * FlowSpeed) % flowing.Length], inside.sprite, figure.sprite, glass.sprite };
+
     // For checking: how many puffs of smoke are rising.
     public int Puffs => puffs.Count;
 }
