@@ -117,7 +117,7 @@ public class CrashedShip : MonoBehaviour
                 float light = Mathf.Clamp01(1f - Mathf.Min(from, FlowApart - from) / FlowHalfLength);
                 lit[i] = Color32.Lerp(LineGreen, new Color32(240, 255, 250, 255), light * 0.85f);
             }
-            var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var texture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
             texture.SetPixels32(lit);
             texture.Apply();
             frames[step] = Sprite.Create(texture, new Rect(0, 0, source.width, source.height), new Vector2(ship.pivot.x / source.width, ship.pivot.y / source.height), PixelsPerSquare);
@@ -125,44 +125,17 @@ public class CrashedShip : MonoBehaviour
         return frames;
     }
 
-    // Gives each see-through pixel next to the picture the colour of a pixel of the picture beside it, a few rings out,
-    // leaving it see-through.
-    static void BleedEdges(Color32[] pixels, int wide, int tall)
-    {
-        var coloured = new bool[pixels.Length];
-        for (int i = 0; i < pixels.Length; i++) coloured[i] = pixels[i].a > 0;
-        for (int ring = 0; ring < 3; ring++)
-        {
-            var next = (bool[])coloured.Clone();
-            for (int y = 0; y < tall; y++)
-            {
-                for (int x = 0; x < wide; x++)
-                {
-                    int i = y * wide + x;
-                    if (coloured[i]) continue;
-                    int from = x > 0 && coloured[i - 1] ? i - 1 : x < wide - 1 && coloured[i + 1] ? i + 1 : y > 0 && coloured[i - wide] ? i - wide : y < tall - 1 && coloured[i + wide] ? i + wide : -1;
-                    if (from < 0) continue;
-                    pixels[i] = new Color32(pixels[from].r, pixels[from].g, pixels[from].b, 0);
-                    next[i] = true;
-                }
-            }
-            coloured = next;
-        }
-    }
-
     static Sprite Load(string path)
     {
         var picture = Resources.Load<Texture2D>(path);
         if (picture == null) return null;
         Color32[] pixels = PlanetOne.ReadPixels(picture);
-        // His pixels exactly, drawn softly rather than as hard squares (Taivan asked for it not to be "mega pixely" and to
-        // stay his picture, 2026-10-18; rounding off its edges was tried and taken out). So that the soft drawing does
-        // not give it a dark edge, the see-through pixels round it take the colour of the pixels next to them (still see-through).
+        // His pixels exactly, sharp, as he drew them. (Rounded-off edges and soft, blurred drawing were tried on
+        // 2026-10-18 and taken out.) See Update for how each of his pixels is kept a whole number of the screen's pixels.
         int wide = picture.width, tall = picture.height;
         int lowest = 0;
         while (lowest < tall - 1 && System.Array.FindIndex(pixels, lowest * wide, wide, c => c.a > 0) < 0) lowest++;
-        BleedEdges(pixels, wide, tall);
-        var texture = new Texture2D(wide, tall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+        var texture = new Texture2D(wide, tall, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         texture.SetPixels32(pixels);
         texture.Apply();
         return Sprite.Create(texture, new Rect(0, 0, wide, tall), new Vector2(0.5f, lowest / (float)picture.height), PixelsPerSquare);
@@ -174,7 +147,16 @@ public class CrashedShip : MonoBehaviour
         bool shown = !mining.Active && !planet.InCave;
         // The planet joins up with itself, so the ship is drawn at its copy nearest the player.
         Vector2 at = planet.Nearest(foot, Camera.main.transform.position);
-        ship.transform.position = at;
+        // Each of his pixels is drawn as a whole number of the screen's pixels, all the same size, so it looks clean: the
+        // ship is made a touch bigger or smaller to fit, whatever the zoom.
+        float screenPixels = Screen.height / (2f * Camera.main.orthographicSize) / PixelsPerSquare;
+        // And lined up with the screen's pixels, wherever the camera is, so its edges stay clean as the view moves.
+        float unitPixels = Screen.height / (2f * Camera.main.orthographicSize);
+        Vector2 eye = Camera.main.transform.position;
+        Vector2 offset = at - eye;
+        ship.transform.position = eye + new Vector2(Mathf.Round(offset.x * unitPixels), Mathf.Round(offset.y * unitPixels)) / unitPixels;
+        float fit = Mathf.Max(1f, Mathf.Round(screenPixels)) / screenPixels;
+        ship.transform.localScale = new Vector3(fit, fit, 1f);
         ship.enabled = shown;
         shadow.enabled = shown;
         // Under the ship, about as wide as its body, on the snow it rests on.
