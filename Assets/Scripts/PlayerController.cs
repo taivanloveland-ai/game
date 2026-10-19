@@ -71,6 +71,8 @@ public class PlayerController : MonoBehaviour
 
     // While true the player stands still and the keys do nothing, as while the screen fades going into a cave.
     public bool Frozen;
+    // While true the player is not drawn, as while they sit in the ship (which shows them inside it).
+    public bool Hidden;
 
     // True while the player is in the water of the ocean.
     public bool InWater { get; private set; }
@@ -162,6 +164,12 @@ public class PlayerController : MonoBehaviour
         reflection.localPosition = new Vector3(0f, -Height / 2f + floorLift - gap - Height * PlanetOne.ReflectionSquash / 2f, 0f);
 
         bodyRenderer.color = new Color(baseColor.r * tint.r, baseColor.g * tint.g, baseColor.b * tint.b, baseColor.a);
+        bodyRenderer.enabled = !Hidden;
+        if (Hidden)
+        {
+            shadow.gameObject.SetActive(false);
+            reflection.gameObject.SetActive(false);
+        }
     }
 
     void MoveTopDown()

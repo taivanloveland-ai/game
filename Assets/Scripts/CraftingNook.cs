@@ -321,6 +321,20 @@ public class CraftingNook : MonoBehaviour
         if (Open && (!InReach || GameInput.CancelPressed())) Open = false;
     }
 
+    // Whether a point (in the world) is on the nook's square.
+    public bool IsOnNook(Vector2 point)
+    {
+        Vector2 corner = Corner;
+        return point.x >= corner.x && point.x <= corner.x + 1f && point.y >= corner.y && point.y <= corner.y + 1f;
+    }
+
+    // Puts the menu away.
+    public void Close()
+    {
+        Open = false;
+        walking = false;
+    }
+
     // Handles a right click at a point on screen (given in world units). If it is on the nook, the player walks over
     // if they need to and the crafting menu opens. Returns false if the click was somewhere else.
     public bool ClickAt(Vector2 point)

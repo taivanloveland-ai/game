@@ -659,7 +659,12 @@ public class PlanetOne : MonoBehaviour
         };
         giveEverything?.Invoke();
         // The wrecked ship as he drew it, smoking.
-        gameObject.AddComponent<CrashedShip>().Setup(this, nook, mining, new Vector2(cx + 0.5f, cy + 1f));
+        var crashedShip = gameObject.AddComponent<CrashedShip>();
+        crashedShip.Setup(this, nook, mining, new Vector2(cx + 0.5f, cy + 1f));
+        // Getting in the fixed ship, and flying it.
+        var flight = gameObject.AddComponent<ShipFlight>();
+        flight.Setup(this, controller, mining, nook, crashedShip, hud, cam, dayNight);
+        hud.HideHotbar = () => worldMap.Open || flight.Aboard;
         // The battery the ship needs, on the South Pole's cap.
         gameObject.AddComponent<SouthPoleBattery>().Setup(this, controller, mining, inventory, nook, hud);
         // The glowing crystals in the frost caves, and the caves' dark.
