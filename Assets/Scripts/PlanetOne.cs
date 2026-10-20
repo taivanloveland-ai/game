@@ -2778,6 +2778,13 @@ public class PlanetOne : MonoBehaviour
         return SurfaceMaterial(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y)) == Ice;
     }
 
+    // True if the block right under feet at this height is ice: what the player stands on, whatever is over their
+    // head. (Slipping went by the top of the square, roof and all, until 2026-10-20.)
+    public bool StandingOnIce(Vector2 position, float feet)
+    {
+        return SideBlockAt(Mathf.FloorToInt(position.x), Mathf.FloorToInt(position.y), Mathf.FloorToInt(feet + 0.01f) - 1) == SideBlock.Ice;
+    }
+
     // Height in blocks of whatever is at a spot.
     public int TopAt(int x, int y)
     {

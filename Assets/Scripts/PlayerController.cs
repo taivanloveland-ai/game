@@ -181,7 +181,7 @@ public class PlayerController : MonoBehaviour
 
         // On ice the player speeds up, turns and stops gradually. Everywhere else movement is instant.
         Vector2 feetAt = new Vector2(position.x, position.y - Height / 2f + FeetDepth / 2f);
-        bool onIce = grounded && planet.IsIce(feetAt);
+        bool onIce = grounded && planet.StandingOnIce(feetAt, altitude);
         InWater = planet.WaterAt(Mathf.FloorToInt(feetAt.x), Mathf.FloorToInt(feetAt.y), Mathf.FloorToInt(altitude + 0.4f));
         Vector2 wanted = move * (InWater ? Pace * waterSpeedFactor : onIce ? Pace * iceSpeedFactor : Pace * snowSpeedFactor);
         velocity = onIce && !Cleats ? Vector2.MoveTowards(velocity, wanted, iceGrip * dt) : wanted;
@@ -310,7 +310,7 @@ public class PlayerController : MonoBehaviour
     void MoveSideView()
     {
         bool grounded = IsGrounded();
-        bool onIce = grounded && planet.IsIce(GroundPosition);
+        bool onIce = grounded && planet.StandingOnIce(GroundPosition, FeetHeight);
         Vector2 at = GroundPosition;
         InWater = planet.WaterAt(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), Mathf.FloorToInt(FeetHeight + 0.4f));
         float wanted = move.x * (InWater ? Pace * waterSpeedFactor : onIce ? Pace * iceSpeedFactor : Pace * snowSpeedFactor);
