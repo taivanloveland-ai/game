@@ -62,6 +62,12 @@ public class CrashedShip : MonoBehaviour
     // The standing ship's other layers, drawn over its body: the grey inside, the player in there, and the purple
     // crystal in front of them.
     SpriteRenderer inside, figure, glass;
+    // The fixed ship lies flat on the ground (Taivan, 2026-10-19: not balancing on its tip): its shadow is its own
+    // shape, a little off to the side, and nobody walks through its body (only under its wings). The body is this many
+    // squares either side of the middle of its tip, and this many squares long.
+    SpriteRenderer lyingShadow;
+    const int BodyLeft = 1, BodyRight = 2, BodyLong = 9;
+    static readonly Vector2 LyingShadowOffset = new Vector2(2f / 9f, -2f / 9f);
     // How much of the purple crystal shows, 0 to 1 (1 hides what is inside), and whether the player is in there.
     public float GlassShows = 0.75f;
     public bool Seated;
@@ -108,6 +114,12 @@ public class CrashedShip : MonoBehaviour
             inside = Layer(go, "Inside", layers[0], 1);
             figure = Layer(go, "Player Inside", layers[1], 2);
             glass = Layer(go, "Purple Crystal", layers[2], 3);
+            lyingShadow = Layer(go, "Shadow", Silhouette(fixedUp), -1);
+            lyingShadow.color = new Color(0.05f, 0.1f, 0.2f, 0.3f);
+            lyingShadow.transform.localPosition = LyingShadowOffset;
+            // Nobody walks through its body once it lies there.
+            System.Func<int, int, bool> before = planet.Obstacle;
+            planet.Obstacle = (x, y) => (before != null && before(x, y)) || UnderBody(x, y);
         }
         var shade = new GameObject("Crashed Ship Shadow");
         shade.transform.SetParent(planet.TopDownRoot, false);
@@ -139,6 +151,26 @@ public class CrashedShip : MonoBehaviour
         layer.sortingOrder = order;
         layer.enabled = false;
         return layer;
+    }
+
+    // The ship's shape, all one colour, for its shadow.
+    static Sprite Silhouette(Sprite ship)
+    {
+        Color32[] pixels = ship.texture.GetPixels32();
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = pixels[i].a > 0 ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
+        return Picture(pixels, ship);
+    }
+
+    // Whether a square (wrapped onto the planet) is under the body of the fixed ship lying there.
+    bool UnderBody(int x, int y)
+    {
+        if (!StandingThere || planet.InCave) return false;
+        Vector2Int tip = planet.Wrap(Mathf.FloorToInt(foot.x), Mathf.FloorToInt(foot.y));
+        int across = x - tip.x;
+        if (across > planet.width / 2) across -= planet.width;
+        if (across < -planet.width / 2) across += planet.width;
+        int along = y - tip.y;
+        return across >= -BodyLeft && across <= BodyRight && along >= 0 && along < BodyLong;
     }
 
     // Whether one of his pixels is the purple crystal.
@@ -264,7 +296,8 @@ public class CrashedShip : MonoBehaviour
         float fit = Mathf.Max(1f, Mathf.Round(screenPixels)) / screenPixels;
         ship.transform.localScale = new Vector3(fit, fit, 1f);
         ship.enabled = shown;
-        shadow.enabled = shown;
+        // (The fixed ship has its own shadow, its shape.)
+        shadow.enabled = shown && (inside == null || ship.sprite == broken);
         // Under the ship, about as wide as its body, on the snow it rests on. Standing, it is under its tail.
         bool upright = inside != null && ship.sprite != broken;
         shadow.transform.position = upright ? at + new Vector2(0f, 0.25f) : at + new Vector2(-0.4f, 1.3f);
@@ -285,6 +318,7 @@ public class CrashedShip : MonoBehaviour
             inside.enabled = shown && upright;
             glass.enabled = shown && upright;
             figure.enabled = shown && upright && Seated;
+            lyingShadow.enabled = shown && upright;
             glass.color = new Color(1f, 1f, 1f, GlassShows);
         }
 

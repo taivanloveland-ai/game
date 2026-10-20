@@ -9,6 +9,10 @@ using UnityEngine;
 // Under the mini map, "Back to me" puts it back on the player once it has been moved; on the world map, "Whole map"
 // shows all of it again.
 //
+// Notes (Taivan's request of 2026-10-19): double-click a spot on the world map and a dot appears there with a box
+// under it to type in; Enter, Escape or a click somewhere else finishes. Double-click a dot or its words to change
+// them, and right-click a dot to take it away. The notes show on the mini map too, and each planet keeps its own.
+//
 // The map of the planet is twice as wide as it is tall, like a flat map of the Earth. Going east or west, the maps
 // carry straight on past the edge of the picture and show the land from its opposite side. The top and bottom edges
 // are the North and South Poles: the maps stop there, and someone walking over a pole comes back down on the far
@@ -60,6 +64,21 @@ public class WorldMap : MonoBehaviour
     Vector2Int lastCell = new Vector2Int(int.MinValue, int.MinValue);
     GUIStyle titleStyle;
 
+    class Note
+    {
+        public Vector2 At;
+        public string Words = "";
+    }
+    readonly List<Note> notes = new List<Note>();
+    // The note being typed, if any.
+    Note typing;
+    bool focusTyping;
+    static readonly Color NoteMark = new Color32(255, 110, 170, 255);
+    const int LongestNote = 40;
+    GUIStyle noteStyle, noteBoxStyle;
+    // For checking: how many notes there are.
+    public int NoteCount => notes.Count;
+
     // How many squares across the mini map is showing, and how far the spot in its middle is from the player, in squares.
     float miniSquares = MiniMapSquares;
     Vector2 miniOffset;
@@ -106,6 +125,8 @@ public class WorldMap : MonoBehaviour
 
     void Update()
     {
+        // Typing stops when the map is put away.
+        if (!Open && typing != null) StopTyping();
         if (GameInput.MapPressed()) Open = !Open;
         if (Open && GameInput.CancelPressed()) Open = false;
         Explore();
@@ -216,6 +237,37 @@ public class WorldMap : MonoBehaviour
         }
         picture.SetPixels32(pixels);
         picture.Apply();
+    }
+
+    // Writes the notes on the map, and reads them back.
+    public void WriteNotes(System.IO.BinaryWriter w)
+    {
+        w.Write(notes.Count);
+        foreach (Note note in notes)
+        {
+            w.Write(note.At.x);
+            w.Write(note.At.y);
+            w.Write(note.Words);
+        }
+    }
+
+    public void ReadNotes(System.IO.BinaryReader r)
+    {
+        notes.Clear();
+        int count = r.ReadInt32();
+        for (int i = 0; i < count; i++) notes.Add(new Note { At = new Vector2(r.ReadSingle(), r.ReadSingle()), Words = r.ReadString() });
+    }
+
+    // For checking: puts a note on the map, as a double click there and typing would.
+    public void AddNote(Vector2 at, string words) => notes.Add(new Note { At = at, Words = words });
+
+    void StopTyping()
+    {
+        // A note left with no words is taken away.
+        if (typing != null && typing.Words.Trim().Length == 0) notes.Remove(typing);
+        typing = null;
+        GameInput.Typing = false;
+        GUIUtility.keyboardControl = 0;
     }
 
     // Marks a cave mouth on the maps.
@@ -341,6 +393,7 @@ public class WorldMap : MonoBehaviour
         // range. So does the player's, when the map has been dragged away from them.
         float scale = MiniMapSize / miniSquares;
         DrawCaves(frame, middle, scale);
+        DrawNotes(frame, middle, scale, false);
         DrawMark(KeepInside(frame, OnMap(frame, middle, scale, ship)), 8f, ShipMark);
         DrawMark(KeepInside(frame, OnMap(frame, middle, scale, at)), 7f, PlayerMark);
 
@@ -358,7 +411,7 @@ public class WorldMap : MonoBehaviour
 
         Rect frame = WorldFrame();
         GUI.Box(new Rect(frame.x - 6f, frame.y - 34f, frame.width + 12f, frame.height + 40f), GUIContent.none);
-        GameText.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move", titleStyle);
+        GameText.Label(new Rect(frame.x, frame.y - 30f, frame.width, 26f), "World map    [M] close    scroll to zoom, drag to move    double-click to write a note", titleStyle);
         float squares = mapWidth / worldZoom;
         worldMiddle = KeepOffPoles(frame, worldMiddle, squares);
         DrawLand(frame, worldMiddle, squares);
@@ -366,6 +419,7 @@ public class WorldMap : MonoBehaviour
         float scale = frame.width / squares;
         Vector2 shipSpot = OnMap(frame, worldMiddle, scale, ship), playerSpot = OnMap(frame, worldMiddle, scale, PlayerOnPlanet());
         DrawCaves(frame, worldMiddle, scale);
+        DrawNotes(frame, worldMiddle, scale, true);
         if (frame.Contains(shipSpot)) DrawMark(shipSpot, 10f, ShipMark);
         DrawMark(KeepInside(frame, playerSpot), 9f, PlayerMark);
 
@@ -374,6 +428,82 @@ public class WorldMap : MonoBehaviour
         {
             worldZoom = 1f;
             worldMiddle = new Vector2(mapWidth / 2f, mapHeight / 2f);
+        }
+    }
+
+    // The notes on a map: a pink dot with the words under it. On the world map they can be made, changed and taken
+    // away with the mouse, and the one being typed has a box to type in.
+    void DrawNotes(Rect frame, Vector2 middle, float scale, bool world)
+    {
+        if (noteStyle == null)
+        {
+            noteStyle = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
+            noteBoxStyle = new GUIStyle(GUI.skin.textField) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+        }
+        Rect Words(Vector2 spot) => new Rect(spot.x - 90f, spot.y + 6f, 180f, 22f);
+        Event e = Event.current;
+        if (world && e.type == EventType.MouseDown && frame.Contains(e.mousePosition))
+        {
+            // Which note was clicked: its dot or its words.
+            Note hit = null;
+            foreach (Note note in notes)
+            {
+                Vector2 spot = OnMap(frame, middle, scale, note.At);
+                if (Vector2.Distance(spot, e.mousePosition) <= 9f || (note != typing && note.Words.Length > 0 && Words(spot).Contains(e.mousePosition))) hit = note;
+            }
+            if (typing != null && hit != typing && !(typing != null && Words(OnMap(frame, middle, scale, typing.At)).Contains(e.mousePosition))) StopTyping();
+            if (e.button == 1 && hit != null)
+            {
+                notes.Remove(hit);
+                if (hit == typing) StopTyping();
+                e.Use();
+            }
+            else if (e.button == 0 && e.clickCount == 2)
+            {
+                if (hit == null)
+                {
+                    // A spot of the planet: east and west go round, north and south stop at the poles.
+                    Vector2 away = new Vector2(e.mousePosition.x - frame.center.x, frame.center.y - e.mousePosition.y) / scale;
+                    Vector2 at = new Vector2(Mathf.Repeat(middle.x + away.x, mapWidth), Mathf.Clamp(middle.y + away.y, 0f, mapHeight - 0.01f));
+                    hit = new Note { At = at };
+                    notes.Add(hit);
+                }
+                typing = hit;
+                focusTyping = true;
+                GameInput.Typing = true;
+                e.Use();
+            }
+        }
+        // Enter or Escape finishes typing; an empty note is taken away.
+        if (typing != null && e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter || e.keyCode == KeyCode.Escape))
+        {
+            if (typing.Words.Trim().Length == 0) notes.Remove(typing);
+            StopTyping();
+            e.Use();
+        }
+        foreach (Note note in notes.ToArray())
+        {
+            Vector2 spot = OnMap(frame, middle, scale, note.At);
+            if (!frame.Contains(spot)) continue;
+            DrawMark(spot, world ? 9f : 7f, NoteMark);
+            if (world && note == typing)
+            {
+                GUI.SetNextControlName("Map Note");
+                note.Words = GUI.TextField(Words(spot), note.Words, LongestNote, noteBoxStyle);
+                if (focusTyping)
+                {
+                    GUI.FocusControl("Map Note");
+                    focusTyping = false;
+                }
+                continue;
+            }
+            if (note.Words.Length == 0) continue;
+            Rect label = Words(spot);
+            if (!world) label = new Rect(spot.x - 60f, spot.y + 4f, 120f, 18f);
+            GUI.color = MarkEdge;
+            GameText.Label(new Rect(label.x + 1f, label.y + 1f, label.width, label.height), note.Words, noteStyle);
+            GUI.color = Color.white;
+            GameText.Label(label, note.Words, noteStyle);
         }
     }
 
