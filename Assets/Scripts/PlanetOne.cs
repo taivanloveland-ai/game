@@ -698,6 +698,7 @@ public class PlanetOne : MonoBehaviour
         // The wrecked ship as he drew it, smoking.
         var crashedShip = gameObject.AddComponent<CrashedShip>();
         crashedShip.Setup(this, nook, mining, new Vector2(cx + 0.5f, cy + 1f));
+        nook.OnShip = crashedShip.Covers;
         // Getting in the fixed ship, and flying it.
         var flight = gameObject.AddComponent<ShipFlight>();
         // From the rocky planet, the way back is to Planet 1; and the ship stands on desert sand.
