@@ -239,6 +239,18 @@ public static class GameInput
 #endif
     }
 
+    // E, on the frame it is pressed: gets in the fixed ship when standing next to it, and out again.
+    public static bool UsePressed()
+    {
+        if (Blocked) return false;
+#if ENABLE_INPUT_SYSTEM
+        Keyboard k = Keyboard.current;
+        return k != null && k.eKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.E);
+#endif
+    }
+
     // F switches between the top-down view and mining mode along the row. (It was R until 2026-10-11.)
     public static bool ToggleViewPressed()
     {

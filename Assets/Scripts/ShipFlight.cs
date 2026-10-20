@@ -1,7 +1,7 @@
 using UnityEngine;
 
-// Sitting in the fixed ship and flying it (Taivan's request of 2026-10-18). Right-click the standing ship to get in,
-// right-click again to get out. Inside, the usual view is from behind the ship (his picture of its back,
+// Sitting in the fixed ship and flying it (Taivan's request of 2026-10-18). Standing next to the fixed ship, press E
+// to get in (right-clicking the ship opens the workbench, since 2026-10-19); E or a right click gets out again. Inside, the usual view is from behind the ship (his picture of its back,
 // Art/CrashedShipBack), R switches to the view from inside, where the purple crystal is very see-through and the
 // player can be seen in there, and F shows or hides the ship's controls.
 // Left click launches: the ship rises, the ground falls away and the sky turns to space. In space the view is from
@@ -273,23 +273,15 @@ public class ShipFlight : MonoBehaviour
     {
         if (!Aboard)
         {
-            // Right-click the standing ship (not its workbench) to get in.
-            if (!ship.StandingThere || mining.Active || planet.InCave || !GameInput.RightClickPressed()) return;
-            Vector2 point = cam.ScreenToWorldPoint(GameInput.PointerPosition());
-            if (!ship.Covers(point) || nook.IsOnNook(point)) return;
-            if (Vector2.Distance(player.GroundPosition, ship.FootNear(player.GroundPosition)) > GetInWithin || player.FeetHeight > 0.6f)
-            {
-                hud.Say("Walk up to the ship to get in.", 2f);
-                return;
-            }
-            GetIn();
+            // E, standing next to the fixed ship, gets in.
+            if (NextToShip && GameInput.UsePressed()) GetIn();
             return;
         }
         if (GameInput.ShipControlsPressed()) ControlsShown = !ControlsShown;
         if (GameInput.ShipInsidePressed()) LookingFromInside = !LookingFromInside;
         if (stage == Stage.Landed)
         {
-            if (GameInput.ShipLeavePressed())
+            if (GameInput.ShipLeavePressed() || GameInput.UsePressed())
             {
                 GetOut();
                 return;
@@ -316,6 +308,10 @@ public class ShipFlight : MonoBehaviour
             }
         }
     }
+
+    // Whether the player stands next to the fixed ship, out in the open, close enough to get in.
+    bool NextToShip => ship.StandingThere && !mining.Active && !planet.InCave && !nook.Open
+        && Vector2.Distance(player.GroundPosition, ship.FootNear(player.GroundPosition)) <= GetInWithin && player.FeetHeight < 0.6f;
 
     void SetStage(Stage next)
     {
@@ -623,13 +619,19 @@ public class ShipFlight : MonoBehaviour
 
     void OnGUI()
     {
-        if (!Aboard) return;
+        if (!Aboard && !NextToShip) return;
         if (titleStyle == null)
         {
             titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
             lineStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, alignment = TextAnchor.MiddleLeft };
             hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, alignment = TextAnchor.MiddleCenter };
             markerStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+        }
+        // Next to the ship: how to get in.
+        if (!Aboard)
+        {
+            GameText.Label(new Rect(0f, Screen.height - 130f, Screen.width, 30f), "E: get in the ship", hintStyle);
+            return;
         }
         // In space: how far the next planet is, and which way, when it is off the screen.
         if (stage == Stage.InSpace)
@@ -663,7 +665,7 @@ public class ShipFlight : MonoBehaviour
             { "W A S D", "Steer, in space" },
             { "R", LookingFromInside ? "The view from behind the ship" : "The view from inside the ship" },
             { "F", "Hide these controls" },
-            { "Right click", stage == Stage.Landed ? "Get out of the ship" : "Get out, once landed" },
+            { "E", stage == Stage.Landed ? "Get out of the ship" : "Get out, once landed" },
         };
         float width = 420f, height = 56f + lines.GetLength(0) * 30f + 12f;
         var panel = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);

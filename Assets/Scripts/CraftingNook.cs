@@ -321,6 +321,9 @@ public class CraftingNook : MonoBehaviour
         if (Open && (!InReach || GameInput.CancelPressed())) Open = false;
     }
 
+    // Set by the ship: whether a point (in the world) is on its picture.
+    public System.Func<Vector2, bool> OnShip;
+
     // Whether a point (in the world) is on the nook's square.
     public bool IsOnNook(Vector2 point)
     {
@@ -339,8 +342,8 @@ public class CraftingNook : MonoBehaviour
     // if they need to and the crafting menu opens. Returns false if the click was somewhere else.
     public bool ClickAt(Vector2 point)
     {
-        Vector2 corner = Corner;
-        if (point.x < corner.x || point.x > corner.x + 1f || point.y < corner.y || point.y > corner.y + 1f) return false;
+        // Anywhere on the ship's picture, wrecked or fixed, opens it too (Taivan, 2026-10-19).
+        if (!IsOnNook(point) && (OnShip == null || !OnShip(point))) return false;
         gatherables.CancelWalk();
         if (InReach)
         {
