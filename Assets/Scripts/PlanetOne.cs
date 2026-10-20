@@ -712,6 +712,7 @@ public class PlanetOne : MonoBehaviour
             flight.PaintNext = ShipFlight.PaintIcy;
             flight.PaintHome = ShipFlight.PaintRocky;
             flight.NextColor = new Color32(0xE4, 0xEE, 0xF4, 255);
+            flight.HomeColor = new Color32(197, 157, 109, 255);
             flight.GroundColor = Desert(SnowColors[0][0]);
             flight.GroundShade = Desert(SnowFace);
             flight.GroundSpeck = Desert(RockEdge);
@@ -740,11 +741,11 @@ public class PlanetOne : MonoBehaviour
         // A creative game saved before every item was given out gets the ones it is missing.
         giveEverything?.Invoke();
         loading = null;
-        // Just landed here in the ship: the player sits in it, seeing it from behind on the new ground.
+        // Just landed here in the ship: the player has got out by themselves, and stands in front of it. (They began
+        // sitting in it until 2026-10-20.)
         if (arriveAboard)
         {
             arriveAboard = false;
-            flight.GetIn();
             hud.Say("You landed on " + (Rocky ? "the rocky planet" : "the frost planet") + "!", 4f);
         }
         Ready = true;

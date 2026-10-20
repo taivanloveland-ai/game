@@ -5,7 +5,7 @@ using UnityEngine;
 // Art/ShipBack, the second picture of his ship sheet of 2026-10-19), R switches to the view from inside, where the purple crystal is very see-through and the
 // player can be seen in there, and F shows or hides the ship's controls.
 // Left click launches: the ship rises, the ground falls away and the sky turns to space. In space the view is from
-// behind the ship flying forward, with the stars still behind it all, the sun and the black hole, and the ship pushing itself
+// behind the ship flying forward, with the stars far behind it all, the sun and the black hole, and the ship pushing itself
 // along with ice shards blown out of its three round thrusters by the magical orbs. W A S D steer it to the next
 // planet, which grows as it comes nearer; reaching it, the ship lands there.
 public class ShipFlight : MonoBehaviour
@@ -33,8 +33,9 @@ public class ShipFlight : MonoBehaviour
     const float FlySpeed = 7f, TurnSpeed = 50f, TripLength = 230f, PlanetRadius = 14f, LandsWithin = 3f;
     // The next planet starts this far off to the side and up, so it has to be steered to.
     const float StartsAside = 22f, StartsAbove = 7f;
-    // How many stars are scattered over the background.
-    const int StarCount = 320;
+    // How many stars are scattered all round the sky (about a sixth of them on the screen at once).
+    const int StarCount = 1800;
+    float[] starBright;
     // Arriving: the screen fills with the planet's colour over this many seconds.
     const float ArriveSeconds = 1.6f;
     // His round thrusters on the back of the ship, in his pixels from its foot: where the ice shards blow from. Found
@@ -88,7 +89,11 @@ public class ShipFlight : MonoBehaviour
     // the frost planet on screen since 2026-10-20.)
     public string NextPlanetName = "the rocky planet", HomeName = "the frost planet";
     public System.Func<int, int, int, Color32> PaintNext = PaintRocky, PaintHome = PaintIcy;
-    public Color NextColor = new Color32(197, 157, 109, 255);
+    public Color NextColor = new Color32(197, 157, 109, 255), HomeColor = new Color32(0xE4, 0xEE, 0xF4, 255);
+    // The planet just left can be flown back to (Taivan's request of 2026-10-20): it starts this far behind the ship,
+    // and reaching it the ship lands back where it took off. Whether that is where the ship is landing now.
+    const float HomeBehind = 40f;
+    bool goingHome;
     // The ground the ship stands on in the view from behind: its colour, its shade, and its sparkle.
     public Color32 GroundColor = new Color32(0xE4, 0xEE, 0xF4, 255), GroundShade = new Color32(0xC6, 0xD6, 0xE4, 255), GroundSpeck = new Color32(0xFF, 0xFF, 0xFF, 255);
 
@@ -308,11 +313,15 @@ public class ShipFlight : MonoBehaviour
         Sprite white = PlanetOne.PaintSprite(1, 1, new Vector2(0.5f, 0.5f), 1f, (x, y) => new Color32(255, 255, 255, 255));
         stars = new SpriteRenderer[StarCount];
         starAt = new Vector3[StarCount];
+        starBright = new float[StarCount];
         for (int i = 0; i < StarCount; i++)
         {
             stars[i] = Plain("Star", white, -9);
-            // Where on the screen it is (x and y from -1 to 1), and how bright.
-            starAt[i] = new Vector3(Spread(1f), Spread(1f), 0.35f + 0.65f * (float)random.NextDouble());
+            // Which way it is, anywhere round the sky, and how bright.
+            starAt[i] = new Vector3(Spread(1f), Spread(1f), Spread(1f));
+            while (starAt[i].sqrMagnitude > 1f || starAt[i].sqrMagnitude < 0.01f) starAt[i] = new Vector3(Spread(1f), Spread(1f), Spread(1f));
+            starAt[i].Normalize();
+            starBright[i] = 0.35f + 0.65f * (float)random.NextDouble();
         }
         sun = Plain("Sun", DayNight.SunSprite(), -9);
         blackHole = Plain("Black Hole", DayNight.BlackHoleSprite(), -9);
@@ -443,15 +452,35 @@ public class ShipFlight : MonoBehaviour
             Vector2 steer = stage == Stage.InSpace ? (TestSteer ?? GameInput.ShipSteer()) : Vector2.zero;
             facing *= Quaternion.Euler(-steer.y * TurnSpeed * Time.deltaTime, steer.x * TurnSpeed * Time.deltaTime, 0f);
             shipAt += facing * Vector3.forward * FlySpeed * Time.deltaTime;
-            if (stage == Stage.InSpace && Vector3.Distance(shipAt, nextAt) < PlanetRadius + LandsWithin + FlySpeed * ArriveSeconds) SetStage(Stage.Arriving);
+            float landsAt = PlanetRadius + LandsWithin + FlySpeed * ArriveSeconds;
+            if (stage == Stage.InSpace && Vector3.Distance(shipAt, nextAt) < landsAt)
+            {
+                goingHome = false;
+                SetStage(Stage.Arriving);
+            }
+            else if (stage == Stage.InSpace && Vector3.Distance(shipAt, homeAt) < landsAt)
+            {
+                goingHome = true;
+                SetStage(Stage.Arriving);
+            }
         }
         if (stage == Stage.Arriving && since >= ArriveSeconds)
         {
-            if (Arrived != null) Arrived();
+            // Back to the planet just left: the ship comes down where it took off, nothing else changed.
+            if (goingHome)
+            {
+                goingHome = false;
+                hud.Say("You landed back on " + HomeName + "!", 3f);
+                SetStage(Stage.Landed);
+                // And the player gets out by themselves (Taivan, 2026-10-20).
+                GetOut();
+            }
+            else if (Arrived != null) Arrived();
             else
             {
                 hud.Say("Landing on " + NextPlanetName + " is being built next!", 3f);
                 SetStage(Stage.Landed);
+                GetOut();
             }
         }
     }
@@ -476,7 +505,8 @@ public class ShipFlight : MonoBehaviour
         shipAt = Vector3.zero;
         facing = Quaternion.identity;
         nextAt = Quaternion.Euler(-StartsAbove, StartsAside, 0f) * Vector3.forward * TripLength;
-        homeAt = Vector3.back * (PlanetRadius + 6f);
+        homeAt = Vector3.back * HomeBehind;
+        goingHome = false;
     }
 
     public void GetIn()
@@ -699,7 +729,7 @@ public class ShipFlight : MonoBehaviour
         foreach (SpriteRenderer each in side) each.enabled = false;
     }
 
-    // The still stars, the sun, the black hole and the planets, as seen from just behind the ship looking ahead.
+    // The stars, the sun, the black hole and the planets, as seen from just behind the ship looking ahead.
     void ShowSpace(float risen, float halfTall, float halfWide, int scale)
     {
         if (risen <= 0f)
@@ -711,14 +741,19 @@ public class ShipFlight : MonoBehaviour
         // How far from the middle of the screen something straight ahead and one step to the side is drawn.
         float focal = halfTall;
         float shows = Mathf.Clamp01(risen * 2f - 0.6f);
-        // The stars are a still background behind it all: they do not move, even as the ship turns. (Until 2026-10-20
-        // they rushed past; Taivan did not like it.)
+        // The stars are so far away that flying never brings them nearer: like the sun and the black hole, they only move
+        // across the screen as the ship turns. (Until 2026-10-20 they rushed past like specks of dust, which Taivan did
+        // not like; then for a moment they stood still on the screen.)
+        Quaternion toShip = Quaternion.Inverse(facing);
         for (int i = 0; i < stars.Length; i++)
         {
-            stars[i].enabled = shows > 0f;
-            stars[i].transform.position = (Vector3)(ViewPlace + new Vector2(Mathf.Round(starAt[i].x * halfWide), Mathf.Round(starAt[i].y * halfTall)));
+            Vector3 way = toShip * starAt[i];
+            Vector2 spot = way.z > 0.05f ? new Vector2(way.x, way.y) / way.z * focal : Vector2.zero;
+            stars[i].enabled = shows > 0f && way.z > 0.05f && Mathf.Abs(spot.x) < halfWide + 1f && Mathf.Abs(spot.y) < halfTall + 1f;
+            if (!stars[i].enabled) continue;
+            stars[i].transform.position = (Vector3)(ViewPlace + new Vector2(Mathf.Round(spot.x), Mathf.Round(spot.y)));
             stars[i].transform.localScale = Vector3.one;
-            stars[i].color = new Color(0.88f, 0.91f, 1f, starAt[i].z * shows);
+            stars[i].color = new Color(0.88f, 0.91f, 1f, starBright[i] * shows);
         }
         // The sun and the black hole are so far away they only move as the ship turns. Each of their own pixels is
         // drawn a whole number of the screen's pixels: two for the sun, one for the black hole's finer picture.
@@ -759,14 +794,26 @@ public class ShipFlight : MonoBehaviour
         picture.sortingOrder = -8 + (local.z < 60f ? 1 : 0);
     }
 
-    // Where the next planet is on screen, in the screen's pixels from its top left, and whether it is on screen.
-    bool NextOnScreen(out Vector2 spot)
+    // Where a planet is on screen, in the screen's pixels from its top left, and whether it is on screen.
+    bool OnScreen(Vector3 at, out Vector2 spot)
     {
-        Vector3 local = Quaternion.Inverse(facing) * (nextAt - shipAt);
+        Vector3 local = Quaternion.Inverse(facing) * (at - shipAt);
         float scaleNow = Screen.height / (2f * view.orthographicSize);
         Vector2 flat = local.z > 0.01f ? new Vector2(local.x, local.y) / local.z * view.orthographicSize : new Vector2(local.x, local.y).normalized * 1e5f;
         spot = new Vector2(Screen.width / 2f + flat.x * scaleNow, Screen.height / 2f - flat.y * scaleNow);
         return local.z > 0.01f && spot.x > 0f && spot.x < Screen.width && spot.y > 0f && spot.y < Screen.height;
+    }
+
+    // While a planet is off the screen, its name at the edge points the way to it (lower down by drop, so two names
+    // pointing the same way do not cover each other).
+    void PointTo(Vector3 at, string name, float drop)
+    {
+        if (OnScreen(at, out Vector2 spot)) return;
+        Vector2 middle = new Vector2(Screen.width / 2f, Screen.height / 2f), way = spot - middle;
+        float reach = Mathf.Min((Screen.width / 2f - 90f) / Mathf.Max(0.001f, Mathf.Abs(way.x)), (Screen.height / 2f - 70f) / Mathf.Max(0.001f, Mathf.Abs(way.y)));
+        Vector2 edge = middle + way * reach;
+        string words = Mathf.Abs(way.x) > Mathf.Abs(way.y) ? (way.x > 0f ? name + " >" : "< " + name) : (way.y > 0f ? "v " + name + " v" : "^ " + name + " ^");
+        GameText.Label(new Rect(edge.x - 110f, edge.y - 14f + drop, 220f, 28f), words, markerStyle);
     }
 
     void Place(SpriteRenderer picture, Vector2 middle, Vector2 size)
@@ -795,20 +842,18 @@ public class ShipFlight : MonoBehaviour
         if (stage == Stage.InSpace)
         {
             GameText.Label(new Rect(0f, 12f, Screen.width, 26f), "Flying to " + NextPlanetName + ": " + Mathf.CeilToInt(TripLeft / FlySpeed) + " seconds away", hintStyle);
-            if (!NextOnScreen(out Vector2 spot))
-            {
-                Vector2 middle = new Vector2(Screen.width / 2f, Screen.height / 2f), way = spot - middle;
-                float reach = Mathf.Min((Screen.width / 2f - 90f) / Mathf.Max(0.001f, Mathf.Abs(way.x)), (Screen.height / 2f - 40f) / Mathf.Max(0.001f, Mathf.Abs(way.y)));
-                Vector2 edge = middle + way * reach;
-                string words = Mathf.Abs(way.x) > Mathf.Abs(way.y) ? (way.x > 0f ? NextPlanetName + " >" : "< " + NextPlanetName) : (way.y > 0f ? "v " + NextPlanetName + " v" : "^ " + NextPlanetName + " ^");
-                GameText.Label(new Rect(edge.x - 110f, edge.y - 14f, 220f, 28f), words, markerStyle);
-            }
+            // The planet just left can be flown back to.
+            float homeLeft = Vector3.Distance(shipAt, homeAt) - PlanetRadius;
+            GameText.Label(new Rect(0f, 36f, Screen.width, 24f), "Back to " + HomeName + ": " + Mathf.CeilToInt(homeLeft / FlySpeed) + " seconds away", hintStyle);
+            PointTo(nextAt, NextPlanetName, 0f);
+            PointTo(homeAt, HomeName, 30f);
         }
         // Arriving: the screen fills with the planet's colour.
         if (stage == Stage.Arriving)
         {
             Color before = GUI.color;
-            GUI.color = new Color(NextColor.r, NextColor.g, NextColor.b, Mathf.Clamp01((Time.time - stageSince) / ArriveSeconds));
+            Color fill = goingHome ? HomeColor : NextColor;
+            GUI.color = new Color(fill.r, fill.g, fill.b, Mathf.Clamp01((Time.time - stageSince) / ArriveSeconds));
             GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = before;
         }
@@ -841,6 +886,7 @@ public class ShipFlight : MonoBehaviour
     // For checking: how far there is still to go, turning straight toward the next planet, and the part of the trip.
     public float TripLeft => Vector3.Distance(shipAt, nextAt) - PlanetRadius;
     public void FaceNext() => facing = Quaternion.LookRotation(nextAt - shipAt);
+    public void FaceHome() => facing = Quaternion.LookRotation(homeAt - shipAt);
     public string StageName => stage.ToString();
     // For checking: steers as if these keys were held.
     public Vector2? TestSteer;
