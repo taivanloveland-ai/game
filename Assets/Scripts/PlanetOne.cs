@@ -713,6 +713,7 @@ public class PlanetOne : MonoBehaviour
             flight.GroundShade = Desert(SnowFace);
             flight.GroundSpeck = Desert(RockEdge);
         }
+        flight.ExhaustShards = GetComponent<IceBoss>().ShardSprites;
         flight.Setup(this, controller, mining, nook, crashedShip, hud, cam, dayNight);
         hud.HideHotbar = () => worldMap.Open || flight.Aboard;
         // The battery the ship needs, on the South Pole's cap.
@@ -2916,20 +2917,23 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Pixel position inside one tile, with (0, 0) at the top left. Rims are the lighter edges of a rock top.
-    // The rocky planet's colours: Planet 1's colours, from dark to light, turned to red desert rock, from a deep
-    // red-brown through rusty red to pale orange sand. (Snow becomes sand, rock and stone become red rock.)
+    // The rocky planet's colours: Planet 1's colours, from dark to light, turned to desert rock, from a deep brown up to
+    // its main colour, the tan Taivan picked (197, 157, 109, on 2026-10-19), where the snow was: the snow's colours (light, from 0.88 to 1) land either side of it. (Snow becomes the
+    // tan ground, rock and stone become darker brown rock.) Each step is how light Planet 1's colour is, and the
+    // desert colour for it. (Until 2026-10-19 it went to a rusty red and orange sand.)
+    static readonly float[] DesertLights = { 0f, 0.3f, 0.5f, 0.7f, 0.88f, 1f };
     static readonly Color32[] DesertSteps =
     {
-        new Color32(0x3A, 0x14, 0x10, 255), new Color32(0x6A, 0x24, 0x18, 255), new Color32(0x8E, 0x34, 0x20, 255),
-        new Color32(0xB0, 0x4A, 0x2C, 255), new Color32(0xC8, 0x62, 0x36, 255), new Color32(0xD8, 0x80, 0x4C, 255),
+        new Color32(0x2A, 0x1C, 0x12, 255), new Color32(0x5A, 0x40, 0x2A, 255), new Color32(0x7E, 0x5E, 0x3E, 255),
+        new Color32(0xA0, 0x7C, 0x54, 255), new Color32(187, 147, 100, 255), new Color32(207, 167, 118, 255),
     };
 
     public static Color32 Desert(Color32 c)
     {
-        float light = (0.3f * c.r + 0.59f * c.g + 0.11f * c.b) / 255f;
-        float along = Mathf.Clamp01(light) * (DesertSteps.Length - 1);
-        int low = Mathf.Min(DesertSteps.Length - 2, (int)along);
-        Color32 desert = Color32.Lerp(DesertSteps[low], DesertSteps[low + 1], along - low);
+        float light = Mathf.Clamp01((0.3f * c.r + 0.59f * c.g + 0.11f * c.b) / 255f);
+        int low = 0;
+        while (low < DesertLights.Length - 2 && light > DesertLights[low + 1]) low++;
+        Color32 desert = Color32.Lerp(DesertSteps[low], DesertSteps[low + 1], Mathf.InverseLerp(DesertLights[low], DesertLights[low + 1], light));
         desert.a = c.a;
         return desert;
     }

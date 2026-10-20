@@ -268,7 +268,7 @@ public class CrashedShip : MonoBehaviour
         // Under the ship, about as wide as its body, on the snow it rests on. Standing, it is under its tail.
         bool upright = inside != null && ship.sprite != broken;
         shadow.transform.position = upright ? at + new Vector2(0f, 0.25f) : at + new Vector2(-0.4f, 1.3f);
-        shadow.transform.localScale = upright ? new Vector3(3.4f, 1.3f, 1f) : new Vector3(ship.bounds.size.x * 0.55f, 2.4f, 1f);
+        shadow.transform.localScale = upright ? new Vector3(2.2f, 0.9f, 1f) : new Vector3(ship.bounds.size.x * 0.55f, 2.4f, 1f);
         // Fixed just now: a cloud of smoke covers it, and the fixed ship is there when it clears. (A saved game that was
         // fixed starts with the fixed ship.)
         if (nook.ShipFixed && !wasFixed)

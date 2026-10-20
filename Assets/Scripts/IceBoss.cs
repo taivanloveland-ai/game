@@ -91,6 +91,8 @@ public class IceBoss : MonoBehaviour
 
     // His frames: the pillar rising (the last one is the pillar all the way up), the ball, and the shards.
     Sprite[] risingFrames, ballFrames, shardSprites;
+    // His ten shards, for the ship's exhaust too. Null without his pictures.
+    public Sprite[] ShardSprites => shardSprites;
     // Where the middle of the ball is, from the foot of the pillar.
     Vector2 ballOffset;
     SpriteRenderer ballPicture;
