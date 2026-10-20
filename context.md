@@ -647,3 +647,9 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"the stars really bother me. make them just a background while fying. they dont move."** (2026-10-20): in space the stars are now a **still background**, scattered over the screen at different brightnesses, and they do not move at all, even when the ship turns (they used to rush past). The sun, the black hole and the planets still move across the sky as the ship turns, and the planets still grow as it comes nearer.
 
 - **"lets call planet 1 frost planet."** (2026-10-20): on screen, Planet 1 is now **the frost planet**: in space ("Flying to the frost planet", and its name pointing the way), and landing ("You landed on the frost planet!"). (Inside the code it is still PlanetOne, and the music files keep their names.)
+
+- **"the stars still move like perspective but they dont move like theyre specks of dust."** (2026-10-20): the stars are now far away all round the sky, like the sun and the black hole: they slide across the screen as the ship turns, but flying forward never brings them nearer (they no longer rush past like dust, and no longer stand still on the screen).
+
+- **"make it so you can go back to the planet you just came from."** (2026-10-20): in space the planet just left is behind the ship (about 6 seconds away at first). Turning round and flying into it, the screen fills with its colour and the ship lands back where it took off. The top of the screen says how far each planet is ("Flying to ...", and "Back to ..."), and each ones name points the way at the edge while it is off the screen.
+
+- **"you automatically get out of the ship when you land also"** (2026-10-20): landing, on the other planet or back on the one just left, the player gets out by themselves and stands in front of the ship (they used to stay sitting in it).
