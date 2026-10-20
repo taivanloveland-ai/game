@@ -84,8 +84,9 @@ public class ShipFlight : MonoBehaviour
 
     // Called on reaching the next planet. Without it the ship comes back down where it took off.
     public System.Action Arrived;
-    // The planet being flown to, and the one left behind, as they are named on screen and coloured.
-    public string NextPlanetName = "the rocky planet", HomeName = "Planet 1";
+    // The planet being flown to, and the one left behind, as they are named on screen and coloured. (Planet 1 is called
+    // the frost planet on screen since 2026-10-20.)
+    public string NextPlanetName = "the rocky planet", HomeName = "the frost planet";
     public System.Func<int, int, int, Color32> PaintNext = PaintRocky, PaintHome = PaintIcy;
     public Color NextColor = new Color32(197, 157, 109, 255);
     // The ground the ship stands on in the view from behind: its colour, its shade, and its sparkle.

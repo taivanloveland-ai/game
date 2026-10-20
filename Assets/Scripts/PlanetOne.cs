@@ -707,7 +707,7 @@ public class PlanetOne : MonoBehaviour
         // From the rocky planet, the way back is to Planet 1; and the ship stands on desert sand.
         if (Rocky)
         {
-            flight.NextPlanetName = "Planet 1";
+            flight.NextPlanetName = "the frost planet";
             flight.HomeName = "the rocky planet";
             flight.PaintNext = ShipFlight.PaintIcy;
             flight.PaintHome = ShipFlight.PaintRocky;
@@ -745,7 +745,7 @@ public class PlanetOne : MonoBehaviour
         {
             arriveAboard = false;
             flight.GetIn();
-            hud.Say("You landed on " + (Rocky ? "the rocky planet" : "Planet 1") + "!", 4f);
+            hud.Say("You landed on " + (Rocky ? "the rocky planet" : "the frost planet") + "!", 4f);
         }
         Ready = true;
     }
