@@ -5,7 +5,7 @@ using UnityEngine;
 // Art/ShipBack, the second picture of his ship sheet of 2026-10-19), R switches to the view from inside, where the purple crystal is very see-through and the
 // player can be seen in there, and F shows or hides the ship's controls.
 // Left click launches: the ship rises, the ground falls away and the sky turns to space. In space the view is from
-// behind the ship flying forward, with stars rushing past, the sun and the black hole, and the ship pushing itself
+// behind the ship flying forward, with the stars still behind it all, the sun and the black hole, and the ship pushing itself
 // along with ice shards blown out of its three round thrusters by the magical orbs. W A S D steer it to the next
 // planet, which grows as it comes nearer; reaching it, the ship lands there.
 public class ShipFlight : MonoBehaviour
@@ -33,9 +33,8 @@ public class ShipFlight : MonoBehaviour
     const float FlySpeed = 7f, TurnSpeed = 50f, TripLength = 230f, PlanetRadius = 14f, LandsWithin = 3f;
     // The next planet starts this far off to the side and up, so it has to be steered to.
     const float StartsAside = 22f, StartsAbove = 7f;
-    // How many stars rush past, and how far out they are scattered.
+    // How many stars are scattered over the background.
     const int StarCount = 320;
-    const float StarsOut = 70f;
     // Arriving: the screen fills with the planet's colour over this many seconds.
     const float ArriveSeconds = 1.6f;
     // His round thrusters on the back of the ship, in his pixels from its foot: where the ice shards blow from. Found
@@ -311,7 +310,8 @@ public class ShipFlight : MonoBehaviour
         for (int i = 0; i < StarCount; i++)
         {
             stars[i] = Plain("Star", white, -9);
-            starAt[i] = new Vector3(Spread(StarsOut), Spread(StarsOut), Spread(StarsOut));
+            // Where on the screen it is (x and y from -1 to 1), and how bright.
+            starAt[i] = new Vector3(Spread(1f), Spread(1f), 0.35f + 0.65f * (float)random.NextDouble());
         }
         sun = Plain("Sun", DayNight.SunSprite(), -9);
         blackHole = Plain("Black Hole", DayNight.BlackHoleSprite(), -9);
@@ -698,7 +698,7 @@ public class ShipFlight : MonoBehaviour
         foreach (SpriteRenderer each in side) each.enabled = false;
     }
 
-    // Stars rushing past, the sun, the black hole and the planets, as seen from just behind the ship looking ahead.
+    // The still stars, the sun, the black hole and the planets, as seen from just behind the ship looking ahead.
     void ShowSpace(float risen, float halfTall, float halfWide, int scale)
     {
         if (risen <= 0f)
@@ -709,25 +709,15 @@ public class ShipFlight : MonoBehaviour
         }
         // How far from the middle of the screen something straight ahead and one step to the side is drawn.
         float focal = halfTall;
-        Quaternion toShip = Quaternion.Inverse(facing);
         float shows = Mathf.Clamp01(risen * 2f - 0.6f);
+        // The stars are a still background behind it all: they do not move, even as the ship turns. (Until 2026-10-20
+        // they rushed past; Taivan did not like it.)
         for (int i = 0; i < stars.Length; i++)
         {
-            Vector3 local = toShip * (starAt[i] - shipAt);
-            // Stars behind, or too far, come round again ahead.
-            if (local.z < 1f || local.magnitude > StarsOut * 1.5f)
-            {
-                local = new Vector3(Spread(StarsOut), Spread(StarsOut), StarsOut * (0.6f + 0.4f * (float)random.NextDouble()));
-                starAt[i] = shipAt + facing * local;
-            }
-            Vector2 spot = new Vector2(local.x, local.y) / local.z * focal;
-            stars[i].enabled = shows > 0f && Mathf.Abs(spot.x) < halfWide + 2f && Mathf.Abs(spot.y) < halfTall + 2f;
-            stars[i].transform.position = (Vector3)(ViewPlace + new Vector2(Mathf.Round(spot.x), Mathf.Round(spot.y)));
-            // Near ones bigger and brighter.
-            float size = local.z < StarsOut * 0.15f ? 2f : 1f;
-            stars[i].transform.localScale = new Vector3(size, size, 1f);
-            float bright = Mathf.Clamp01(1.3f - local.z / StarsOut);
-            stars[i].color = new Color(0.88f, 0.91f, 1f, bright * shows);
+            stars[i].enabled = shows > 0f;
+            stars[i].transform.position = (Vector3)(ViewPlace + new Vector2(Mathf.Round(starAt[i].x * halfWide), Mathf.Round(starAt[i].y * halfTall)));
+            stars[i].transform.localScale = Vector3.one;
+            stars[i].color = new Color(0.88f, 0.91f, 1f, starAt[i].z * shows);
         }
         // The sun and the black hole are so far away they only move as the ship turns. Each of their own pixels is
         // drawn a whole number of the screen's pixels: two for the sun, one for the black hole's finer picture.
