@@ -110,6 +110,78 @@ public class ShipFlight : MonoBehaviour
     static readonly Vector3 SunWay = Quaternion.Euler(-12f, -42f, 0f) * Vector3.forward;
     static readonly Vector3 BlackHoleWay = Quaternion.Euler(-24f, 34f, 0f) * Vector3.forward;
     const int PlanetPixels = 128;
+    // The planets in space are round and turn (Taivan's request of 2026-10-19): their lands, the same as on the title
+    // screen, wrapped onto a ball that spins once in this many seconds, lit from the sun, with a night side and a rim
+    // of air.
+    const float PlanetSpinSeconds = 50f;
+    Ball nextBall, homeBall;
+
+    class Ball
+    {
+        public Sprite Sprite;
+        readonly Texture2D texture;
+        readonly Color32[] land, night, pixels;
+        readonly Color32 air;
+        readonly int[] spots, rows;
+        readonly float[] round;
+        readonly Vector3[] normals;
+        float spin;
+
+        public Ball(bool rocky)
+        {
+            land = TitleScreen.LandMap(rocky);
+            night = new Color32[land.Length];
+            // Its night side is dim, but not so dark it cannot be seen against space.
+            for (int i = 0; i < land.Length; i++) night[i] = Color.Lerp(TitleScreen.Night, land[i], 0.3f);
+            air = rocky ? TitleScreen.Dust : TitleScreen.Air;
+            texture = new Texture2D(PlanetPixels, PlanetPixels, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            pixels = new Color32[PlanetPixels * PlanetPixels];
+            var spotList = new System.Collections.Generic.List<int>();
+            var rowList = new System.Collections.Generic.List<int>();
+            var roundList = new System.Collections.Generic.List<float>();
+            var normalList = new System.Collections.Generic.List<Vector3>();
+            float half = PlanetPixels / 2f;
+            for (int y = 0; y < PlanetPixels; y++)
+            {
+                for (int x = 0; x < PlanetPixels; x++)
+                {
+                    float nx = (x + 0.5f - half) / half, ny = (y + 0.5f - half) / half, fromMiddle = nx * nx + ny * ny;
+                    if (fromMiddle > 1f) continue;
+                    float nz = Mathf.Sqrt(1f - fromMiddle);
+                    spotList.Add(y * PlanetPixels + x);
+                    rowList.Add(Mathf.Clamp((int)((Mathf.Asin(ny) * Mathf.Rad2Deg + 90f) / 180f * TitleScreen.MapTall), 0, TitleScreen.MapTall - 1));
+                    roundList.Add(Mathf.Atan2(nx, nz) / (Mathf.PI * 2f) * TitleScreen.MapWide);
+                    normalList.Add(new Vector3(nx, ny, nz));
+                }
+            }
+            spots = spotList.ToArray();
+            rows = rowList.ToArray();
+            round = roundList.ToArray();
+            normals = normalList.ToArray();
+            Sprite = Sprite.Create(texture, new Rect(0, 0, PlanetPixels, PlanetPixels), new Vector2(0.5f, 0.5f), PlanetPixels);
+        }
+
+        // Turns it on a little and paints it, lit from the way to the sun (as seen by the viewer: x right, y up, z toward
+        // the viewer).
+        public void Paint(Vector3 toSun, float seconds)
+        {
+            spin += seconds / PlanetSpinSeconds;
+            float turned = Mathf.Repeat(spin, 1f) * TitleScreen.MapWide;
+            for (int i = 0; i < spots.Length; i++)
+            {
+                int column = (int)(round[i] - turned + TitleScreen.MapWide * 2) % TitleScreen.MapWide;
+                int at = rows[i] * TitleScreen.MapWide + column;
+                Vector3 n = normals[i];
+                float sunlight = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.12f, 0.3f, Vector3.Dot(n, toSun)));
+                Color32 c = Color32.Lerp(night[at], land[at], sunlight);
+                float edge = 1f - n.z * n.z;
+                if (edge > 0.93f) c = Color32.Lerp(c, air, 0.4f * sunlight * Mathf.InverseLerp(0.93f, 1f, edge));
+                pixels[spots[i]] = c;
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply();
+        }
+    }
     SpriteRenderer[] stars;
     Vector3[] starAt;
     // The ice shards, the glow of the orbs in the thrusters, and the ship seen from the side (the view from inside, in
@@ -244,8 +316,12 @@ public class ShipFlight : MonoBehaviour
         sun = Plain("Sun", DayNight.SunSprite(), -9);
         blackHole = Plain("Black Hole", DayNight.BlackHoleSprite(), -9);
         blackHole.transform.localRotation = Quaternion.Euler(0f, 0f, -14f);
-        nextPlanet = Plain("Next Planet", PlanetSprite(PaintNext), -8);
-        homePlanet = Plain("Planet Left Behind", PlanetSprite(PaintHome), -8);
+        // Round and turning: the next planet is the rocky one unless it is Planet 1 (flying home from the rocky one).
+        bool toRocky = PaintNext == PaintRocky;
+        nextBall = new Ball(toRocky);
+        homeBall = new Ball(!toRocky);
+        nextPlanet = Plain("Next Planet", nextBall.Sprite, -8);
+        homePlanet = Plain("Planet Left Behind", homeBall.Sprite, -8);
         // A small ice shard: a diamond of pixels.
         shardSprite = PlanetOne.PaintSprite(3, 3, new Vector2(0.5f, 0.5f), 1f, (x, y) => x == 1 || y == 1 ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0));
         // The glow of a magical orb, round, in the middle of a thruster.
@@ -659,6 +735,11 @@ public class ShipFlight : MonoBehaviour
         Distant(blackHole, BlackHoleWay, focal, 24f / scale, shows);
         Near(nextPlanet, nextAt, focal, shows);
         Near(homePlanet, homeAt, focal, shows);
+        // The planets turn, and are lit from the sun as the ship sees it.
+        Vector3 sunSeen = Quaternion.Inverse(facing) * SunWay;
+        var toSun = new Vector3(sunSeen.x, sunSeen.y, -sunSeen.z);
+        if (nextPlanet.enabled) nextBall.Paint(toSun, Time.deltaTime);
+        if (homePlanet.enabled) homeBall.Paint(toSun, Time.deltaTime);
     }
 
     void Distant(SpriteRenderer picture, Vector3 way, float focal, float size, float shows)
