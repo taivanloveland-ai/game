@@ -22,7 +22,9 @@ public class WorldMap : MonoBehaviour
     // How many squares across the mini map shows to begin with, and how big it is on screen.
     const int MiniMapSquares = 40;
     const float MiniMapSize = 190f;
-    const float Margin = 14f;
+    // (14 until 2026-10-20: in full screen the very edge of the screen can be cut off, hiding the ship's dot when it
+    // was pushed to the mini map's right side.)
+    const float Margin = 30f;
     // The mini map can be zoomed to show between this few and this many squares across.
     const float FewestSquares = 10f, MostSquares = 400f;
     // The world map can be zoomed in this many times at most.
@@ -368,7 +370,7 @@ public class WorldMap : MonoBehaviour
 
     static Vector2 KeepInside(Rect frame, Vector2 spot)
     {
-        return new Vector2(Mathf.Clamp(spot.x, frame.x + 5f, frame.xMax - 5f), Mathf.Clamp(spot.y, frame.y + 5f, frame.yMax - 5f));
+        return new Vector2(Mathf.Clamp(spot.x, frame.x + 9f, frame.xMax - 9f), Mathf.Clamp(spot.y, frame.y + 9f, frame.yMax - 9f));
     }
 
     void DrawMiniMap()
