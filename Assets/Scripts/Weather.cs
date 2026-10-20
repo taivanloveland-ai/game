@@ -70,6 +70,25 @@ public class Weather : MonoBehaviour
 
     // Set from creative mode's panel: snow or hail falls on the player wherever they are, cloud or no cloud.
     public bool ForceSnow, ForceHail;
+    // Also from that panel: snow or hail that came by itself, turned off by hand. It stays off until that weather has
+    // passed, so the next snow or hail comes as usual. (Since 2026-10-20: the buttons show the weather as it is, and
+    // turn off weather that came by itself.)
+    bool snowTurnedOff, hailTurnedOff;
+
+    // The panel's buttons: turn snow, or hail, off if it is falling (by itself or by hand), and on if it is not.
+    public void ToggleSnow()
+    {
+        bool falling = Snowing > 0.05f;
+        ForceSnow = !falling;
+        snowTurnedOff = falling;
+    }
+
+    public void ToggleHail()
+    {
+        bool falling = Hailing > 0.05f;
+        ForceHail = !falling;
+        hailTurnedOff = falling;
+    }
 
     // How hard it is snowing and hailing on the player right now, from 0 (not at all) to 1.
     public float Snowing { get; private set; }
@@ -207,6 +226,11 @@ public class Weather : MonoBehaviour
         if (SnowDay) snow = 1f;
         // Nothing falls in a cave.
         // In creative mode snow and hail can be turned on by hand, wherever the player is.
+        // Turned off by hand, until it passes by itself.
+        if (snow <= 0f) snowTurnedOff = false;
+        if (hail <= 0f) hailTurnedOff = false;
+        if (snowTurnedOff) snow = 0f;
+        if (hailTurnedOff) hail = 0f;
         if (ForceSnow) snow = 1f;
         if (ForceHail) hail = 1f;
         if (planet.InCave || PlanetOne.Rocky) snow = hail = 0f;
@@ -254,6 +278,8 @@ public class Weather : MonoBehaviour
         if (Time.time < nextHailAt) return;
         nextHailAt = Time.time + Random.Range(HailGapFrom, HailGapTo) / hail;
 
+        // Sitting in the ship, the player is under cover (since 2026-10-20).
+        if (GameInput.InShip) return;
         Vector2Int square = Vector2Int.FloorToInt(player.GroundPosition);
         if (planet.IsTunnel(square.x, square.y, Mathf.FloorToInt(player.FeetHeight + 0.01f))) return;
         if (!warned)

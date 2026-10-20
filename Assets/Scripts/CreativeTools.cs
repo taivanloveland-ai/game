@@ -51,8 +51,8 @@ public class CreativeTools : MonoBehaviour
 
         // Snow and hail, each on or off, wherever the player goes.
         float half = (wide - 6f) / 2f;
-        if (GameText.Button(new Rect(left, panel.y + 46f, half, 30f), "Snow: " + (weather.ForceSnow ? "On" : "Off"), buttonStyle)) weather.ForceSnow = !weather.ForceSnow;
-        if (GameText.Button(new Rect(left + half + 6f, panel.y + 46f, half, 30f), "Hail: " + (weather.ForceHail ? "On" : "Off"), buttonStyle)) weather.ForceHail = !weather.ForceHail;
+        if (GameText.Button(new Rect(left, panel.y + 46f, half, 30f), "Snow: " + (weather.Snowing > 0.05f ? "On" : "Off"), buttonStyle)) weather.ToggleSnow();
+        if (GameText.Button(new Rect(left + half + 6f, panel.y + 46f, half, 30f), "Hail: " + (weather.Hailing > 0.05f ? "On" : "Off"), buttonStyle)) weather.ToggleHail();
 
         // Day or night: the button says which it is now, and jumps to the middle of the other.
         bool night = dayNight.time >= 0.5f;
