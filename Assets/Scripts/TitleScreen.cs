@@ -87,7 +87,7 @@ public class TitleScreen : MonoBehaviour
         planetPixels = new Color32[PlanetPixels * PlanetPixels];
         PaintPlanet();
         Sprite planetSprite = Sprite.Create(planetPicture, new Rect(0, 0, PlanetPixels, PlanetPixels), new Vector2(0.5f, 0.5f), PlanetPixels / PlanetSize);
-        Transform world = Make("Planet 1", planetSprite, PlanetAt, Order + 2);
+        Transform world = Make("Frost Planet", planetSprite, PlanetAt, Order + 2);
         // Tipped a little, as planets are.
         world.localRotation = Quaternion.Euler(0f, 0f, -16f);
     }
