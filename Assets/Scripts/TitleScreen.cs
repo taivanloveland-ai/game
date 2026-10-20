@@ -4,6 +4,8 @@ using UnityEngine;
 // hole it circles, against the stars. The title screen has three buttons: Survival, Creative and Exit. Picking a
 // mode starts the world being made, and the same scene stays up as the loading screen, with a line saying what is
 // being made and the black hole slowly turning, until the game begins.
+// Landing on the rocky planet in the ship, the loading screen shows the rocky planet spinning instead (Taivan's
+// request of 2026-10-19): tan desert with darker brown rock, under a dusty rim of air.
 public class TitleScreen : MonoBehaviour
 {
     // The planet is painted this many pixels across and drawn this many blocks across.
@@ -21,20 +23,26 @@ public class TitleScreen : MonoBehaviour
     const float SunDrift = 0.45f, BlackHoleDrift = 0.6f, DriftSpeed = 0.22f;
     // The planet's lands are worked out once as a flat map this many pixels round and tall, and wrapped onto the
     // ball afresh each frame as it turns. The lands' noise repeats after this many blobs, so the map joins up.
-    const int MapWide = 768, MapTall = 256, BlobsRound = 35;
+    public const int MapWide = 768, MapTall = 256;
+    const int BlobsRound = 35;
 
     // The planet from space. Latitudes, in degrees: the North Pole's ice, the ring of mountains below it, the ocean
     // round the South Pole and its snowy cap. (The bands are drawn wider than they really are, so they can be seen.)
     const float NorthIceFrom = 76f, MountainsFrom = 56f, OceanFrom = -57f, SouthSnowFrom = -71f;
     static readonly Color Snow = new Color32(226, 234, 242, 255), Ice = new Color32(146, 202, 232, 255), Rock = new Color32(93, 107, 126, 255);
     static readonly Color Water = new Color32(38, 78, 122, 255), Peak = new Color32(245, 249, 252, 255);
-    static readonly Color Night = new Color32(5, 8, 16, 255), Air = new Color32(150, 204, 240, 255);
+    public static readonly Color Night = new Color32(5, 8, 16, 255), Air = new Color32(150, 204, 240, 255);
     // The algae, on the equator: where its middle is, as a share of the way round (facing us as the title comes up),
     // and how far it reaches, in degrees
     // (drawn a little bigger than it really is, so it can be seen).
     const float AlgaeRound = 0.97f, AlgaeReach = 22f;
     // The way to the sun, for the planet's day and night sides.
     static readonly Vector3 ToSun = new Vector3(0.72f, 0.42f, 0.55f).normalized;
+    // Set before Setup to show the rocky planet instead of Planet 1. Its colours, from the ground's: its main tan
+    // (197, 157, 109), paler sand, browner hollows and dark brown rock; and its dusty air.
+    public static bool ShowRocky;
+    static readonly Color Sand = new Color32(197, 157, 109, 255), PaleSand = new Color32(210, 174, 128, 255), Hollow = new Color32(160, 124, 84, 255), BrownRock = new Color32(110, 82, 54, 255);
+    public static readonly Color Dust = new Color32(226, 196, 156, 255);
 
     PlanetOne planet;
     Camera cam;
@@ -322,8 +330,17 @@ public class TitleScreen : MonoBehaviour
     // North is up.
     void MapPlanet()
     {
-        landMap = new Color32[MapWide * MapTall];
+        landMap = LandMap(ShowRocky);
         nightMap = new Color32[MapWide * MapTall];
+        for (int i = 0; i < landMap.Length; i++) nightMap[i] = Color.Lerp(Night, landMap[i], 0.1f);
+        MapBall();
+    }
+
+    // Planet 1's lands, or the rocky planet's, as a flat map MapWide round and MapTall tall, north at the top. (Used
+    // for the planets seen from the ship in space too.)
+    public static Color32[] LandMap(bool rocky)
+    {
+        var landMap = new Color32[MapWide * MapTall];
         for (int row = 0; row < MapTall; row++)
         {
             float latitude = (row + 0.5f) / MapTall * 180f - 90f;
@@ -332,7 +349,13 @@ public class TitleScreen : MonoBehaviour
             {
                 float around = column * (float)BlobsRound / MapWide;
                 Color land;
-                if (latitude > NorthIceFrom) land = Ice;
+                if (rocky)
+                {
+                    // Desert all over, with rock and hollows, and paler sand in drifts.
+                    float e = Noise(around, up, 11, BlobsRound) * 0.65f + Noise(around * 2.6f, up * 2.6f, 23, 91) * 0.35f;
+                    land = e > 0.62f ? BrownRock : e < 0.4f ? Hollow : Noise(around * 3f, up * 3f, 37, 105) > 0.62f ? PaleSand : Sand;
+                }
+                else if (latitude > NorthIceFrom) land = Ice;
                 else if (latitude > MountainsFrom) land = Noise(around * 2.4f, up * 2.4f, 31, 84) > 0.6f ? Peak : Noise(around * 1.6f, up * 1.6f, 47, 56) > 0.36f ? Rock : Snow;
                 else if (latitude < SouthSnowFrom) land = Noise(around * 2f, up * 2f, 59, 70) > 0.72f ? Ice : Snow;
                 else if (latitude < OceanFrom + (Noise(around, 0f, 67, BlobsRound) - 0.5f) * 7f) land = Water;
@@ -348,10 +371,14 @@ public class TitleScreen : MonoBehaviour
                     if (edge < 1f && e <= 0.6f) land = PlanetOne.AlgaeMapColor(Mathf.InverseLerp(0.25f, 0.75f, Noise(around * 4f, up * 4f, 113, 140)), row % 3 == 0, edge);
                 }
                 landMap[row * MapWide + column] = land;
-                nightMap[row * MapWide + column] = Color.Lerp(Night, land, 0.1f);
             }
         }
+        return landMap;
+    }
 
+    // For every pixel of the ball, which part of the map it shows, and how it is lit.
+    void MapBall()
+    {
         var pixel = new System.Collections.Generic.List<int>();
         var rows = new System.Collections.Generic.List<int>();
         var round = new System.Collections.Generic.List<float>();
@@ -387,7 +414,7 @@ public class TitleScreen : MonoBehaviour
     // stays where it is.
     void PaintPlanet()
     {
-        Color32 airColour = Air;
+        Color32 airColour = ShowRocky ? Dust : Air;
         float turned = Mathf.Repeat(spin, 1f) * MapWide;
         for (int i = 0; i < ballPixel.Length; i++)
         {

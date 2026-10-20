@@ -444,6 +444,7 @@ public class PlanetOne : MonoBehaviour
         Time.timeScale = 1f;
         GameInput.Blocked = false;
         GameInput.InShip = false;
+        TitleScreen.ShowRocky = false;
         GameInput.PointerOverInventory = null;
         GameInput.PointerOverMap = null;
         GameInput.PointerOverTools = null;
@@ -468,6 +469,8 @@ public class PlanetOne : MonoBehaviour
         {
             SaveGame.Loaded trip = travelling;
             travelling = null;
+            // The loading screen shows the planet being landed on, spinning.
+            TitleScreen.ShowRocky = trip.Planet == 1;
             var landing = gameObject.AddComponent<TitleScreen>();
             landing.Setup(this, cam);
             landing.Choose(trip.Creative, travellingSlot, trip, trip.Name);
@@ -884,7 +887,7 @@ public class PlanetOne : MonoBehaviour
             for (int x = cx - 2; x < cx + 4; x++) kind[x, y] = Ship;
         }
 
-        LoadingStage = "Raising the mountains";
+        LoadingStage = Rocky ? "Scattering the rocks" : "Raising the mountains";
         if (Rocky) mountain = new byte[width, height];
         else RaiseMountains(mountainSeed);
         if (makeRoad) MakeRoadToCaps(cx, cy);
@@ -912,7 +915,7 @@ public class PlanetOne : MonoBehaviour
                 top[x, y] = (sbyte)baseTop[x, y];
             }
         }
-        LoadingStage = "Freezing the lakes";
+        LoadingStage = Rocky ? "Laying the sand" : "Freezing the lakes";
         ComputeGroundDepths(depthSeed);
         LoadingStage = "Checking the way is clear";
     }
