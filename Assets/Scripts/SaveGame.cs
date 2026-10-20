@@ -201,6 +201,7 @@ public class SaveGame : MonoBehaviour
                 pickups.Write(w);
                 map.Write(w);
                 planet.GetComponent<CaveCrystals>().Write(w);
+                map.WriteNotes(w);
             }
             return memory.ToArray();
         }
@@ -277,6 +278,8 @@ public class SaveGame : MonoBehaviour
         pickups.Read(r, Find);
         map.Read(r);
         if (version >= 5) planet.GetComponent<CaveCrystals>().Read(r);
+        // The notes on the map, if any were saved with this planet (since 2026-10-19).
+        if (version >= 8 && r.BaseStream.Position < r.BaseStream.Length) map.ReadNotes(r);
     }
 
     // Puts a saved game back, once its world has been made again from its seed and the game set going.
