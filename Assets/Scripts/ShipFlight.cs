@@ -2,7 +2,7 @@ using UnityEngine;
 
 // Sitting in the fixed ship and flying it (Taivan's request of 2026-10-18). Standing next to the fixed ship, press E
 // to get in (right-clicking the ship opens the workbench, since 2026-10-19); E or a right click gets out again. Inside, the usual view is from behind the ship (his picture of its back,
-// Art/CrashedShipBack), R switches to the view from inside, where the purple crystal is very see-through and the
+// Art/ShipBack, the second picture of his ship sheet of 2026-10-19), R switches to the view from inside, where the purple crystal is very see-through and the
 // player can be seen in there, and F shows or hides the ship's controls.
 // Left click launches: the ship rises, the ground falls away and the sky turns to space. In space the view is from
 // behind the ship flying forward, with stars rushing past, the sun and the black hole, and the ship pushing itself
@@ -19,7 +19,7 @@ public class ShipFlight : MonoBehaviour
     // The view from behind: his picture of the ship's back fills about this much of the screen's height, and stands
     // this far up the screen (0 the bottom, 1 the top), on ground up to the horizon this far up. In space it flies
     // a little higher.
-    const float BackFills = 0.42f, BackStandsAt = 0.18f, HorizonAt = 0.42f, BackFliesAt = 0.26f;
+    const float BackFills = 0.3f, BackWide = 0.5f, BackStandsAt = 0.18f, HorizonAt = 0.42f, BackFliesAt = 0.26f;
     // The view from inside: the standing ship fills about this much of the screen's height.
     const float InsideFills = 0.8f;
     static readonly Color DaySkyTop = new Color32(0x4E, 0x86, 0xC8, 255), DaySkyLow = new Color32(0xB8, 0xD6, 0xEE, 255);
@@ -38,10 +38,26 @@ public class ShipFlight : MonoBehaviour
     const float StarsOut = 70f;
     // Arriving: the screen fills with the planet's colour over this many seconds.
     const float ArriveSeconds = 1.6f;
-    // His three round thrusters on the back of the ship, in his pixels from its foot: where the ice shards blow from.
-    static readonly Vector2[] Thrusters = { new Vector2(-15.5f, 10.5f), new Vector2(-1.5f, 10.5f), new Vector2(12.5f, 10.5f) };
+    // His round thrusters on the back of the ship, in his pixels from its foot: where the ice shards blow from. Found
+    // in his picture: each patch of the pale blue glass.
+    Vector2[] Thrusters = new Vector2[0];
+    static readonly Color32[] ThrusterGlass =
+    {
+        new Color32(0xCE, 0xEB, 0xF8, 255), new Color32(0x92, 0xCA, 0xE8, 255), new Color32(0x70, 0xAE, 0xD4, 255), new Color32(0xE4, 0xF4, 0xFB, 255),
+        new Color32(0xC4, 0xE2, 0xF2, 255), new Color32(0x68, 0xB5, 0xDF, 255), new Color32(0xD5, 0xEA, 0xF6, 255),
+    };
+    // The ice pillar's ten shards (his pictures), blown out as the exhaust. Set before Setup.
+    public Sprite[] ExhaustShards;
+    // Steering, the ship leans: this far over at most (degrees) as it turns, and this many of his pixels up or down
+    // as it climbs or dives, easing into it this fast (a share a second).
+    const float LeanMost = 12f, PitchMost = 5f, LeanEase = 5f;
+    float lean, pitch;
+    // The size of the drawing in his picture of the ship's back (without the clear space round it), and how many of
+    // the screen's pixels each of his is drawn.
+    Vector2 backSize = Vector2.one;
+    int viewScale = 1;
     // Ice shards blown out: this many a second, each lasting this long and flying this fast (his pixels a second).
-    const float ShardsEachSecond = 60f, ShardSeconds = 0.7f, ShardSpeedLow = 45f, ShardSpeedHigh = 90f;
+    const float ShardsEachSecond = 30f, ShardSeconds = 0.7f, ShardSpeedLow = 45f, ShardSpeedHigh = 90f;
     static readonly Color32[] ShardColors =
     {
         new Color32(0xC4, 0xE2, 0xF2, 255), new Color32(0xD5, 0xEA, 0xF6, 255), new Color32(0x92, 0xCA, 0xE8, 255),
@@ -72,7 +88,7 @@ public class ShipFlight : MonoBehaviour
     // The planet being flown to, and the one left behind, as they are named on screen and coloured.
     public string NextPlanetName = "the rocky planet", HomeName = "Planet 1";
     public System.Func<int, int, int, Color32> PaintNext = PaintRocky, PaintHome = PaintIcy;
-    public Color NextColor = new Color32(0xB4, 0x4A, 0x2C, 255);
+    public Color NextColor = new Color32(197, 157, 109, 255);
     // The ground the ship stands on in the view from behind: its colour, its shade, and its sparkle.
     public Color32 GroundColor = new Color32(0xE4, 0xEE, 0xF4, 255), GroundShade = new Color32(0xC6, 0xD6, 0xE4, 255), GroundSpeck = new Color32(0xFF, 0xFF, 0xFF, 255);
 
@@ -157,7 +173,8 @@ public class ShipFlight : MonoBehaviour
             float dx = (x + 0.5f - 20f) / 20f, dy = (y + 0.5f - 4f) / 4f;
             return dx * dx + dy * dy > 1f ? new Color32(0, 0, 0, 0) : new Color32(255, 255, 255, 255);
         }), -4);
-        var picture = Resources.Load<Texture2D>("Art/CrashedShipBack");
+        var picture = Resources.Load<Texture2D>("Art/ShipBack");
+        if (picture == null) picture = Resources.Load<Texture2D>("Art/CrashedShipBack");
         if (picture == null) return;
         Color32[] pixels = PlanetOne.ReadPixels(picture);
         int lowest = 0;
@@ -166,6 +183,51 @@ public class ShipFlight : MonoBehaviour
         texture.SetPixels32(pixels);
         texture.Apply();
         back = Plain("Ship Back", Sprite.Create(texture, new Rect(0, 0, picture.width, picture.height), new Vector2(0.5f, lowest / (float)picture.height), 1f), 10);
+        Thrusters = FindThrusters(pixels, picture.width, picture.height, lowest);
+        int left = picture.width, right = 0, highest = 0;
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (pixels[i].a == 0) continue;
+            left = Mathf.Min(left, i % picture.width);
+            right = Mathf.Max(right, i % picture.width + 1);
+            highest = Mathf.Max(highest, i / picture.width + 1);
+        }
+        backSize = new Vector2(Mathf.Max(1, right - left), Mathf.Max(1, highest - lowest));
+    }
+
+    // The middle of each patch of thruster glass in his picture, left to right, in his pixels from its foot.
+    static Vector2[] FindThrusters(Color32[] pixels, int wide, int tall, int lowest)
+    {
+        bool Glass(int i) => System.Array.Exists(ThrusterGlass, g => g.r == pixels[i].r && g.g == pixels[i].g && g.b == pixels[i].b) && pixels[i].a > 0;
+        var seen = new bool[pixels.Length];
+        var found = new System.Collections.Generic.List<Vector2>();
+        var queue = new System.Collections.Generic.Queue<int>();
+        for (int start = 0; start < pixels.Length; start++)
+        {
+            if (seen[start] || !Glass(start)) continue;
+            seen[start] = true;
+            queue.Enqueue(start);
+            float sumX = 0f, sumY = 0f;
+            int count = 0;
+            while (queue.Count > 0)
+            {
+                int i = queue.Dequeue();
+                int x = i % wide, y = i / wide;
+                sumX += x + 0.5f;
+                sumY += y + 0.5f;
+                count++;
+                foreach (int next in new[] { x > 0 ? i - 1 : -1, x < wide - 1 ? i + 1 : -1, y > 0 ? i - wide : -1, y < tall - 1 ? i + wide : -1 })
+                {
+                    if (next < 0 || seen[next] || !Glass(next)) continue;
+                    seen[next] = true;
+                    queue.Enqueue(next);
+                }
+            }
+            // Only real thrusters, not a stray pixel or two.
+            if (count >= 12) found.Add(new Vector2(sumX / count - wide / 2f, sumY / count - lowest));
+        }
+        found.Sort((a, b) => a.x.CompareTo(b.x));
+        return found.ToArray();
     }
 
     // Space: the stars, the sun, the black hole, both planets, the ice shards and the orbs' glow.
@@ -192,8 +254,15 @@ public class ShipFlight : MonoBehaviour
             float dx = x - 4f, dy = y - 4f, r = dx * dx + dy * dy;
             return r > 17f ? new Color32(0, 0, 0, 0) : new Color32(255, 255, 255, (byte)(r < 5f ? 255 : 150));
         });
+        // On the ship's back, so they lean with it.
         glows = new SpriteRenderer[Thrusters.Length];
-        for (int i = 0; i < glows.Length; i++) glows[i] = Plain("Orb Glow", glow, 11);
+        for (int i = 0; i < glows.Length; i++)
+        {
+            glows[i] = Plain("Orb Glow", glow, 11);
+            if (back == null) continue;
+            glows[i].transform.SetParent(back.transform, false);
+            glows[i].transform.localPosition = Thrusters[i];
+        }
         side = new SpriteRenderer[4];
         for (int i = 0; i < side.Length; i++) side[i] = Plain("Ship From The Side", null, 10 + i);
         HideSpace();
@@ -216,14 +285,15 @@ public class ShipFlight : MonoBehaviour
         });
     }
 
-    // The rocky planet: red desert rock, with darker hollows and paler sand.
+    // The rocky planet: desert rock, with darker hollows and paler sand.
     public static Color32 PaintRocky(int x, int y, int size)
     {
         float n = Blobs(x, y, 9f, 3) * 0.65f + Blobs(x, y, 4f, 5) * 0.35f;
-        if (n < 0.36f) return new Color32(0x7E, 0x2E, 0x1E, 255);
-        if (n < 0.5f) return new Color32(0x9C, 0x3C, 0x24, 255);
-        if (n < 0.66f) return new Color32(0xB4, 0x4A, 0x2C, 255);
-        return new Color32(0xCC, 0x6C, 0x3E, 255);
+        // Its main colour is the tan Taivan picked, 197, 157, 109.
+        if (n < 0.36f) return new Color32(0x7E, 0x5E, 0x3E, 255);
+        if (n < 0.5f) return new Color32(0xA0, 0x7C, 0x54, 255);
+        if (n < 0.7f) return new Color32(197, 157, 109, 255);
+        return new Color32(0xD0, 0xAC, 0x7E, 255);
     }
 
     // Planet 1: snow and ice, blue ocean, and patches of teal algae.
@@ -293,7 +363,7 @@ public class ShipFlight : MonoBehaviour
         if (stage == Stage.Rising && since >= RiseSeconds) SetStage(Stage.InSpace);
         if (stage == Stage.InSpace || stage == Stage.Arriving)
         {
-            Vector2 steer = stage == Stage.InSpace ? GameInput.ShipSteer() : Vector2.zero;
+            Vector2 steer = stage == Stage.InSpace ? (TestSteer ?? GameInput.ShipSteer()) : Vector2.zero;
             facing *= Quaternion.Euler(-steer.y * TurnSpeed * Time.deltaTime, steer.x * TurnSpeed * Time.deltaTime, 0f);
             shipAt += facing * Vector3.forward * FlySpeed * Time.deltaTime;
             if (stage == Stage.InSpace && Vector3.Distance(shipAt, nextAt) < PlanetRadius + LandsWithin + FlySpeed * ArriveSeconds) SetStage(Stage.Arriving);
@@ -388,8 +458,9 @@ public class ShipFlight : MonoBehaviour
         ship.GlassShows = GlassFromOutside;
         ship.Viewer = null;
         if (back == null) return;
-        Vector2 picture = back.sprite.rect.size;
-        int scale = Mathf.Max(1, Mathf.FloorToInt(Mathf.Min(Screen.height * BackFills / picture.y, Screen.width * 0.6f / picture.x)));
+        Vector2 picture = backSize;
+        int scale = Mathf.Max(1, Mathf.FloorToInt(Mathf.Min(Screen.height * BackFills / picture.y, Screen.width * BackWide / picture.x)));
+        viewScale = scale;
         float halfTall = Screen.height / (2f * scale), halfWide = halfTall * view.aspect;
         view.orthographicSize = halfTall;
         view.transform.position = new Vector3(ViewPlace.x, ViewPlace.y, -10f);
@@ -435,11 +506,18 @@ public class ShipFlight : MonoBehaviour
         // The ship stands on the ground, rises a little up the screen as it takes off, and rocks gently in space. From
         // inside, in space, it is seen from the side instead, close up, the crystal very see-through.
         float standY = Mathf.Round(Mathf.Lerp(Up(BackStandsAt), Up(BackFliesAt), Mathf.SmoothStep(0f, 1f, risen)));
-        Vector2 steer = stage == Stage.InSpace ? GameInput.ShipSteer() : Vector2.zero;
-        Vector2 shipSpot = new Vector2(Mathf.Round(steer.x * 3f), standY + (risen >= 1f ? Mathf.Round(Mathf.Sin(Time.time * 2f) * 1.2f) : 0f));
+        Vector2 steer = stage == Stage.InSpace ? (TestSteer ?? GameInput.ShipSteer()) : Vector2.zero;
+        // Steering, it leans into the turn, and rises or dips a little as it climbs or dives.
+        float ease = Mathf.Clamp01(LeanEase * Time.deltaTime);
+        lean = Mathf.Lerp(lean, -steer.x * LeanMost, ease);
+        pitch = Mathf.Lerp(pitch, steer.y * PitchMost, ease);
+        Vector2 shipSpot = new Vector2(Mathf.Round(lean / LeanMost * 4f), standY + Mathf.Round(pitch) + (risen >= 1f ? Mathf.Round(Mathf.Sin(Time.time * 2f) * 1.2f) : 0f));
         bool fromSide = LookingFromInside && stage != Stage.Landed;
         back.enabled = !fromSide;
         back.transform.position = (Vector3)(ViewPlace + shipSpot);
+        back.transform.localRotation = Quaternion.Euler(0f, 0f, lean);
+        // Climbing it shows a little more of its top, diving a little less.
+        back.transform.localScale = new Vector3(1f, 1f + pitch / PitchMost * 0.06f, 1f);
         back.color = tint;
         backShadow.enabled = groundShows && !fromSide;
         backShadow.transform.position = (Vector3)(ViewPlace + new Vector2(0f, Up(BackStandsAt) + 1f - drop));
@@ -451,12 +529,11 @@ public class ShipFlight : MonoBehaviour
         for (int i = 0; i < glows.Length; i++)
         {
             glows[i].enabled = !fromSide;
-            glows[i].transform.position = (Vector3)(ViewPlace + shipSpot + Thrusters[i]);
             // The orbs glow softly on the ground, and burn bright while they blow out ice.
             float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * (thrusting ? 14f : 3f) + i * 2f);
             glows[i].color = thrusting ? Color.Lerp(new Color32(0xD7, 0xB4, 0xEE, 255), Color.white, 0.4f + pulse * 0.5f) : new Color(0.85f, 0.72f, 0.95f, 0.25f + pulse * 0.25f);
         }
-        BlowShards(thrusting && !fromSide, shipSpot);
+        BlowShards(thrusting && !fromSide);
         ShowSpace(risen, halfTall, halfWide, scale);
         // A little shake while taking off.
         if (stage == Stage.Rising)
@@ -484,13 +561,14 @@ public class ShipFlight : MonoBehaviour
     }
 
     // Ice shards blown out of the three thrusters toward the viewer: spreading out and down, growing and fading.
-    void BlowShards(bool blowing, Vector2 shipSpot)
+    void BlowShards(bool blowing)
     {
         if (blowing)
         {
             shardsOwed += ShardsEachSecond * Time.deltaTime;
             for (; shardsOwed >= 1f; shardsOwed -= 1f)
             {
+                if (Thrusters.Length == 0) break;
                 Vector2 port = Thrusters[random.Next(Thrusters.Length)];
                 Shard shard = null;
                 foreach (Shard old in shards) if (!old.Picture.enabled) { shard = old; break; }
@@ -500,8 +578,13 @@ public class ShipFlight : MonoBehaviour
                     shards.Add(shard);
                 }
                 shard.Picture.enabled = true;
-                shard.Picture.color = ShardColors[random.Next(ShardColors.Length)];
-                shard.From = port + new Vector2(Spread(3f), Spread(3f));
+                // The ice pillar's shards, as he drew them; without them, small diamonds of ice.
+                bool his = ExhaustShards != null && ExhaustShards.Length > 0;
+                shard.Picture.sprite = his ? ExhaustShards[random.Next(ExhaustShards.Length)] : shardSprite;
+                shard.Picture.color = his ? Color.white : (Color)ShardColors[random.Next(ShardColors.Length)];
+                // Blown from the thruster as the ship leans now.
+                Vector2 from = back.transform.TransformPoint(port + new Vector2(Spread(3f), Spread(3f)));
+                shard.From = from - ViewPlace;
                 // Out from the middle of the ship and a little down, as if blown back past the viewer.
                 Vector2 way = new Vector2(port.x * 0.04f + Spread(1f), Spread(0.6f) - 0.7f).normalized;
                 shard.Way = way * Mathf.Lerp(ShardSpeedLow, ShardSpeedHigh, (float)random.NextDouble());
@@ -517,10 +600,13 @@ public class ShipFlight : MonoBehaviour
                 shard.Picture.enabled = false;
                 continue;
             }
-            Vector2 at = shipSpot + shard.From + shard.Way * (Time.time - shard.Born);
+            Vector2 at = shard.From + shard.Way * (Time.time - shard.Born);
             shard.Picture.transform.position = (Vector3)(ViewPlace + new Vector2(Mathf.Round(at.x), Mathf.Round(at.y)));
-            // Bigger as they come nearer, in whole pixels.
-            float size = 1f + Mathf.Floor(age * 3f);
+            // Bigger as they come nearer, in steps. Each pixel of the ice pillar's shards is a whole number of the screen's
+            // pixels, about a third of one of the ship's, then two thirds.
+            Sprite drawn = shard.Picture.sprite;
+            float steps = 1f + Mathf.Floor(age * 2f);
+            float size = drawn == shardSprite ? steps : drawn.pixelsPerUnit * Mathf.Max(1f, Mathf.Round(viewScale * 0.34f * steps)) / viewScale;
             shard.Picture.transform.localScale = new Vector3(size, size, 1f);
             Color c = shard.Picture.color;
             c.a = age < 0.6f ? 1f : 1f - (age - 0.6f) / 0.4f;
@@ -684,4 +770,6 @@ public class ShipFlight : MonoBehaviour
     public float TripLeft => Vector3.Distance(shipAt, nextAt) - PlanetRadius;
     public void FaceNext() => facing = Quaternion.LookRotation(nextAt - shipAt);
     public string StageName => stage.ToString();
+    // For checking: steers as if these keys were held.
+    public Vector2? TestSteer;
 }
