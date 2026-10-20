@@ -1,9 +1,10 @@
 using UnityEngine;
 
 // Sitting in the fixed ship and flying it (Taivan's request of 2026-10-18). Standing next to the fixed ship, press E
-// to get in (right-clicking the ship opens the workbench, since 2026-10-19); E or a right click gets out again. Inside, the usual view is from behind the ship (his picture of its back,
-// Art/ShipBack, the second picture of his ship sheet of 2026-10-19), R switches to the view from inside, where the purple crystal is very see-through and the
-// player can be seen in there, and F shows or hides the ship's controls.
+// to get in (right-clicking the ship opens the workbench, since 2026-10-19); E or a right click gets out again
+// (and landing, the player gets out by themselves). Inside, the usual view is from behind the ship (his picture of
+// its back, Art/ShipBack, the second picture of his ship sheet of 2026-10-19), R switches to the view from the
+// player's eyes, looking out through the purple crystal, and F shows or hides the ship's controls.
 // Left click launches: the ship rises, the ground falls away and the sky turns to space. In space the view is from
 // behind the ship flying forward, with the stars far behind it all, the sun and the black hole, and the ship pushing itself
 // along with ice shards blown out of its three round thrusters by the magical orbs. W A S D steer it to the next
@@ -12,16 +13,14 @@ public class ShipFlight : MonoBehaviour
 {
     // The player gets in from this close to the ship's foot.
     const float GetInWithin = 4.5f;
-    // How much of the purple crystal shows: from outside, and in the view from inside.
-    const float GlassFromOutside = 0.75f, GlassFromInside = 0.25f;
+    // How much of the purple crystal shows, seen from outside.
+    const float GlassFromOutside = 0.75f;
     // The views are drawn far from the planet, where nothing else is.
     static readonly Vector2 ViewPlace = new Vector2(-40000f, -40000f);
     // The view from behind: his picture of the ship's back fills about this much of the screen's height, and stands
     // this far up the screen (0 the bottom, 1 the top), on ground up to the horizon this far up. In space it flies
     // a little higher.
     const float BackFills = 0.3f, BackWide = 0.5f, BackStandsAt = 0.18f, HorizonAt = 0.42f, BackFliesAt = 0.26f;
-    // The view from inside: the standing ship fills about this much of the screen's height.
-    const float InsideFills = 0.8f;
     static readonly Color DaySkyTop = new Color32(0x4E, 0x86, 0xC8, 255), DaySkyLow = new Color32(0xB8, 0xD6, 0xEE, 255);
     static readonly Color NightSkyTop = new Color32(0x08, 0x0C, 0x24, 255), NightSkyLow = new Color32(0x24, 0x30, 0x5C, 255);
     const int SkyBands = 8;
@@ -189,14 +188,16 @@ public class ShipFlight : MonoBehaviour
     }
     SpriteRenderer[] stars;
     Vector3[] starAt;
-    // The ice shards, the glow of the orbs in the thrusters, and the ship seen from the side (the view from inside, in
-    // space): its body, the grey inside, the player, and the crystal.
+    // The ice shards, and the glow of the orbs in the thrusters.
     class Shard { public SpriteRenderer Picture; public Vector2 From, Way; public float Born; }
     readonly System.Collections.Generic.List<Shard> shards = new System.Collections.Generic.List<Shard>();
     Sprite shardSprite;
     float shardsOwed;
     SpriteRenderer[] glows;
-    SpriteRenderer[] side;
+    // The view from the player's eyes, sitting in the ship (R, since 2026-10-20): looking out ahead through the purple
+    // crystal, tinted purple, its facets running in from the edges and fading toward the middle. Made to fit the screen.
+    SpriteRenderer eyes;
+    Vector2Int eyesMadeFor;
     readonly System.Random random = new System.Random(11);
 
     public void Setup(PlanetOne planet, PlayerController player, MiningMode mining, CraftingNook nook, CrashedShip ship, Hud hud, Camera cam, DayNight dayNight)
@@ -349,8 +350,6 @@ public class ShipFlight : MonoBehaviour
             glows[i].transform.SetParent(back.transform, false);
             glows[i].transform.localPosition = Thrusters[i];
         }
-        side = new SpriteRenderer[4];
-        for (int i = 0; i < side.Length; i++) side[i] = Plain("Ship From The Side", null, 10 + i);
         HideSpace();
     }
 
@@ -501,7 +500,6 @@ public class ShipFlight : MonoBehaviour
     {
         if (!Aboard || stage != Stage.Landed) return;
         SetStage(Stage.Rising);
-        LookingFromInside = false;
         shipAt = Vector3.zero;
         facing = Quaternion.identity;
         nextAt = Quaternion.Euler(-StartsAbove, StartsAside, 0f) * Vector3.forward * TripLength;
@@ -539,23 +537,7 @@ public class ShipFlight : MonoBehaviour
     void LateUpdate()
     {
         if (!Aboard) return;
-        if (LookingFromInside && stage == Stage.Landed) LookFromInside();
-        else LookFromBehind();
-    }
-
-    // The standing ship close up, the crystal very see-through, the player in there.
-    void LookFromInside()
-    {
-        backRoot.gameObject.SetActive(false);
-        ship.GlassShows = GlassFromInside;
-        ship.Viewer = view;
-        Vector2 size = ship.Size;
-        // A whole number of the screen's pixels for each of his.
-        int scale = Mathf.Max(1, Mathf.FloorToInt(Screen.height * InsideFills / (size.y * 9f)));
-        view.orthographicSize = Screen.height / (2f * scale * 9f);
-        view.backgroundColor = cam.backgroundColor;
-        Vector2 foot = ship.FootNear(cam.transform.position);
-        view.transform.position = new Vector3(foot.x, foot.y + size.y / 2f, -10f);
+        LookFromBehind();
     }
 
     // His picture of the ship's back: standing on the ground under the sky, rising off it, or flying through space.
@@ -619,7 +601,8 @@ public class ShipFlight : MonoBehaviour
         lean = Mathf.Lerp(lean, -steer.x * LeanMost, ease);
         pitch = Mathf.Lerp(pitch, steer.y * PitchMost, ease);
         Vector2 shipSpot = new Vector2(Mathf.Round(lean / LeanMost * 4f), standY + Mathf.Round(pitch) + (risen >= 1f ? Mathf.Round(Mathf.Sin(Time.time * 2f) * 1.2f) : 0f));
-        bool fromSide = LookingFromInside && stage != Stage.Landed;
+        // From the player's eyes the ship itself is not seen: only the crystal round the view.
+        bool fromSide = LookingFromInside;
         back.enabled = !fromSide;
         back.transform.position = (Vector3)(ViewPlace + shipSpot);
         back.transform.localRotation = Quaternion.Euler(0f, 0f, lean);
@@ -630,7 +613,7 @@ public class ShipFlight : MonoBehaviour
         backShadow.transform.position = (Vector3)(ViewPlace + new Vector2(0f, Up(BackStandsAt) + 1f - drop));
         backShadow.transform.localScale = new Vector3(picture.x * 0.9f / 40f * (1f - risen * 0.6f), 1f, 1f);
         backShadow.color = (Color)GroundShade * 0.85f * tint;
-        ShowSide(fromSide, scale);
+        ShowEyes(fromSide, halfTall, halfWide);
 
         bool thrusting = stage != Stage.Landed;
         for (int i = 0; i < glows.Length; i++)
@@ -650,21 +633,43 @@ public class ShipFlight : MonoBehaviour
         }
     }
 
-    // The ship seen from the side, close up, flying through space (the view from inside, in space).
-    void ShowSide(bool shown, int scale)
+    // The purple crystal round the view from the player's eyes.
+    void ShowEyes(bool shown, float halfTall, float halfWide)
     {
-        Sprite[] pictures = shown ? ship.StandingPictures : null;
-        for (int i = 0; i < side.Length; i++)
+        int wide = Mathf.CeilToInt(halfWide * 2f) + 2, tall = Mathf.CeilToInt(halfTall * 2f) + 2;
+        if (shown && (eyes == null || eyesMadeFor != new Vector2Int(wide, tall)))
         {
-            side[i].enabled = pictures != null;
-            if (pictures == null) continue;
-            side[i].sprite = pictures[i];
-            // His pixels as big as fit, a whole number of the screen's pixels each.
-            int times = Mathf.Max(1, Mathf.FloorToInt(Screen.height * 0.7f / (pictures[0].rect.height * scale)));
-            side[i].transform.localScale = new Vector3(pictures[i].pixelsPerUnit * times, pictures[i].pixelsPerUnit * times, 1f);
-            side[i].transform.position = (Vector3)(ViewPlace + new Vector2(0f, Mathf.Round(-pictures[0].rect.height * times / 2f + Mathf.Sin(Time.time * 2f) * 1.2f)));
-            if (i == 3) side[i].color = new Color(1f, 1f, 1f, GlassFromInside);
+            if (eyes == null) eyes = Plain("Crystal Round The View", null, 20);
+            eyesMadeFor = new Vector2Int(wide, tall);
+            eyes.sprite = PlanetOne.PaintSprite(wide, tall, new Vector2(0.5f, 0.5f), 1f, (x, y) => CrystalPixel(x, y, wide, tall));
         }
+        if (eyes == null) return;
+        eyes.enabled = shown;
+        eyes.transform.position = (Vector3)ViewPlace;
+    }
+
+    // One pixel of the crystal round the view: a light purple tint all over, deeper toward the edges, and the facets'
+    // edges as lines running in from the corners and the middles of the sides, fading out before the middle.
+    static Color32 CrystalPixel(int x, int y, int wide, int tall)
+    {
+        float dx = x + 0.5f - wide / 2f, dy = y + 0.5f - tall / 2f;
+        // How far out, 0 in the middle and about 1 at the middles of the edges (more in the corners), round like an oval.
+        float outward = Mathf.Sqrt(dx * dx / (wide * wide / 4f) + dy * dy / (tall * tall / 4f));
+        float tint = Mathf.Lerp(0.16f, 0.5f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((outward - 0.6f) / 0.6f)));
+        // In steps, so it stays pixel art.
+        tint = Mathf.Round(tint * 8f) / 8f;
+        Color32 glass = new Color32(0xBA, 0x7D, 0xE3, (byte)(255 * tint));
+        float facets = Mathf.Clamp01((outward - 0.4f) / 0.45f);
+        if (facets <= 0f) return glass;
+        foreach (Vector2 way in new[] { new Vector2(wide, tall), new Vector2(-wide, tall), new Vector2(wide, -tall), new Vector2(-wide, -tall), Vector2.right, Vector2.up })
+        {
+            Vector2 along = way.normalized;
+            float off = Mathf.Abs(dx * along.y - dy * along.x);
+            // The facet's edge is laid over the tint, fading into it toward the middle.
+            Color32 edge = off < 1f ? new Color32(0x64, 0x46, 0x7A, 255) : off < 2.2f ? new Color32(0xD7, 0xB4, 0xEE, 210) : glass;
+            if (off < 2.2f) return Color32.Lerp(glass, edge, facets);
+        }
+        return glass;
     }
 
     // Ice shards blown out of the three thrusters toward the viewer: spreading out and down, growing and fading.
@@ -726,7 +731,7 @@ public class ShipFlight : MonoBehaviour
         foreach (SpriteRenderer star in stars) star.enabled = false;
         sun.enabled = blackHole.enabled = nextPlanet.enabled = homePlanet.enabled = false;
         foreach (Shard shard in shards) shard.Picture.enabled = false;
-        foreach (SpriteRenderer each in side) each.enabled = false;
+        if (eyes != null) eyes.enabled = false;
     }
 
     // The stars, the sun, the black hole and the planets, as seen from just behind the ship looking ahead.
@@ -866,7 +871,7 @@ public class ShipFlight : MonoBehaviour
         {
             { "Left click", stage == Stage.Landed ? "Launch into space" : "(flying)" },
             { "W A S D", "Steer, in space" },
-            { "R", LookingFromInside ? "The view from behind the ship" : "The view from inside the ship" },
+            { "R", LookingFromInside ? "The view from behind the ship" : "The view from your eyes" },
             { "F", "Hide these controls" },
             { "E", stage == Stage.Landed ? "Get out of the ship" : "Get out, once landed" },
         };
