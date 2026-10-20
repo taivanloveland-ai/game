@@ -5,13 +5,10 @@ using UnityEngine;
 // (and landing, the player gets out by themselves). Inside, the usual view is from behind the ship (his picture of
 // its back, Art/ShipBack, the second picture of his ship sheet of 2026-10-19), R switches to the view from the
 // player's eyes, looking out through the purple crystal, and F shows or hides the ship's controls.
-// Left click launches: the ship rises, the ground falls away and the sky turns to space. Space is flat (Taivan,
-// 2026-10-20: the ship cannot go up or down, and it is seen from above, the view following it): the ship flies
-// forward all the time, pushing itself along with the ice pillar's shards blown out behind it by the magical orbs,
-// and W A S D turn it toward the way pressed (W up the screen, A left, and so on). The planets, the sun and the
-// black hole lie about it, the stars far behind. Reaching the next planet the ship lands there, and the planet just
-// left can be flown back to. R in space is the view from the player's eyes, looking out ahead along the flat of
-// space, everything on the horizon.
+// Left click launches: the ship rises, the ground falls away and the sky turns to space. In space the view is from
+// behind the ship flying forward, with the stars far behind it all, the sun and the black hole, and the ship pushing itself
+// along with ice shards blown out of its three round thrusters by the magical orbs. W A S D steer it to the next
+// planet, which grows as it comes nearer; reaching it, the ship lands there.
 public class ShipFlight : MonoBehaviour
 {
     // The player gets in from this close to the ship's foot.
@@ -30,18 +27,11 @@ public class ShipFlight : MonoBehaviour
 
     // Taking off lasts this many seconds.
     const float RiseSeconds = 4f;
-    // In space: how fast the ship flies (in the trip's own distances a second), how fast it turns to the way pressed
-    // (degrees a second), how far the next planet is, how big the planets are, and how close to its ground the ship lands.
-    const float FlySpeed = 7f, TurnSpeed = 160f, TripLength = 230f, PlanetRadius = 14f, LandsWithin = 3f;
-    // The next planet starts this far off to the side, so it has to be steered to.
-    const float StartsAside = 22f;
-    // The sun and the black hole lie this far off, this way from where the ship sets out, and are this big.
-    const float SunAway = 300f, SunAside = -42f, SunRadius = 18f, BlackHoleAway = 260f, BlackHoleAside = 34f, BlackHoleRadius = 12f;
-    // Seen from above: the screen is this much of space tall, and the ship about this much of the screen's height,
-    // each of his pixels a whole number of the screen's.
-    const float AboveTall = 40f, ShipFills = 0.14f;
-    // From above, ice shards are blown out behind the ship this many a second, each lasting this long.
-    const float FlatShardsEachSecond = 24f, FlatShardSeconds = 0.8f;
+    // In space: how fast the ship flies (in the trip's own distances a second), how fast W A S D turn it (degrees a
+    // second), how far the next planet is, how big the planets are, and how close to its ground the ship lands.
+    const float FlySpeed = 7f, TurnSpeed = 50f, TripLength = 230f, PlanetRadius = 14f, LandsWithin = 3f;
+    // The next planet starts this far off to the side and up, so it has to be steered to.
+    const float StartsAside = 22f, StartsAbove = 7f;
     // How many stars are scattered all round the sky (about a sixth of them on the screen at once).
     const int StarCount = 1800;
     float[] starBright;
@@ -119,18 +109,10 @@ public class ShipFlight : MonoBehaviour
     // Space: where the ship is and which way it faces, the planets, the stars, the sun and the black hole.
     Vector3 shipAt;
     Quaternion facing = Quaternion.identity;
-    Vector3 nextAt, homeAt, sunAt, blackHoleAt;
-    // Which way the ship faces, in degrees round from up the screen (north) toward the right.
-    float heading;
-    // Space seen from above: drawn in a place of its own, far from everything else.
-    static readonly Vector2 AbovePlace = new Vector2(-40000f, -60000f);
-    Transform aboveRoot;
-    SpriteRenderer aboveNext, aboveHome, aboveSun, aboveBlackHole;
-    SpriteRenderer[] aboveStars, aboveShip;
-    Vector3[] aboveStarSpots;
-    readonly System.Collections.Generic.List<Shard> flatShards = new System.Collections.Generic.List<Shard>();
-    float flatOwed;
+    Vector3 nextAt, homeAt;
     SpriteRenderer nextPlanet, homePlanet, sun, blackHole;
+    static readonly Vector3 SunWay = Quaternion.Euler(-12f, -42f, 0f) * Vector3.forward;
+    static readonly Vector3 BlackHoleWay = Quaternion.Euler(-24f, 34f, 0f) * Vector3.forward;
     const int PlanetPixels = 128;
     // The planets in space are round and turn (Taivan's request of 2026-10-19): their lands, the same as on the title
     // screen, wrapped onto a ball that spins once in this many seconds, lit from the sun, with a night side and a rim
@@ -243,7 +225,6 @@ public class ShipFlight : MonoBehaviour
         backRoot.position = ViewPlace;
         MakeBackView();
         MakeSpace();
-        MakeAbove();
     }
 
     // The view from behind the ship: sky, ground to the horizon, and the ship's back standing on it. Everything is in his
@@ -433,33 +414,10 @@ public class ShipFlight : MonoBehaviour
         }
     }
 
-    // Space seen from above: the stars still behind it all, the sun, the black hole, the planets, and the ship.
-    void MakeAbove()
-    {
-        aboveRoot = new GameObject("Space From Above").transform;
-        aboveRoot.position = AbovePlace;
-        Sprite white = PlanetOne.PaintSprite(1, 1, new Vector2(0.5f, 0.5f), 1f, (x, y) => new Color32(255, 255, 255, 255));
-        aboveStars = new SpriteRenderer[300];
-        aboveStarSpots = new Vector3[aboveStars.Length];
-        for (int i = 0; i < aboveStars.Length; i++)
-        {
-            aboveStars[i] = Plain("Star", white, -9, aboveRoot);
-            // Where on the screen (x and y from -1 to 1), and how bright.
-            aboveStarSpots[i] = new Vector3(Spread(1f), Spread(1f), 0.35f + 0.65f * (float)random.NextDouble());
-        }
-        aboveSun = Plain("Sun", DayNight.SunSprite(), -8, aboveRoot);
-        aboveBlackHole = Plain("Black Hole", DayNight.BlackHoleSprite(), -8, aboveRoot);
-        aboveNext = Plain("Next Planet", nextBall.Sprite, -7, aboveRoot);
-        aboveHome = Plain("Planet Left Behind", homeBall.Sprite, -7, aboveRoot);
-        aboveShip = new SpriteRenderer[4];
-        for (int i = 0; i < aboveShip.Length; i++) aboveShip[i] = Plain("Ship", null, 10 + i, aboveRoot);
-        aboveRoot.gameObject.SetActive(false);
-    }
-
-    SpriteRenderer Plain(string name, Sprite sprite, int order, Transform parent = null)
+    SpriteRenderer Plain(string name, Sprite sprite, int order)
     {
         var go = new GameObject(name);
-        go.transform.SetParent(parent != null ? parent : backRoot, false);
+        go.transform.SetParent(backRoot, false);
         var picture = go.AddComponent<SpriteRenderer>();
         picture.sprite = sprite;
         picture.sortingOrder = order;
@@ -490,10 +448,8 @@ public class ShipFlight : MonoBehaviour
         if (stage == Stage.Rising && since >= RiseSeconds) SetStage(Stage.InSpace);
         if (stage == Stage.InSpace || stage == Stage.Arriving)
         {
-            // The ship turns toward the way pressed (W up the screen, D right), and flies on forward.
             Vector2 steer = stage == Stage.InSpace ? (TestSteer ?? GameInput.ShipSteer()) : Vector2.zero;
-            if (steer != Vector2.zero) heading = Mathf.MoveTowardsAngle(heading, Mathf.Atan2(steer.x, steer.y) * Mathf.Rad2Deg, TurnSpeed * Time.deltaTime);
-            facing = Quaternion.Euler(0f, heading, 0f);
+            facing *= Quaternion.Euler(-steer.y * TurnSpeed * Time.deltaTime, steer.x * TurnSpeed * Time.deltaTime, 0f);
             shipAt += facing * Vector3.forward * FlySpeed * Time.deltaTime;
             float landsAt = PlanetRadius + LandsWithin + FlySpeed * ArriveSeconds;
             if (stage == Stage.InSpace && Vector3.Distance(shipAt, nextAt) < landsAt)
@@ -545,11 +501,8 @@ public class ShipFlight : MonoBehaviour
         if (!Aboard || stage != Stage.Landed) return;
         SetStage(Stage.Rising);
         shipAt = Vector3.zero;
-        heading = 0f;
         facing = Quaternion.identity;
-        nextAt = Quaternion.Euler(0f, StartsAside, 0f) * Vector3.forward * TripLength;
-        sunAt = Quaternion.Euler(0f, SunAside, 0f) * Vector3.forward * SunAway;
-        blackHoleAt = Quaternion.Euler(0f, BlackHoleAside, 0f) * Vector3.forward * BlackHoleAway;
+        nextAt = Quaternion.Euler(-StartsAbove, StartsAside, 0f) * Vector3.forward * TripLength;
         homeAt = Vector3.back * HomeBehind;
         goingHome = false;
     }
@@ -584,124 +537,13 @@ public class ShipFlight : MonoBehaviour
     void LateUpdate()
     {
         if (!Aboard) return;
-        // In space, seen from above (or from the player's eyes).
-        if (FromAbove) LookFromAbove();
-        else LookFromBehind();
-    }
-
-    bool FromAbove => !LookingFromInside && (stage == Stage.InSpace || stage == Stage.Arriving);
-
-    // How many of the screen's pixels each of his ship's pixels is, seen from above, and how big one of the screen's
-    // pixels is in space.
-    int AboveScale => Mathf.Max(1, Mathf.FloorToInt(Screen.height * ShipFills / 96f));
-    float AbovePixel => AboveTall / Screen.height;
-
-    // Space seen from above, the view following the ship: the planets, the sun and the black hole lie about it, with
-    // the stars still far behind.
-    void LookFromAbove()
-    {
-        backRoot.gameObject.SetActive(false);
-        aboveRoot.gameObject.SetActive(true);
-        view.orthographicSize = AboveTall / 2f;
-        view.transform.position = new Vector3(AbovePlace.x, AbovePlace.y, -10f);
-        view.backgroundColor = Color.black;
-        float halfTall = AboveTall / 2f, halfWide = halfTall * view.aspect, pixel = AbovePixel;
-        for (int i = 0; i < aboveStars.Length; i++)
-        {
-            Vector3 spot = aboveStarSpots[i];
-            aboveStars[i].transform.position = (Vector3)(AbovePlace + new Vector2(Mathf.Round(spot.x * halfWide / pixel) * pixel, Mathf.Round(spot.y * halfTall / pixel) * pixel));
-            aboveStars[i].transform.localScale = new Vector3(pixel, pixel, 1f);
-            aboveStars[i].color = new Color(0.88f, 0.91f, 1f, spot.z);
-        }
-        // Where something in space is on the screen: up the screen is north.
-        Vector2 Flat(Vector3 at) => AbovePlace + new Vector2(at.x - shipAt.x, at.z - shipAt.z);
-        aboveSun.transform.position = (Vector3)Flat(sunAt);
-        float sunSize = SunRadius * 2f / 3.4f;
-        aboveSun.transform.localScale = new Vector3(sunSize, sunSize, 1f);
-        aboveBlackHole.transform.position = (Vector3)Flat(blackHoleAt);
-        float holeSize = BlackHoleRadius * 2f / 4f;
-        aboveBlackHole.transform.localScale = new Vector3(holeSize, holeSize, 1f);
-        foreach (var (picture, ball, at) in new[] { (aboveNext, nextBall, nextAt), (aboveHome, homeBall, homeAt) })
-        {
-            picture.transform.position = (Vector3)Flat(at);
-            picture.transform.localScale = new Vector3(PlanetRadius * 2f, PlanetRadius * 2f, 1f);
-            Vector2 away = Flat(at) - AbovePlace;
-            if (Mathf.Abs(away.x) > halfWide + PlanetRadius || Mathf.Abs(away.y) > halfTall + PlanetRadius) continue;
-            // Lit from the sun, which is off in the flat of space, a little above.
-            Vector3 toSun = sunAt - at;
-            ball.Paint(new Vector3(toSun.x, toSun.z, toSun.magnitude * 0.35f).normalized, Time.deltaTime);
-        }
-
-        // The ship, as he drew it from above, its nose (his purple crystal) the way it flies, the player seen in it.
-        Sprite[] pictures = ship.StandingPictures;
-        var ahead = new Vector2(Mathf.Sin(heading * Mathf.Deg2Rad), Mathf.Cos(heading * Mathf.Deg2Rad));
-        float shipLong = 0f;
-        for (int i = 0; i < aboveShip.Length; i++)
-        {
-            aboveShip[i].enabled = pictures != null;
-            if (pictures == null) continue;
-            aboveShip[i].sprite = pictures[i];
-            float size = pictures[i].pixelsPerUnit * AboveScale * pixel;
-            aboveShip[i].transform.localScale = new Vector3(size, size, 1f);
-            shipLong = pictures[0].rect.height * AboveScale * pixel;
-            // Its picture stands on its tip, so the tip goes half the ship ahead of the middle of the screen.
-            aboveShip[i].transform.position = (Vector3)(AbovePlace + ahead * shipLong * 0.45f);
-            aboveShip[i].transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(ahead.y, ahead.x) * Mathf.Rad2Deg + 90f);
-            if (i == 3) aboveShip[i].color = new Color(1f, 1f, 1f, GlassFromOutside);
-        }
-        BlowFlatShards(ahead, shipLong, pixel);
-    }
-
-    // Ice shards blown out behind the ship, seen from above, drifting back and fading.
-    void BlowFlatShards(Vector2 ahead, float shipLong, float pixel)
-    {
-        var side = new Vector2(ahead.y, -ahead.x);
-        bool his = ExhaustShards != null && ExhaustShards.Length > 0;
-        flatOwed += FlatShardsEachSecond * Time.deltaTime;
-        for (; flatOwed >= 1f; flatOwed -= 1f)
-        {
-            Shard shard = null;
-            foreach (Shard old in flatShards) if (!old.Picture.enabled) { shard = old; break; }
-            if (shard == null)
-            {
-                shard = new Shard { Picture = Plain("Ice Shard", shardSprite, 9, aboveRoot) };
-                flatShards.Add(shard);
-            }
-            shard.Picture.enabled = true;
-            shard.Picture.sprite = his ? ExhaustShards[random.Next(ExhaustShards.Length)] : shardSprite;
-            shard.Picture.color = his ? Color.white : (Color)ShardColors[random.Next(ShardColors.Length)];
-            // From the back of the ship, in space (not on the screen), so they are left behind as it flies on.
-            Vector2 rear = new Vector2(shipAt.x, shipAt.z) - ahead * shipLong * 0.5f + side * Spread(shipLong * 0.18f);
-            shard.From = rear;
-            shard.Way = -ahead * Mathf.Lerp(3f, 7f, (float)random.NextDouble()) + side * Spread(1.5f);
-            shard.Born = Time.time;
-        }
-        foreach (Shard shard in flatShards)
-        {
-            if (!shard.Picture.enabled) continue;
-            float age = (Time.time - shard.Born) / FlatShardSeconds;
-            if (age >= 1f)
-            {
-                shard.Picture.enabled = false;
-                continue;
-            }
-            Vector2 at = shard.From + shard.Way * (Time.time - shard.Born) - new Vector2(shipAt.x, shipAt.z);
-            shard.Picture.transform.position = (Vector3)(AbovePlace + at);
-            Sprite drawn = shard.Picture.sprite;
-            // Each of their pixels a whole number of the screen's, about half of one of the ship's.
-            float size = (drawn == shardSprite ? 1f : drawn.pixelsPerUnit) * Mathf.Max(1f, Mathf.Round(AboveScale * 0.5f)) * pixel;
-            shard.Picture.transform.localScale = new Vector3(size, size, 1f);
-            Color c = shard.Picture.color;
-            c.a = age < 0.5f ? 1f : 1f - (age - 0.5f) / 0.5f;
-            shard.Picture.color = c;
-        }
+        LookFromBehind();
     }
 
     // His picture of the ship's back: standing on the ground under the sky, rising off it, or flying through space.
     void LookFromBehind()
     {
         backRoot.gameObject.SetActive(true);
-        aboveRoot.gameObject.SetActive(false);
         ship.GlassShows = GlassFromOutside;
         ship.Viewer = null;
         if (back == null) return;
@@ -889,9 +731,7 @@ public class ShipFlight : MonoBehaviour
         foreach (SpriteRenderer star in stars) star.enabled = false;
         sun.enabled = blackHole.enabled = nextPlanet.enabled = homePlanet.enabled = false;
         foreach (Shard shard in shards) shard.Picture.enabled = false;
-        foreach (Shard shard in flatShards) shard.Picture.enabled = false;
         if (eyes != null) eyes.enabled = false;
-        if (aboveRoot != null) aboveRoot.gameObject.SetActive(false);
     }
 
     // The stars, the sun, the black hole and the planets, as seen from just behind the ship looking ahead.
@@ -922,12 +762,12 @@ public class ShipFlight : MonoBehaviour
         }
         // The sun and the black hole are so far away they only move as the ship turns. Each of their own pixels is
         // drawn a whole number of the screen's pixels: two for the sun, one for the black hole's finer picture.
-        Distant(sun, (sunAt - shipAt).normalized, focal, 2f * 16f / scale, shows);
-        Distant(blackHole, (blackHoleAt - shipAt).normalized, focal, 24f / scale, shows);
+        Distant(sun, SunWay, focal, 2f * 16f / scale, shows);
+        Distant(blackHole, BlackHoleWay, focal, 24f / scale, shows);
         Near(nextPlanet, nextAt, focal, shows);
         Near(homePlanet, homeAt, focal, shows);
         // The planets turn, and are lit from the sun as the ship sees it.
-        Vector3 sunSeen = Quaternion.Inverse(facing) * (sunAt - shipAt).normalized;
+        Vector3 sunSeen = Quaternion.Inverse(facing) * SunWay;
         var toSun = new Vector3(sunSeen.x, sunSeen.y, -sunSeen.z);
         if (nextPlanet.enabled) nextBall.Paint(toSun, Time.deltaTime);
         if (homePlanet.enabled) homeBall.Paint(toSun, Time.deltaTime);
@@ -962,13 +802,6 @@ public class ShipFlight : MonoBehaviour
     // Where a planet is on screen, in the screen's pixels from its top left, and whether it is on screen.
     bool OnScreen(Vector3 at, out Vector2 spot)
     {
-        // From above: up the screen is north.
-        if (FromAbove)
-        {
-            float perUnit = Screen.height / AboveTall;
-            spot = new Vector2(Screen.width / 2f + (at.x - shipAt.x) * perUnit, Screen.height / 2f - (at.z - shipAt.z) * perUnit);
-            return spot.x > 0f && spot.x < Screen.width && spot.y > 0f && spot.y < Screen.height;
-        }
         Vector3 local = Quaternion.Inverse(facing) * (at - shipAt);
         float scaleNow = Screen.height / (2f * view.orthographicSize);
         Vector2 flat = local.z > 0.01f ? new Vector2(local.x, local.y) / local.z * view.orthographicSize : new Vector2(local.x, local.y).normalized * 1e5f;
@@ -1037,7 +870,7 @@ public class ShipFlight : MonoBehaviour
         string[,] lines =
         {
             { "Left click", stage == Stage.Landed ? "Launch into space" : "(flying)" },
-            { "W A S D", "Steer the way pressed, in space" },
+            { "W A S D", "Steer, in space" },
             { "R", LookingFromInside ? "The view from behind the ship" : "The view from your eyes" },
             { "F", "Hide these controls" },
             { "E", stage == Stage.Landed ? "Get out of the ship" : "Get out, once landed" },
@@ -1057,8 +890,8 @@ public class ShipFlight : MonoBehaviour
 
     // For checking: how far there is still to go, turning straight toward the next planet, and the part of the trip.
     public float TripLeft => Vector3.Distance(shipAt, nextAt) - PlanetRadius;
-    public void FaceNext() => heading = Mathf.Atan2(nextAt.x - shipAt.x, nextAt.z - shipAt.z) * Mathf.Rad2Deg;
-    public void FaceHome() => heading = Mathf.Atan2(homeAt.x - shipAt.x, homeAt.z - shipAt.z) * Mathf.Rad2Deg;
+    public void FaceNext() => facing = Quaternion.LookRotation(nextAt - shipAt);
+    public void FaceHome() => facing = Quaternion.LookRotation(homeAt - shipAt);
     public string StageName => stage.ToString();
     // For checking: steers as if these keys were held.
     public Vector2? TestSteer;
