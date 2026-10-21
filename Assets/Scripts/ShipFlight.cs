@@ -28,8 +28,10 @@ public class ShipFlight : MonoBehaviour
     // Taking off lasts this many seconds.
     const float RiseSeconds = 4f;
     // In space: how fast the ship flies (in the trip's own distances a second), how fast W A S D turn it (degrees a
-    // second), how far the next planet is, how big the planets are, and how close to its ground the ship lands.
-    const float FlySpeed = 7f, TurnSpeed = 50f, TripLength = 230f, PlanetRadius = 14f, LandsWithin = 3f;
+    // second), how far the next planet is, how big the planets are, and how close to its ground the ship has to come to
+    // land: it has to touch it (Taivan, 2026-10-20; until then it landed when it came within about 14 of it, and flew
+    // on while the screen filled with the planet's colour).
+    const float FlySpeed = 7f, TurnSpeed = 50f, TripLength = 230f, PlanetRadius = 14f, LandsWithin = 1f;
     // The next planet starts this far off to the side and up, so it has to be steered to.
     const float StartsAside = 22f, StartsAbove = 7f;
     // How many stars are scattered all round the sky (about a sixth of them on the screen at once).
@@ -446,8 +448,9 @@ public class ShipFlight : MonoBehaviour
         {
             Vector2 steer = stage == Stage.InSpace ? (TestSteer ?? GameInput.ShipSteer()) : Vector2.zero;
             facing *= Quaternion.Euler(-steer.y * TurnSpeed * Time.deltaTime, steer.x * TurnSpeed * Time.deltaTime, 0f);
-            shipAt += facing * Vector3.forward * FlySpeed * Time.deltaTime;
-            float landsAt = PlanetRadius + LandsWithin + FlySpeed * ArriveSeconds;
+            // Touching down, it stops while the screen fills with the planet's colour.
+            if (stage == Stage.InSpace) shipAt += facing * Vector3.forward * FlySpeed * Time.deltaTime;
+            float landsAt = PlanetRadius + LandsWithin;
             if (stage == Stage.InSpace && Vector3.Distance(shipAt, nextAt) < landsAt)
             {
                 goingHome = false;
