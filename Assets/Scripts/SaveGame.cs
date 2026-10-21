@@ -90,7 +90,7 @@ public class SaveGame : MonoBehaviour
         this.saveName = saveName ?? "";
         foreach (Item item in new[]
         {
-            nook.Pickaxe, nook.Axe, nook.ThornAxe, nook.CrystalAxe, nook.ThornPickaxe, nook.CrystalPickaxe, nook.CrystalShard, nook.Battery, pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
+            nook.Pickaxe, nook.Axe, nook.ThornAxe, nook.CrystalAxe, nook.ThornPickaxe, nook.CrystalPickaxe, nook.CrystalShard, nook.Battery, pickaxeWork.SnowItem, pickaxeWork.SandItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
             gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem, gatherables.StickItem,
             spiders.SilkItem, spiders.LegItem, spiders.FangItem, nook.Cleats, planet.GetComponent<IceBoss>()?.OrbItem,
         })
