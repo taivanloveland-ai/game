@@ -668,3 +668,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"take away the purple tint in the [r] view."** (2026-10-20): the view from the players eyes is now clear, with no purple tint; only the crystals facet edges still run in from the corners and the sides, fading out before the middle.
 
 - **"take away the purple lines also."** (2026-10-20): the view from the players eyes (R) is now completely clear: no tint and no crystal lines, just space (or the sky and the ground) straight ahead.
+
+- **"make the brown snow on rocky planet sand."** (2026-10-20): digging the rocky planets ground now gives **Sand** (its picture his snow block in the deserts tan), not Snow; creative mode on the rocky planet starts with sand instead of snow. Snow mined on the frost planet keeps his white picture wherever the player is. (For now a block of sand or snow placed is a block of that planets ground: sand on the rocky planet, snow on the frost planet.)
+
+- **"make a slider for jump height up to 5."** (2026-10-20): creative modes panel has a **Jump** slider under Speed, from 1 to 5 blocks in half-block steps (starting at the usual 1.5).

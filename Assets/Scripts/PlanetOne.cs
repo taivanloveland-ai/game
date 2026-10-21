@@ -607,6 +607,11 @@ public class PlanetOne : MonoBehaviour
     void FinishSetup(bool creative)
     {
         int cx = width / 2, cy = height / 4;
+        if (snowPicture != null)
+        {
+            SnowIcon = snowPicture.Sprite;
+            SandIcon = SandSprite(snowPicture);
+        }
         if (Rocky) MakeDesertPictures();
         BuildTerrain();
 
@@ -649,7 +654,7 @@ public class PlanetOne : MonoBehaviour
         if (startBlocks > 0)
         {
             var blocks = creative
-                ? new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem }
+                ? new[] { Rocky ? pickaxeWork.SandItem : pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem }
                 : new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem };
             foreach (Item block in blocks)
             {
@@ -2958,15 +2963,24 @@ public class PlanetOne : MonoBehaviour
     {
         foreach (BlockPicture picture in new[] { snowPicture, snowPicture2, snowPicture3 })
         {
-            if (picture == null) continue;
-            var sand = new Color32[picture.Pixels.Length];
-            for (int i = 0; i < sand.Length; i++) sand[i] = Desert(picture.Pixels[i]);
-            var texture = new Texture2D(picture.Width, picture.Height, TextureFormat.RGBA32, false) { filterMode = picture.Sprite.texture.filterMode, wrapMode = TextureWrapMode.Clamp };
-            texture.SetPixels32(sand);
-            texture.Apply();
-            picture.Sprite = Sprite.Create(texture, new Rect(0, 0, picture.Width, picture.Height), new Vector2(0.5f, 0.5f), picture.Width);
+            if (picture != null) picture.Sprite = SandSprite(picture);
         }
     }
+
+    // One of his snow pictures turned to desert sand.
+    static Sprite SandSprite(BlockPicture picture)
+    {
+        var sand = new Color32[picture.Pixels.Length];
+        for (int i = 0; i < sand.Length; i++) sand[i] = Desert(picture.Pixels[i]);
+        var texture = new Texture2D(picture.Width, picture.Height, TextureFormat.RGBA32, false) { filterMode = picture.Sprite.texture.filterMode, wrapMode = TextureWrapMode.Clamp };
+        texture.SetPixels32(sand);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, picture.Width, picture.Height), new Vector2(0.5f, 0.5f), picture.Width);
+    }
+
+    // The pictures for the snow and sand items, whichever planet this is: his snow, and his snow turned to sand.
+    public Sprite SnowIcon { get; private set; }
+    public Sprite SandIcon { get; private set; }
 
     public static Color32 PaintRockTop(int x, int y, int rims)
     {
