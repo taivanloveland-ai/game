@@ -648,17 +648,15 @@ public class ShipFlight : MonoBehaviour
         eyes.transform.position = (Vector3)ViewPlace;
     }
 
-    // One pixel of the crystal round the view: a light purple tint all over, deeper toward the edges, and the facets'
+    // One pixel of the crystal round the view: clear, but for the facets'
     // edges as lines running in from the corners and the middles of the sides, fading out before the middle.
     static Color32 CrystalPixel(int x, int y, int wide, int tall)
     {
         float dx = x + 0.5f - wide / 2f, dy = y + 0.5f - tall / 2f;
         // How far out, 0 in the middle and about 1 at the middles of the edges (more in the corners), round like an oval.
         float outward = Mathf.Sqrt(dx * dx / (wide * wide / 4f) + dy * dy / (tall * tall / 4f));
-        float tint = Mathf.Lerp(0.16f, 0.5f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((outward - 0.6f) / 0.6f)));
-        // In steps, so it stays pixel art.
-        tint = Mathf.Round(tint * 8f) / 8f;
-        Color32 glass = new Color32(0xBA, 0x7D, 0xE3, (byte)(255 * tint));
+        // No tint: the view is clear (Taivan, 2026-10-20). Only the facets' edges show.
+        var glass = new Color32(0, 0, 0, 0);
         float facets = Mathf.Clamp01((outward - 0.4f) / 0.45f);
         if (facets <= 0f) return glass;
         foreach (Vector2 way in new[] { new Vector2(wide, tall), new Vector2(-wide, tall), new Vector2(wide, -tall), new Vector2(-wide, -tall), Vector2.right, Vector2.up })
@@ -666,8 +664,10 @@ public class ShipFlight : MonoBehaviour
             Vector2 along = way.normalized;
             float off = Mathf.Abs(dx * along.y - dy * along.x);
             // The facet's edge is laid over the tint, fading into it toward the middle.
-            Color32 edge = off < 1f ? new Color32(0x64, 0x46, 0x7A, 255) : off < 2.2f ? new Color32(0xD7, 0xB4, 0xEE, 210) : glass;
-            if (off < 2.2f) return Color32.Lerp(glass, edge, facets);
+            Color32 edge = off < 1f ? new Color32(0x64, 0x46, 0x7A, 255) : new Color32(0xD7, 0xB4, 0xEE, 210);
+            // Fading out toward the middle.
+            edge.a = (byte)(edge.a * facets);
+            if (off < 2.2f) return edge;
         }
         return glass;
     }
