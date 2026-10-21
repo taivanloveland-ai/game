@@ -666,3 +666,5 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **"make it so ice is only slippery when im on it not under it and if im under stone or snow but im standing on ice the ice is slippery."** (2026-10-20): slipping now goes by the block right under the players feet, whatever is over their head. Standing on ice under a roof of stone or snow is slippery; standing on snow or stone under a roof of ice is not. (Before, it went by the top of the square, roof and all.) In both views.
 
 - **"take away the purple tint in the [r] view."** (2026-10-20): the view from the players eyes is now clear, with no purple tint; only the crystals facet edges still run in from the corners and the sides, fading out before the middle.
+
+- **"take away the purple lines also."** (2026-10-20): the view from the players eyes (R) is now completely clear: no tint and no crystal lines, just space (or the sky and the ground) straight ahead.
