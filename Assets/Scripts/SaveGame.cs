@@ -19,7 +19,10 @@ public class SaveGame : MonoBehaviour
     // Since version 8 the save holds both planets: which one the player is on, and for each planet what has changed
     // there (the blocks dug and built, what has been harvested, the spiders killed, what lies loose on the ground, what
     // the map has seen, and the crystals mined), the planet being played first.
-    const int Version = 8;
+    // Since version 9 the second planet is the nature planet, not the rocky planet. In an older save, what had changed
+    // on the rocky planet is dropped (it would not fit the nature planet's land), and a player who was on the rocky
+    // planet carries on on the nature planet, in front of the ship.
+    const int Version = 9;
     // The longest name a save can be given.
     public const int LongestName = 18;
 
@@ -40,7 +43,7 @@ public class SaveGame : MonoBehaviour
         public int Seed;
         public string Name = "";
         public int Version;
-        // Which planet the player is on: 0 for Planet 1, 1 for the rocky planet.
+        // Which planet the player is on: 0 for Planet 1, 1 for the nature planet (the rocky planet before version 9).
         public int Planet;
         // Everything after the first few lines of the file.
         public byte[] Rest;
@@ -90,9 +93,9 @@ public class SaveGame : MonoBehaviour
         this.saveName = saveName ?? "";
         foreach (Item item in new[]
         {
-            nook.Pickaxe, nook.Axe, nook.ThornAxe, nook.CrystalAxe, nook.ThornPickaxe, nook.CrystalPickaxe, nook.CrystalShard, nook.Battery, pickaxeWork.SnowItem, pickaxeWork.SandItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
+            nook.Pickaxe, nook.Axe, nook.ThornAxe, nook.CrystalAxe, nook.ThornPickaxe, nook.CrystalPickaxe, nook.CrystalShard, nook.Battery, pickaxeWork.SnowItem, pickaxeWork.SandItem, pickaxeWork.DirtItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem,
             gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem, gatherables.StickItem,
-            spiders.SilkItem, spiders.LegItem, spiders.FangItem, nook.Cleats, planet.GetComponent<IceBoss>()?.OrbItem,
+            spiders.SilkItem, spiders.LegItem, spiders.FangItem, nook.Cleats, planet.GetComponent<IceBoss>()?.OrbItem, gatherables.WoodItem,
         })
         {
             if (item != null) items[item.Name] = item;
@@ -169,16 +172,16 @@ public class SaveGame : MonoBehaviour
     public bool Save()
     {
         if (slot < 0) return false;
-        return WriteFile(w => Write(w, PlanetOne.Rocky ? 1 : 0, player.GroundPosition, player.FeetHeight, planet.CaveIndex, PlanetChanges(), otherPlanet));
+        return WriteFile(w => Write(w, PlanetOne.Nature ? 1 : 0, player.GroundPosition, player.FeetHeight, planet.CaveIndex, PlanetChanges(), otherPlanet));
     }
 
     // Saves the game as it will be on the other planet, just landed there: the player in front of the ship's
     // workbench, and the two planets' changes swapped round. Gives it back to be carried on with straight away (and
     // writes it in the slot, if the game has one).
-    public Loaded Travel(bool toRocky)
+    public Loaded Travel(bool toNature)
     {
         byte[] leaving = PlanetChanges();
-        System.Action<BinaryWriter> write = w => Write(w, toRocky ? 1 : 0, PlanetOne.StartSpot(toRocky), 0f, -1, otherPlanet, leaving);
+        System.Action<BinaryWriter> write = w => Write(w, toNature ? 1 : 0, PlanetOne.StartSpot(toNature), 0f, -1, otherPlanet, leaving);
         if (slot >= 0) WriteFile(write);
         using (var memory = new MemoryStream())
         {
@@ -290,6 +293,14 @@ public class SaveGame : MonoBehaviour
             var ground = new Vector2(r.ReadSingle(), r.ReadSingle());
             float feet = r.ReadSingle();
             int cave = r.ReadInt32();
+            // Saved on the rocky planet, which is now the nature planet: the player is put in front of the ship.
+            bool wasOnRocky = loaded.Version < 9 && loaded.Planet == 1;
+            if (wasOnRocky)
+            {
+                ground = PlanetOne.StartSpot(true);
+                feet = 0f;
+                cave = -1;
+            }
             float healthThen = r.ReadSingle();
             dayNight.time = r.ReadSingle();
             if (loaded.Version >= 3) dayNight.Day = r.ReadInt32();
@@ -319,6 +330,9 @@ public class SaveGame : MonoBehaviour
                 // The planet being played (nothing yet, the first time there), then the other one, kept as it is.
                 byte[] here = r.ReadBytes(r.ReadInt32());
                 otherPlanet = r.ReadBytes(r.ReadInt32());
+                // What had changed on the rocky planet is dropped: the nature planet starts as it was made.
+                if (wasOnRocky) here = new byte[0];
+                else if (loaded.Version < 9) otherPlanet = new byte[0];
                 if (here.Length > 0)
                 {
                     using (var changes = new BinaryReader(new MemoryStream(here))) ReadPlanet(changes, loaded.Version);

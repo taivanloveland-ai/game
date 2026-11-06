@@ -29,7 +29,8 @@ public class PlayerController : MonoBehaviour
     // On ice the player slides a little faster than full speed. 1 would be no faster.
     public float iceSpeedFactor = 1.2f;
     // The ocean round the South Pole is too cold to swim in: the player sinks through the water, this many blocks a
-    // second, and on the seabed can only wade at this share of full speed, with no jumping.
+    // second, and on the seabed can only wade at this share of full speed, with no jumping. (The nature planet's lakes
+    // are warm: there the player can jump off the bottom, to climb out up the lake's sloping bed.)
     public float sinkSpeed = 2.5f;
     public float waterSpeedFactor = 0.5f;
     // How high a jump reaches, in blocks.
@@ -186,7 +187,7 @@ public class PlayerController : MonoBehaviour
         Vector2 wanted = move * (InWater ? Pace * waterSpeedFactor : onIce ? Pace * iceSpeedFactor : Pace * snowSpeedFactor);
         velocity = onIce && !Cleats ? Vector2.MoveTowards(velocity, wanted, iceGrip * dt) : wanted;
 
-        if (jumpQueued && grounded && !InWater)
+        if (jumpQueued && grounded && (!InWater || PlanetOne.Nature))
         {
             verticalSpeed = JumpSpeed();
             grounded = false;
@@ -317,7 +318,7 @@ public class PlayerController : MonoBehaviour
 
         Vector2 v = body.linearVelocity;
         v.x = onIce && !Cleats ? Mathf.MoveTowards(v.x, wanted, iceGrip * Time.fixedDeltaTime) : wanted;
-        if (jumpQueued && grounded && !InWater) v.y = JumpSpeed();
+        if (jumpQueued && grounded && (!InWater || PlanetOne.Nature)) v.y = JumpSpeed();
         if (InWater) v.y = Mathf.Max(v.y, -sinkSpeed);
         body.linearVelocity = v;
     }

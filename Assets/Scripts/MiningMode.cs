@@ -164,7 +164,7 @@ public class MiningMode : MonoBehaviour
         composite.geometryType = CompositeCollider2D.GeometryType.Polygons;
         tileCollider.compositeOperation = Collider2D.CompositeOperation.Merge;
 
-        rockTopTile = PlanetOne.MakeTile(Color.white, PlanetOne.PaintSprite((x, y) => PlanetOne.DesertIf(PlanetOne.PaintRockTop(x, y, 1))), true);
+        rockTopTile = PlanetOne.MakeTile(Color.white, PlanetOne.PaintSprite((x, y) => PlanetOne.NatureIf(PlanetOne.PaintRockTop(x, y, 1))), true);
 
         int columns = WindowColumns, levels = Depth + PlanetOne.BuildLimit;
         covered = new bool[columns, levels];
@@ -587,9 +587,12 @@ public class MiningMode : MonoBehaviour
         if (block == PlanetOne.SideBlock.Snow && planet.SnowSprite != null)
         {
             int look = planet.SnowLookAt(x, worldRow, level);
-            picture = planet.SnowLookSprite(look) ?? planet.Square;
+            // (On the nature planet: grass on the top block of the ground, dirt under it.)
+            picture = planet.SnowLookSprite(look, depth) ?? planet.Square;
             // Kept apart from one another in the key below by their look.
             iceLook = look + 1;
+            // Grass and dirt pictures are kept apart in the key below too.
+            if (PlanetOne.Nature && depth != 1) iceLook += 8;
         }
         // So has ice: Taivan's ice blocks.
         if (block == PlanetOne.SideBlock.Ice && planet.IceLookSprite(0) != null)
@@ -606,8 +609,8 @@ public class MiningMode : MonoBehaviour
             iceLook = look + 1;
         }
         if (picture != null) color = Color.white;
-        // On the rocky planet, every colour is turned to the desert's.
-        else if (PlanetOne.Rocky) color = (Color)PlanetOne.Desert((Color32)color);
+        // On the nature planet, every colour is turned to its own: grass on top, dirt under it.
+        else if (PlanetOne.Nature) color = (Color)(block == PlanetOne.SideBlock.Snow && depth != 1 ? PlanetOne.Dirt((Color32)color) : PlanetOne.Greenery((Color32)color));
 
         // Ice without a drawn picture uses the game's own finely drawn ice blocks. Most are plain; about one in three
         // carries a glint or a crack. The block is tinted toward a deeper blue the further down it is.

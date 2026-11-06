@@ -76,8 +76,8 @@ public class Health : MonoBehaviour
             if (since >= FadeOutSeconds + FadeInSeconds) fellAt = -1f;
             return;
         }
-        // The freezing ocean.
-        if (player.InWater)
+        // The freezing ocean. (The nature planet's lakes are not cold.)
+        if (player.InWater && !PlanetOne.Nature)
         {
             if (!wasInWater) hud.Say("The water is too cold to swim in. You are sinking!", 3f);
             freezing += Time.deltaTime;

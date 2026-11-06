@@ -88,9 +88,9 @@ public class ShipFlight : MonoBehaviour
     public System.Action Arrived;
     // The planet being flown to, and the one left behind, as they are named on screen and coloured. (Planet 1 is called
     // the frost planet on screen since 2026-10-20.)
-    public string NextPlanetName = "the rocky planet", HomeName = "the frost planet";
-    public System.Func<int, int, int, Color32> PaintNext = PaintRocky, PaintHome = PaintIcy;
-    public Color NextColor = new Color32(197, 157, 109, 255), HomeColor = new Color32(0xE4, 0xEE, 0xF4, 255);
+    public string NextPlanetName = "the nature planet", HomeName = "the frost planet";
+    public System.Func<int, int, int, Color32> PaintNext = PaintNature, PaintHome = PaintIcy;
+    public Color NextColor = PlanetOne.NatureMain, HomeColor = new Color32(0xE4, 0xEE, 0xF4, 255);
     // The planet just left can be flown back to (Taivan's request of 2026-10-20): it starts this far behind the ship,
     // and reaching it the ship lands back where it took off. Whether that is where the ship is landing now.
     const float HomeBehind = 40f;
@@ -133,13 +133,13 @@ public class ShipFlight : MonoBehaviour
         readonly Vector3[] normals;
         float spin;
 
-        public Ball(bool rocky)
+        public Ball(bool nature)
         {
-            land = TitleScreen.LandMap(rocky);
+            land = TitleScreen.LandMap(nature);
             night = new Color32[land.Length];
             // Its night side is dim, but not so dark it cannot be seen against space.
             for (int i = 0; i < land.Length; i++) night[i] = Color.Lerp(TitleScreen.Night, land[i], 0.3f);
-            air = rocky ? TitleScreen.Dust : TitleScreen.Air;
+            air = nature ? TitleScreen.NatureAir : TitleScreen.Air;
             texture = new Texture2D(PlanetPixels, PlanetPixels, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
             pixels = new Color32[PlanetPixels * PlanetPixels];
             var spotList = new System.Collections.Generic.List<int>();
@@ -325,10 +325,10 @@ public class ShipFlight : MonoBehaviour
         sun = Plain("Sun", DayNight.SunSprite(), -9);
         blackHole = Plain("Black Hole", DayNight.BlackHoleSprite(), -9);
         blackHole.transform.localRotation = Quaternion.Euler(0f, 0f, -14f);
-        // Round and turning: the next planet is the rocky one unless it is Planet 1 (flying home from the rocky one).
-        bool toRocky = PaintNext == PaintRocky;
-        nextBall = new Ball(toRocky);
-        homeBall = new Ball(!toRocky);
+        // Round and turning: the next planet is the nature planet unless it is Planet 1 (flying home from the nature planet).
+        bool toNature = PaintNext == PaintNature;
+        nextBall = new Ball(toNature);
+        homeBall = new Ball(!toNature);
         nextPlanet = Plain("Next Planet", nextBall.Sprite, -8);
         homePlanet = Plain("Planet Left Behind", homeBall.Sprite, -8);
         // A small ice shard: a diamond of pixels.
@@ -368,15 +368,14 @@ public class ShipFlight : MonoBehaviour
         });
     }
 
-    // The rocky planet: desert rock, with darker hollows and paler sand.
-    public static Color32 PaintRocky(int x, int y, int size)
+    // The nature planet: grass, with blue lakes and dark forests.
+    public static Color32 PaintNature(int x, int y, int size)
     {
         float n = Blobs(x, y, 9f, 3) * 0.65f + Blobs(x, y, 4f, 5) * 0.35f;
-        // Its main colour is the tan Taivan picked, 197, 157, 109.
-        if (n < 0.36f) return new Color32(0x7E, 0x5E, 0x3E, 255);
-        if (n < 0.5f) return new Color32(0xA0, 0x7C, 0x54, 255);
-        if (n < 0.7f) return new Color32(197, 157, 109, 255);
-        return new Color32(0xD0, 0xAC, 0x7E, 255);
+        if (n < 0.36f) return new Color32(40, 114, 156, 255);
+        if (n < 0.5f) return new Color32(40, 100, 44, 255);
+        if (n < 0.7f) return PlanetOne.NatureMain;
+        return new Color32(122, 186, 80, 255);
     }
 
     // Planet 1: snow and ice, blue ocean, and patches of teal algae.

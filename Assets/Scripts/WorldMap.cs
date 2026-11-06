@@ -54,7 +54,7 @@ public class WorldMap : MonoBehaviour
     Texture2D brush;
     readonly Color32[] brushPixels = new Color32[BrushSize * BrushSize];
     readonly Vector2Int[] brushTargets = new Vector2Int[BrushSize * BrushSize];
-    bool[,] explored;
+    uint[] explored;
     int mapWidth, mapHeight;
     // While the player is in a cave, the mouth they went in by. The mini map goes dark then, and on the world map
     // the player's marker waits at the mouth.
@@ -91,8 +91,52 @@ public class WorldMap : MonoBehaviour
     bool draggingMini, draggingWorld;
     Vector2 lastPointer;
 
-    // WholeMap, if given, is the colour of every square of the planet: the map then starts fully drawn (creative mode).
-    public void Setup(PlanetOne planet, PlayerController player, Vector2 ship, Color32[] wholeMap = null)
+    // Seen squares are kept one bit each (until 2026-11-05 a whole byte each), in rows of the map.
+    bool Explored(int x, int y)
+    {
+        int i = y * mapWidth + x;
+        return (explored[i >> 5] & (1u << (i & 31))) != 0;
+    }
+
+    void SetExplored(int x, int y)
+    {
+        int i = y * mapWidth + x;
+        explored[i >> 5] |= 1u << (i & 31);
+    }
+
+    // The map picture is painted this many rows at a time, so the whole of it is never held twice over.
+    const int RowsAtOnce = 256;
+
+    // Paints rows of the map picture: each square its colour if it has been seen, and dark if not. The colours are
+    // worked out on all the computer's cores.
+    void PaintRows(int from, int to)
+    {
+        var band = new Color32[mapWidth * Mathf.Min(RowsAtOnce, to - from)];
+        for (int y0 = from; y0 < to; y0 += RowsAtOnce)
+        {
+            int rows = Mathf.Min(RowsAtOnce, to - y0);
+            System.Threading.Tasks.Parallel.For(0, rows, row =>
+            {
+                int y = y0 + row;
+                for (int x = 0; x < mapWidth; x++) band[row * mapWidth + x] = Explored(x, y) ? planet.MapColorAt(x, y) : Unexplored;
+            });
+            if (rows == RowsAtOnce) picture.SetPixels32(0, y0, mapWidth, rows, band);
+            else
+            {
+                var last = new Color32[mapWidth * rows];
+                System.Array.Copy(band, last, last.Length);
+                picture.SetPixels32(0, y0, mapWidth, rows, last);
+            }
+        }
+    }
+
+    // True while the map picture still has its own copy in memory, as well as the one on the graphics card. It keeps
+    // it only until the game has been set going (and a saved game put back), and then lets it go, which saves as much
+    // memory as the picture takes (about 265 MB on the nature planet).
+    bool pictureReadable;
+
+    // DrawAll starts the map fully drawn (creative mode).
+    public void Setup(PlanetOne planet, PlayerController player, Vector2 ship, bool drawAll = false)
     {
         this.planet = planet;
         this.player = player;
@@ -103,30 +147,29 @@ public class WorldMap : MonoBehaviour
         GameInput.PointerOverMap = PointerOverMap;
         worldMiddle = new Vector2(mapWidth / 2f, mapHeight / 2f);
 
-        explored = new bool[mapWidth, mapHeight];
+        explored = new uint[(mapWidth * mapHeight + 31) / 32];
         // The picture repeats past its east and west edges, as the planet does, so a map can show the land across the join.
         picture = new Texture2D(mapWidth, mapHeight, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp };
-        Color32[] pixels = wholeMap;
-        if (pixels != null)
+        pictureReadable = true;
+        if (drawAll)
         {
-            for (int y = 0; y < mapHeight; y++)
-            {
-                for (int x = 0; x < mapWidth; x++) explored[x, y] = true;
-            }
+            for (int i = 0; i < explored.Length; i++) explored[i] = ~0u;
             ExploredCount = mapWidth * mapHeight;
         }
-        else
-        {
-            pixels = new Color32[mapWidth * mapHeight];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = Unexplored;
-        }
-        picture.SetPixels32(pixels);
+        PaintRows(0, mapHeight);
         picture.Apply();
         Explore();
     }
 
     void Update()
     {
+        // The game is going: the map picture's copy in memory is let go (see pictureReadable). Newly seen squares are
+        // then sent straight to the graphics card's copy.
+        if (pictureReadable && SystemInfo.copyTextureSupport != UnityEngine.Rendering.CopyTextureSupport.None)
+        {
+            picture.Apply(false, true);
+            pictureReadable = false;
+        }
         // Typing stops when the map is put away.
         if (!Open && typing != null) StopTyping();
         if (GameInput.MapPressed()) Open = !Open;
@@ -204,16 +247,9 @@ public class WorldMap : MonoBehaviour
         w.Write(!all);
         if (all) return;
         // One bit for every square.
+        // (Kept in the same order as the bits are saved, so they are written straight out.)
         var bits = new byte[(mapWidth * mapHeight + 7) / 8];
-        for (int y = 0; y < mapHeight; y++)
-        {
-            for (int x = 0; x < mapWidth; x++)
-            {
-                if (!explored[x, y]) continue;
-                int i = y * mapWidth + x;
-                bits[i >> 3] |= (byte)(1 << (i & 7));
-            }
-        }
+        System.Buffer.BlockCopy(explored, 0, bits, 0, bits.Length);
         w.Write(bits.Length);
         w.Write(bits);
     }
@@ -225,19 +261,28 @@ public class WorldMap : MonoBehaviour
         for (int i = 0; i < found; i++) MarkCave(new Vector2(r.ReadSingle(), r.ReadSingle()));
         if (!r.ReadBoolean()) return;
         byte[] bits = r.ReadBytes(r.ReadInt32());
-        Color32[] pixels = picture.GetPixels32();
+        // The rows with anything newly seen in them are painted again.
+        int firstRow = int.MaxValue, lastRow = -1;
         for (int y = 0; y < mapHeight; y++)
         {
             for (int x = 0; x < mapWidth; x++)
             {
                 int i = y * mapWidth + x;
-                if (explored[x, y] || (i >> 3) >= bits.Length || (bits[i >> 3] & (1 << (i & 7))) == 0) continue;
-                explored[x, y] = true;
+                if (Explored(x, y) || (i >> 3) >= bits.Length || (bits[i >> 3] & (1 << (i & 7))) == 0) continue;
+                SetExplored(x, y);
                 ExploredCount++;
-                pixels[i] = planet.MapColorAt(x, y);
+                firstRow = Mathf.Min(firstRow, y);
+                lastRow = y;
             }
         }
-        picture.SetPixels32(pixels);
+        if (lastRow < 0) return;
+        if (!pictureReadable)
+        {
+            // Only while the game is being set going is there a copy to paint; this is not expected to happen.
+            Debug.LogWarning("The map was read after its picture was let go of.");
+            return;
+        }
+        PaintRows(firstRow, lastRow + 1);
         picture.Apply();
     }
 
@@ -301,12 +346,12 @@ public class WorldMap : MonoBehaviour
             {
                 Vector2Int spot = planet.Wrap(x, y);
                 int px = spot.x, py = spot.y;
-                if (explored[px, py]) continue;
-                explored[px, py] = true;
+                if (Explored(px, py)) continue;
+                SetExplored(px, py);
                 ExploredCount++;
                 Color32 color = planet.MapColorAt(px, py);
-                // Kept in the picture's own copy too, though only the graphics card's copy is drawn.
-                picture.SetPixel(px, py, color);
+                // Kept in the picture's own copy too while it has one, though only the graphics card's copy is drawn.
+                if (pictureReadable) picture.SetPixel(px, py, color);
                 brushPixels[count] = color;
                 brushTargets[count] = spot;
                 count++;

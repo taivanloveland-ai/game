@@ -165,7 +165,8 @@ public class Spiders : MonoBehaviour
 
         rand = new System.Random(planet.seed + 7);
         Vector2Int start = planet.CrashSite;
-        for (int y = 0; y < planet.height; y++)
+        // Spiders live on the ice, so there are none on the nature planet, which has none.
+        for (int y = 0; y < (PlanetOne.Nature ? 0 : planet.height); y++)
         {
             for (int x = 0; x < planet.width; x++)
             {

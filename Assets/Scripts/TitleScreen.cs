@@ -4,8 +4,9 @@ using UnityEngine;
 // hole it circles, against the stars. The title screen has three buttons: Survival, Creative and Exit. Picking a
 // mode starts the world being made, and the same scene stays up as the loading screen, with a line saying what is
 // being made and the black hole slowly turning, until the game begins.
-// Landing on the rocky planet in the ship, the loading screen shows the rocky planet spinning instead (Taivan's
-// request of 2026-10-19): tan desert with darker brown rock, under a dusty rim of air.
+// Landing on the second planet in the ship, the loading screen shows that planet spinning instead (Taivan's request
+// of 2026-10-19, for the rocky planet; since 2026-11-05 it is the nature planet): green grass, dark forests, blue
+// lakes and mossy rock, under a soft blue-green rim of air.
 public class TitleScreen : MonoBehaviour
 {
     // The planet is painted this many pixels across and drawn this many blocks across.
@@ -38,11 +39,12 @@ public class TitleScreen : MonoBehaviour
     const float AlgaeRound = 0.97f, AlgaeReach = 22f;
     // The way to the sun, for the planet's day and night sides.
     static readonly Vector3 ToSun = new Vector3(0.72f, 0.42f, 0.55f).normalized;
-    // Set before Setup to show the rocky planet instead of Planet 1. Its colours, from the ground's: its main tan
-    // (197, 157, 109), paler sand, browner hollows and dark brown rock; and its dusty air.
-    public static bool ShowRocky;
-    static readonly Color Sand = new Color32(197, 157, 109, 255), PaleSand = new Color32(210, 174, 128, 255), Hollow = new Color32(160, 124, 84, 255), BrownRock = new Color32(110, 82, 54, 255);
-    public static readonly Color Dust = new Color32(226, 196, 156, 255);
+    // Set before Setup to show the nature planet instead of Planet 1. Its colours, from the ground's: grass, lighter
+    // grass, forest, lake and mossy rock; and its air.
+    public static bool ShowNature;
+    static readonly Color Grass = PlanetOne.NatureMain, LightGrass = new Color32(122, 186, 80, 255), Forest = new Color32(40, 100, 44, 255);
+    static readonly Color Lake = new Color32(40, 114, 156, 255), MossRock = new Color32(92, 88, 66, 255);
+    public static readonly Color NatureAir = new Color32(170, 222, 214, 255);
 
     PlanetOne planet;
     Camera cam;
@@ -330,15 +332,15 @@ public class TitleScreen : MonoBehaviour
     // North is up.
     void MapPlanet()
     {
-        landMap = LandMap(ShowRocky);
+        landMap = LandMap(ShowNature);
         nightMap = new Color32[MapWide * MapTall];
         for (int i = 0; i < landMap.Length; i++) nightMap[i] = Color.Lerp(Night, landMap[i], 0.1f);
         MapBall();
     }
 
-    // Planet 1's lands, or the rocky planet's, as a flat map MapWide round and MapTall tall, north at the top. (Used
+    // Planet 1's lands, or the nature planet's, as a flat map MapWide round and MapTall tall, north at the top. (Used
     // for the planets seen from the ship in space too.)
-    public static Color32[] LandMap(bool rocky)
+    public static Color32[] LandMap(bool nature)
     {
         var landMap = new Color32[MapWide * MapTall];
         for (int row = 0; row < MapTall; row++)
@@ -349,11 +351,11 @@ public class TitleScreen : MonoBehaviour
             {
                 float around = column * (float)BlobsRound / MapWide;
                 Color land;
-                if (rocky)
+                if (nature)
                 {
-                    // Desert all over, with rock and hollows, and paler sand in drifts.
+                    // Grass all over, with lakes, mossy rock, dark forests and lighter meadows.
                     float e = Noise(around, up, 11, BlobsRound) * 0.65f + Noise(around * 2.6f, up * 2.6f, 23, 91) * 0.35f;
-                    land = e > 0.62f ? BrownRock : e < 0.4f ? Hollow : Noise(around * 3f, up * 3f, 37, 105) > 0.62f ? PaleSand : Sand;
+                    land = e > 0.63f ? MossRock : e < 0.4f ? Lake : Noise(around * 2f, up * 2f, 41, 70) > 0.56f ? Forest : Noise(around * 3f, up * 3f, 37, 105) > 0.64f ? LightGrass : Grass;
                 }
                 else if (latitude > NorthIceFrom) land = Ice;
                 else if (latitude > MountainsFrom) land = Noise(around * 2.4f, up * 2.4f, 31, 84) > 0.6f ? Peak : Noise(around * 1.6f, up * 1.6f, 47, 56) > 0.36f ? Rock : Snow;
@@ -414,7 +416,7 @@ public class TitleScreen : MonoBehaviour
     // stays where it is.
     void PaintPlanet()
     {
-        Color32 airColour = ShowRocky ? Dust : Air;
+        Color32 airColour = ShowNature ? NatureAir : Air;
         float turned = Mathf.Repeat(spin, 1f) * MapWide;
         for (int i = 0; i < ballPixel.Length; i++)
         {
