@@ -34,9 +34,12 @@ public class Mining : MonoBehaviour
     public enum Result { NotMining, NoPickaxe, Nothing, TooFar, CannotBreak, Hit, Broke }
 
     public Item SnowItem { get; private set; }
-    // The rocky planet's ground, dug: sand (Taivan, 2026-10-20). Placed, it is a block of the ground as it is where it
-    // is put: sand on the rocky planet, snow on the frost planet.
+    // The rocky planet's ground, dug: sand (Taivan, 2026-10-20). The rocky planet is gone (2026-11-05), but sand
+    // already carried is kept. Placed, it is a block of the ground as it is where it is put.
     public Item SandItem { get; private set; }
+    // The nature planet's ground, dug: dirt (Taivan's pick, 2026-11-05). Placed, it is likewise a block of the ground
+    // where it is put: grass and dirt on the nature planet, snow on the frost planet.
+    public Item DirtItem { get; private set; }
     public Item IceItem { get; private set; }
     public Item StoneItem { get; private set; }
     public Item AlgaeItem { get; private set; }
@@ -75,6 +78,7 @@ public class Mining : MonoBehaviour
 
         SnowItem = new Item("Snow", planet.SnowIcon != null ? planet.SnowIcon : planet.Square, PlanetOne.SideBlock.Snow);
         SandItem = new Item("Sand", planet.SandIcon != null ? planet.SandIcon : planet.Square, PlanetOne.SideBlock.Snow);
+        DirtItem = new Item("Dirt", planet.DirtIcon != null ? planet.DirtIcon : planet.Square, PlanetOne.SideBlock.Snow);
         IceItem = new Item("Ice", planet.IceSprite != null ? planet.IceSprite : planet.IceSideSprites[0], PlanetOne.SideBlock.Ice);
         AlgaeItem = new Item("Algae", planet.AlgaeLookSprite(0) ?? PlanetOne.PaintSprite(16, 16, new Vector2(0.5f, 0.5f), 16, (x, y) => PlanetOne.AlgaePixel(0, x, y)), PlanetOne.SideBlock.Algae);
         StoneItem = new Item("Stone", PlanetOne.PaintSprite(FinePixels, FinePixels, new Vector2(0.5f, 0.5f), FinePixels, true, StonePixel), PlanetOne.SideBlock.Stone);
@@ -183,7 +187,7 @@ public class Mining : MonoBehaviour
 
     Item ItemFor(PlanetOne.SideBlock block)
     {
-        return block == PlanetOne.SideBlock.Snow ? (PlanetOne.Rocky ? SandItem : SnowItem) : block == PlanetOne.SideBlock.Ice ? IceItem : block == PlanetOne.SideBlock.Algae ? AlgaeItem : StoneItem;
+        return block == PlanetOne.SideBlock.Snow ? (PlanetOne.Nature ? DirtItem : SnowItem) : block == PlanetOne.SideBlock.Ice ? IceItem : block == PlanetOne.SideBlock.Algae ? AlgaeItem : StoneItem;
     }
 
     // Handles a left click at a point on screen (given in world units): one hit with the pickaxe on the block there.

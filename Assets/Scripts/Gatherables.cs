@@ -311,8 +311,19 @@ public class Gatherables : MonoBehaviour
         clump.Shadow = !UsePicture(clump, "Art/AlgaeClump", ClumpPicturePixelsPerUnit);
         ClumpItem = clump.Item;
         var rand = new System.Random(planet.seed + 1);
-        // Nothing grows on the rocky planet.
-        for (int y = 0; y < (PlanetOne.Rocky ? 0 : planet.height); y++)
+        // On the nature planet only trees grow (and they are not kept in the list: see TreeAt).
+        if (PlanetOne.Nature)
+        {
+            // (The thornam bush's items are still made, as recipes and saved games use them.)
+            MakeBush();
+            MakeTrees();
+            mining.RowBuilt += BuildSideView;
+            planet.BlockMined += OnBlockMined;
+            planet.Obstacle = (x, y) => HasThingAt(new Vector2Int(x, y));
+            ShowNearby();
+            return;
+        }
+        for (int y = 0; y < planet.height; y++)
         {
             for (int x = 0; x < planet.width; x++)
             {
@@ -330,7 +341,7 @@ public class Gatherables : MonoBehaviour
         mining.RowBuilt += BuildSideView;
         planet.BlockMined += OnBlockMined;
         // Ferns and ice shards are in the way: the player walks round them, or jumps onto them.
-        planet.Obstacle = (x, y) => things.ContainsKey(new Vector2Int(x, y));
+        planet.Obstacle = (x, y) => HasThingAt(new Vector2Int(x, y));
         ShowNearby();
     }
 
@@ -694,7 +705,7 @@ public class Gatherables : MonoBehaviour
     void OnBlockMined(int x, int row, int level)
     {
         var cell = new Vector2Int(x, row);
-        if (level == planet.GroundAt(x, row) - 1 && things.ContainsKey(planet.Wrap(cell))) Collect(cell);
+        if (level == planet.GroundAt(x, row) - 1 && HasThingAt(planet.Wrap(cell))) Collect(cell);
     }
 
     // Keeps a top-down picture for every thing on the land that is currently drawn, and none for the rest.
@@ -716,7 +727,7 @@ public class Gatherables : MonoBehaviour
         }
         foreach (Vector2Int cell in window.allPositionsWithin)
         {
-            if (!shown.ContainsKey(cell) && things.TryGetValue(planet.Wrap(cell), out Kind kind)) Show(kind, cell);
+            if (!shown.ContainsKey(cell) && TryThing(planet.Wrap(cell), out Kind kind)) Show(kind, cell);
         }
     }
 
@@ -835,7 +846,7 @@ public class Gatherables : MonoBehaviour
             for (int along = mining.WindowStart; along < mining.WindowStart + MiningMode.WindowColumns; along++)
             {
                 Vector2Int cell = mining.Cell(along, back);
-                if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
+                if (!TryThing(planet.Wrap(cell), out Kind kind)) continue;
                 var go = new GameObject(kind.Item.Name);
                 go.transform.SetParent(mining.Root, false);
                 go.transform.position = new Vector3(along + 0.5f, planet.GroundAt(cell.x, cell.y) + MiningMode.BehindLift(back), 0f);
@@ -874,9 +885,10 @@ public class Gatherables : MonoBehaviour
     public bool ClickAt(Vector2 point)
     {
         if (!FindThingAt(point, out Vector2Int cell)) return false;
-        if (things[planet.Wrap(cell)].NeedsAxe && (AxeEquipped == null || !AxeEquipped()))
+        TryThing(planet.Wrap(cell), out Kind clicked);
+        if (clicked.NeedsAxe && (AxeEquipped == null || !AxeEquipped()))
         {
-            Say?.Invoke("You need an ice axe to cut down a thornam bush");
+            Say?.Invoke("You need an ice axe to cut down a " + clicked.Item.Name.ToLowerInvariant());
             return false;
         }
         if (InReach(cell))
@@ -896,8 +908,9 @@ public class Gatherables : MonoBehaviour
     void Collect(Vector2Int cell)
     {
         Vector2Int onPlanet = planet.Wrap(cell);
-        Kind kind = things[onPlanet];
+        TryThing(onPlanet, out Kind kind);
         things.Remove(onPlanet);
+        // (A tree is gone once it is in this list.)
         if (surfaceThings == null) collected.Add(onPlanet);
         if (shown.TryGetValue(cell, out GameObject picture))
         {
@@ -928,7 +941,156 @@ public class Gatherables : MonoBehaviour
     // True if a fern or ice shard stands on a square of the world.
     public bool HasThing(Vector2Int cell)
     {
-        return things.ContainsKey(planet.Wrap(cell));
+        return HasThingAt(planet.Wrap(cell));
+    }
+
+    // What stands on a square, given by its position within the planet: a thing kept in the list, or on the nature
+    // planet a tree.
+    bool TryThing(Vector2Int spot, out Kind kind)
+    {
+        if (things.TryGetValue(spot, out kind)) return true;
+        kind = TreeAt(spot);
+        return kind != null;
+    }
+
+    bool HasThingAt(Vector2Int spot) => things.ContainsKey(spot) || TreeAt(spot) != null;
+
+    // ---- Trees, on the nature planet ----
+    // The nature planet has about a million trees, too many to keep a list of (asked 2026-11-05 to keep the planet's
+    // data small). So whether a square has a tree is worked out from where it is, the same way every time for the same
+    // world: none on the frost planet, in caves, on anything but grass at its natural height, or right round the
+    // ship; elsewhere a tree stands on a share of the grass squares, a few out in the open and many in the forests.
+    // A tree that has been cut down is in the collected list, which saved games already keep.
+    // Taivan picked "Ground + lakes + trees" with simple placeholder trees until he draws them. How they look, the
+    // two kinds (round leafy trees and pines), how thick the forests are, and that they are cut down with an ice axe
+    // for 3 wood are Claude's choices.
+    const float OpenTreeShare = 0.004f, ForestTreeShare = 0.16f;
+    // No trees this many squares round the crash site, so the ship has room.
+    const int TreeClearing = 5;
+    Kind leafyTree, pineTree;
+    public Item WoodItem { get; private set; }
+
+    Kind TreeAt(Vector2Int spot)
+    {
+        if (leafyTree == null || surfaceThings != null || collected.Contains(spot)) return null;
+        int x = spot.x, y = spot.y;
+        if (Mathf.Abs(x - planet.CrashSite.x) <= TreeClearing && Mathf.Abs(y - planet.CrashSite.y) <= TreeClearing + 3) return null;
+        // Only on grass. (Digging out the block under a tree knocks it loose, as it does a fern.)
+        if (!planet.IsSnow(x, y)) return null;
+        float roll = TreeHash(x, y, 0);
+        if (roll >= OpenTreeShare + ForestTreeShare) return null;
+        if (roll >= OpenTreeShare + ForestTreeShare * planet.ForestAt(x, y)) return null;
+        return TreeHash(x, y, 1) < 0.6f ? leafyTree : pineTree;
+    }
+
+    // A number from 0 to 1 for a square, always the same for the same square of the same world.
+    float TreeHash(int x, int y, int salt)
+    {
+        unchecked
+        {
+            uint h = (uint)x * 0x8DA6B343u ^ (uint)y * 0xD8163841u ^ (uint)(planet.seed * 31 + salt) * 0xCB1AB31Fu;
+            h ^= h >> 15;
+            h *= 0x2C1B3C6Du;
+            h ^= h >> 12;
+            h *= 0x297A2D39u;
+            h ^= h >> 15;
+            return (h & 0xFFFFFF) / (float)0x1000000;
+        }
+    }
+
+    // The trees' colours: leaves lit, in between and shaded, with a dark edge; the trunk lit and shaded.
+    static readonly Color32 LeafLight = new Color32(132, 200, 88, 255), LeafMid = new Color32(78, 156, 62, 255), LeafDark = new Color32(46, 110, 48, 255);
+    static readonly Color32 LeafEdge = new Color32(24, 64, 32, 255);
+    static readonly Color32 PineLight = new Color32(86, 162, 92, 255), PineMid = new Color32(50, 120, 72, 255), PineDark = new Color32(30, 86, 56, 255);
+    static readonly Color32 BarkLight = new Color32(132, 94, 58, 255), BarkDark = new Color32(86, 58, 36, 255);
+    // Trees are painted at the fine scale, 128 pixels to a square, this many squares wide and tall.
+    const int TreePixelsPerSquare = 128;
+    const float TreeWide = 1.5f, TreeTall = 2.4f;
+
+    void MakeTrees()
+    {
+        WoodItem = new Item("Wood", LooseSprite((x, y) => WoodPixel(x, y)));
+        int wide = Mathf.RoundToInt(TreeWide * TreePixelsPerSquare), tall = Mathf.RoundToInt(TreeTall * TreePixelsPerSquare);
+        leafyTree = MakeKind("Tree", wide, tall, TreePixelsPerSquare, true, (x, y) => LeafyTreePixel(x / (float)TreePixelsPerSquare, (tall - 1 - y) / (float)TreePixelsPerSquare));
+        pineTree = MakeKind("Tree", wide, tall, TreePixelsPerSquare, true, (x, y) => PineTreePixel(x / (float)TreePixelsPerSquare, (tall - 1 - y) / (float)TreePixelsPerSquare));
+        foreach (Kind tree in new[] { leafyTree, pineTree })
+        {
+            tree.Drops = new[] { WoodItem };
+            tree.DropCounts = new[] { 3 };
+            tree.NeedsAxe = true;
+        }
+    }
+
+    // The trunk, from the ground up: a short brown post in the middle, lit on its left. Across and up are in squares,
+    // up from the ground.
+    static Color32 TrunkPixel(float across, float up, float top)
+    {
+        float from = across - TreeWide / 2f;
+        if (up > top || Mathf.Abs(from) > 0.12f) return Clear;
+        return Mathf.Abs(from) > 0.1f ? LeafEdge : from < -0.02f ? BarkLight : BarkDark;
+    }
+
+    // A round leafy tree: overlapping puffs of leaves on a trunk, lit from the top left, in hard-edged flat shades,
+    // with a dark edge.
+    static Color32 LeafyTreePixel(float across, float up)
+    {
+        float[] middleX = { 0.75f, 0.43f, 1.07f, 0.75f }, middleY = { 1.75f, 1.32f, 1.32f, 1.2f }, radius = { 0.6f, 0.36f, 0.36f, 0.42f };
+        bool edge = false;
+        float best = float.MaxValue;
+        Color32 leaf = Clear;
+        for (int i = 0; i < middleX.Length; i++)
+        {
+            float dx = across - middleX[i], dy = up - middleY[i];
+            float away = Mathf.Sqrt(dx * dx + dy * dy);
+            if (away > radius[i])
+            {
+                edge |= away <= radius[i] + 0.045f;
+                continue;
+            }
+            // Lit toward the top left of the whole tree, shaded toward the bottom right, with clumps of leaves.
+            float light = -(across - 0.75f) * 0.6f + (up - 1.4f) + Mathf.Sin(across * 41f) * Mathf.Sin(up * 37f) * 0.12f;
+            Color32 c = light > 0.28f ? LeafLight : light > -0.2f ? LeafMid : LeafDark;
+            if (away < best) { best = away; leaf = c; }
+        }
+        if (leaf.a > 0) return leaf;
+        if (edge && up > 0.85f) return LeafEdge;
+        return TrunkPixel(across, up, 1.1f);
+    }
+
+    // A pine: three tiers of dark needles, each a little narrower than the one under it, on a trunk.
+    static Color32 PineTreePixel(float across, float up)
+    {
+        float from = across - TreeWide / 2f;
+        float[] bottom = { 0.45f, 1.05f, 1.6f }, height = { 0.8f, 0.75f, 0.75f }, halfWidth = { 0.7f, 0.55f, 0.4f };
+        for (int i = bottom.Length - 1; i >= 0; i--)
+        {
+            float into = (up - bottom[i]) / height[i];
+            if (into < 0f || into > 1f) continue;
+            float reach = halfWidth[i] * (1f - into);
+            if (Mathf.Abs(from) > reach) continue;
+            if (Mathf.Abs(from) > reach - 0.045f || into < 0.06f) return LeafEdge;
+            float light = -from / Mathf.Max(0.05f, reach) + (into - 0.5f) * 0.6f;
+            return light > 0.35f ? PineLight : light > -0.3f ? PineMid : PineDark;
+        }
+        return TrunkPixel(across, up, 0.6f);
+    }
+
+    // A log of wood, at the fine scale (y counts down from the top): a brown length with a pale cut end and rings.
+    static Color32 WoodPixel(int x, int y)
+    {
+        float endX = 92f, endY = 64f, dx = (x - endX) / 22f, dy = (y - endY) / 30f;
+        float end = dx * dx + dy * dy;
+        if (end <= 1f)
+        {
+            float ring = Mathf.Sqrt(end);
+            return ring > 0.86f ? BarkDark : Mathf.Repeat(ring * 3.2f, 1f) < 0.22f ? new Color32(170, 128, 80, 255) : new Color32(214, 176, 120, 255);
+        }
+        if (x >= 24 && x <= endX && y >= endY - 30f && y <= endY + 30f)
+        {
+            if (x < 30 && Mathf.Abs(y - endY) > 26f) return Clear;
+            return y < endY - 22f ? BarkLight : y > endY + 18f ? BarkDark : new Color32(110, 76, 46, 255);
+        }
+        return Clear;
     }
 
     // True if the picture of a fern or ice shard is under a point on screen (given in world units).
@@ -950,7 +1112,7 @@ public class Gatherables : MonoBehaviour
             for (int x = px - 1; x <= px + 1; x++)
             {
                 Vector2Int cell = side ? mining.Cell(x) : new Vector2Int(x, y);
-                if (!things.TryGetValue(planet.Wrap(cell), out Kind kind)) continue;
+                if (!TryThing(planet.Wrap(cell), out Kind kind)) continue;
                 float ground = planet.GroundAt(cell.x, cell.y);
                 float bottom = side ? ground : y + BaseOffset + ground * PlanetOne.HeightScale;
                 if (Mathf.Abs(point.x - (x + 0.5f)) > kind.Width / 2f + ClickPadding) continue;
@@ -1025,7 +1187,7 @@ public class Gatherables : MonoBehaviour
         target = goal;
         // Give up if the thing is gone, the view or the row or column changed, or the player took over the controls.
         bool sameView = mining.Active == walkInSideView && (!walkInSideView || (mining.Column == walkColumn && mining.Slice == walkSlice));
-        if (!things.ContainsKey(planet.Wrap(goal)) || !sameView || player.HasManualInput)
+        if (!HasThingAt(planet.Wrap(goal)) || !sameView || player.HasManualInput)
         {
             target = null;
             return;

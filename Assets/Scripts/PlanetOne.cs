@@ -43,14 +43,17 @@ public class PlanetOne : MonoBehaviour
     // Whether the world being made gets that road.
     bool makeRoad;
 
-    // Which planet is being made: Planet 1, the ice planet, or (true) the rocky planet, the next planet the fixed ship
-    // flies to (Taivan's request of 2026-10-18). The rocky planet is red desert rock, 1.25 times as big, and for now
-    // just its ground: no ice caps, ocean, algae, mountains, caves, plants, spiders, ice pillar or weather. It is made
-    // the same way as Planet 1 otherwise, from the same saved game's seed, with every colour turned to the desert's.
-    public static bool Rocky;
-    public const int RockyWidth = 7200, RockyHeight = 3600;
-    // For checking: a new game started with -rocky on the command line begins on the rocky planet.
-    static bool StartRocky => System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-rocky") >= 0;
+    // Which planet is being made: Planet 1, the frost planet, or (true) the nature planet, the next planet the fixed
+    // ship flies to. (It was the rocky planet, a tan desert, from 2026-10-18 until Taivan asked on 2026-11-05: "delete
+    // the rocky planet and make a nature planet 2x the size of cryo planet".) The nature planet is twice as wide and
+    // twice as tall as the frost planet: grass, with dirt under it, lakes of water you can swim in, mossy rocks, raised
+    // ground, and trees, thick in forests. It has no ice caps, ocean, algae, mountains, caves, spiders, ice pillar or
+    // weather. It is made the same way as Planet 1 otherwise, from the same saved game's seed, with every colour
+    // turned to the nature planet's.
+    public static bool Nature;
+    public const int NatureWidth = 11520, NatureHeight = 5760;
+    // For checking: a new game started with -nature on the command line begins on the nature planet.
+    static bool StartNature => System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-nature") >= 0;
     // A trip in the ship: the saved game to carry on with on the other planet once the scene has started again, its
     // slot, and whether the player begins sitting in the ship.
     static SaveGame.Loaded travelling;
@@ -58,9 +61,9 @@ public class PlanetOne : MonoBehaviour
     static bool arriveAboard;
 
     // Where the player starts on a planet: just in front of the ship.
-    public static Vector2 StartSpot(bool rocky)
+    public static Vector2 StartSpot(bool nature)
     {
-        int wide = rocky ? RockyWidth : 5760, tall = rocky ? RockyHeight : 2880;
+        int wide = nature ? NatureWidth : 5760, tall = nature ? NatureHeight : 2880;
         return new Vector2(wide / 2 + 0.5f, tall / 4 - 0.5f);
     }
 
@@ -163,6 +166,8 @@ public class PlanetOne : MonoBehaviour
     // number, its far shore wandering in bumps about the third number of squares across. The water is this many
     // blocks deep, with stone under it.
     const int OceanWidth = 150, OceanWobble = 25, OceanDepth = 4;
+    // Under the nature planet's lakes is this many blocks of dirt, then stone.
+    const int LakeBedDepth = 2;
     const float OceanBlobSize = 160f;
     // A ring of mountains like the Himalayas stands round the North Pole's ice sheet, this many squares deep. Its
     // peaks are this many blocks tall. (Round the South Pole, the ocean is where the mountains were.)
@@ -360,12 +365,90 @@ public class PlanetOne : MonoBehaviour
     readonly Dictionary<Vector2Int, Vector2Int> algaeTops = new Dictionary<Vector2Int, Vector2Int>();
     readonly Dictionary<long, Tile> algaeLayerTiles = new Dictionary<long, Tile>();
 
-    byte[,] kind;
+    // Everything about one square of a land is packed into a single 32-bit number (asked 2026-11-05: "find a more
+    // efficient way to store planet data"). Until then each of the eight things below had a whole byte grid of its
+    // own, 8 bytes a square; now a square takes 4, so the nature planet, 11520 x 5760 squares, fits in about 265 MB.
+    // The bits, from the lowest: what the land is made of (3), raised ground (1), algae (1), ice or lake depth (3),
+    // snow depth (3), mountain height (7: while the mountains are being shaped it holds up to 70), the top as made (6)
+    // and the top now (8, signed).
+    sealed class LandCells
+    {
+        public readonly int Width, Height;
+        public readonly uint[] Bits;
+        public LandCells(int width, int height)
+        {
+            Width = width;
+            Height = height;
+            Bits = new uint[width * height];
+        }
+    }
+
+    // One of the things packed into each square, read and written like a grid: field[x, y].
+    // (Each square is only ever written by one thread at a time: the land is worked out row by row.)
+    sealed class CellField
+    {
+        readonly LandCells cells;
+        readonly int shift;
+        readonly uint mask;
+        public CellField(LandCells cells, int shift, int bits)
+        {
+            this.cells = cells;
+            this.shift = shift;
+            mask = (1u << bits) - 1u;
+        }
+        public byte this[int x, int y]
+        {
+            get => (byte)((cells.Bits[y * cells.Width + x] >> shift) & mask);
+            set
+            {
+                int i = y * cells.Width + x;
+                cells.Bits[i] = (cells.Bits[i] & ~(mask << shift)) | (((uint)value & mask) << shift);
+            }
+        }
+    }
+
+    // The same for the one thing that can be below zero: the top of a square, which mining can take underground.
+    sealed class SignedCellField
+    {
+        readonly LandCells cells;
+        readonly int shift;
+        public SignedCellField(LandCells cells, int shift)
+        {
+            this.cells = cells;
+            this.shift = shift;
+        }
+        public sbyte this[int x, int y]
+        {
+            get => (sbyte)(byte)(cells.Bits[y * cells.Width + x] >> shift);
+            set
+            {
+                int i = y * cells.Width + x;
+                cells.Bits[i] = (cells.Bits[i] & ~(0xFFu << shift)) | ((uint)(byte)value << shift);
+            }
+        }
+    }
+
+    // A land's squares and the views onto them, made together.
+    static Land NewLand(int width, int height)
+    {
+        var cells = new LandCells(width, height);
+        return new Land
+        {
+            Width = width, Height = height, Cells = cells,
+            Kind = new CellField(cells, 0, 3), Ground = new CellField(cells, 3, 1), Algae = new CellField(cells, 4, 1),
+            IceDepth = new CellField(cells, 5, 3), SnowDepth = new CellField(cells, 8, 3), Mountain = new CellField(cells, 11, 7),
+            BaseTop = new CellField(cells, 18, 6), Top = new SignedCellField(cells, 24),
+        };
+    }
+
+    // The squares of the land in use, all packed together.
+    LandCells cells;
+    CellField kind;
     // Height of the walkable ground at each spot (0 or 1), and the height of whatever stands there (rock and ship are taller).
-    byte[,] ground;
+    CellField ground;
     // The top of each spot as the world was made, and as it is now after any mining. Mining can take it below zero.
-    byte[,] baseTop;
-    sbyte[,] top;
+    CellField baseTop;
+    SignedCellField top;
     // The blocks that have been mined away, by spot: the levels removed from that spot's column.
     Dictionary<Vector2Int, HashSet<int>> mined = new Dictionary<Vector2Int, HashSet<int>>();
 
@@ -375,13 +458,14 @@ public class PlanetOne : MonoBehaviour
 
     // Raised after a block is mined, with its spot (unwrapped, as given) and level.
     public event System.Action<int, int, int> BlockMined;
-    // How many blocks deep the ice and the snow go at each spot, seen from the side.
-    byte[,] iceDepth;
-    byte[,] snowDepth;
+    // How many blocks deep the ice and the snow go at each spot, seen from the side. (On the nature planet the first
+    // is how deep a lake is.)
+    CellField iceDepth;
+    CellField snowDepth;
     // How many blocks tall the mountain is at each spot, or 0 where there is none.
-    byte[,] mountain;
+    CellField mountain;
     // 1 where algae covers the top of the ground. Null in a cave.
-    byte[,] algae;
+    CellField algae;
     Tilemap algaeGlow;
     DayNight sky;
     float glowShown = -1f;
@@ -444,7 +528,7 @@ public class PlanetOne : MonoBehaviour
         Time.timeScale = 1f;
         GameInput.Blocked = false;
         GameInput.InShip = false;
-        TitleScreen.ShowRocky = false;
+        TitleScreen.ShowNature = false;
         GameInput.PointerOverInventory = null;
         GameInput.PointerOverMap = null;
         GameInput.PointerOverTools = null;
@@ -470,7 +554,7 @@ public class PlanetOne : MonoBehaviour
             SaveGame.Loaded trip = travelling;
             travelling = null;
             // The loading screen shows the planet being landed on, spinning.
-            TitleScreen.ShowRocky = trip.Planet == 1;
+            TitleScreen.ShowNature = trip.Planet == 1;
             var landing = gameObject.AddComponent<TitleScreen>();
             landing.Setup(this, cam);
             landing.Choose(trip.Creative, travellingSlot, trip, trip.Name);
@@ -524,8 +608,6 @@ public class PlanetOne : MonoBehaviour
     // What is being made right now, for the loading screen, and whether the game has begun.
     public volatile string LoadingStage = "";
     public bool Ready { get; private set; }
-    // In creative mode, the colour of every square of the planet, for a map that starts fully drawn.
-    Color32[] wholeMap;
 
     // The save slot this game is played in, counting from 0, or -1 for none; and the saved game being carried on, if
     // this is not a new one.
@@ -562,21 +644,23 @@ public class PlanetOne : MonoBehaviour
     void MakeWorld(bool creative)
     {
         // Which planet: the saved game says, and a new game begins on Planet 1.
-        Rocky = loading != null ? loading.Planet == 1 : StartRocky;
-        width = Rocky ? RockyWidth : 5760;
-        height = Rocky ? RockyHeight : 2880;
+        Nature = loading != null ? loading.Planet == 1 : StartNature;
+        width = Nature ? NatureWidth : 5760;
+        height = Nature ? NatureHeight : 2880;
         // The ship came down in the southern half of the planet, half way between the equator and the South Pole.
         int cx = width / 2, cy = height / 4;
         CrashSite = new Vector2Int(cx, cy - 1);
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var picker = new System.Random();
         // A saved game's world is made again from its own seed. A new game's world is picked at random.
-        bool pick = randomWorld && loading == null && !Rocky;
-        makeRoad = creative && roadToCapsInCreative && !Rocky;
+        bool pick = randomWorld && loading == null && !Nature;
+        makeRoad = creative && roadToCapsInCreative && !Nature;
         if (loading != null) seed = loading.Seed;
         if (pick) seed = picker.Next(1, 1000000);
         GenerateLand(cx, cy);
-        float reachable = ReachableShare(cx, cy);
+        // How much can be walked to is only worked out when a random world might be thrown away for it: it goes over
+        // every square, which takes a lot of time and memory on a planet this big.
+        float reachable = pick ? ReachableShare(cx, cy) : -1f;
         // A random world is thrown away and picked again if rock walls off too much of it from the crash site.
         for (int tries = 0; pick && tries < 5 && reachable < MinReachableShare; tries++)
         {
@@ -585,22 +669,13 @@ public class PlanetOne : MonoBehaviour
             reachable = ReachableShare(cx, cy);
         }
         // Logged so a world worth keeping can be built again by typing its seed in and unticking Random World.
-        Debug.Log("World seed: " + seed + " (" + Mathf.RoundToInt(reachable * 100f) + "% of its snow and ice can be walked to, worked out in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds)");
-        LoadingStage = "Digging the frost caves";
-        if (!Rocky) FindCaveEntrances();
-        if (creative)
-        {
-            // In creative mode the whole map is drawn from the start.
-            // (Which rows of the algae have lines is worked out first, before the map is drawn on many cores at once.)
-            RowIsLined(0);
-            LoadingStage = "Drawing the map";
-            var colours = new Color32[width * height];
-            System.Threading.Tasks.Parallel.For(0, height, y =>
-            {
-                for (int x = 0; x < width; x++) colours[y * width + x] = MapColorAt(x, y);
-            });
-            wholeMap = colours;
-        }
+        Debug.Log("World seed: " + seed + (reachable >= 0f ? " (" + Mathf.RoundToInt(reachable * 100f) + "% of its snow and ice can be walked to)" : "") + ", worked out in " + (timer.ElapsedMilliseconds / 1000f).ToString("F1") + " seconds");
+        LoadingStage = Nature ? "Planting the forests" : "Digging the frost caves";
+        if (!Nature) FindCaveEntrances();
+        // (Which rows of the algae have lines is worked out here, before the map is drawn on many cores at once.)
+        RowIsLined(0);
+        // In creative mode the whole map is drawn from the start, as the game begins.
+        if (creative) LoadingStage = "Drawing the map";
     }
 
     // Puts the world on screen and sets the game going: the land, the player, and everything else in the game.
@@ -610,9 +685,10 @@ public class PlanetOne : MonoBehaviour
         if (snowPicture != null)
         {
             SnowIcon = snowPicture.Sprite;
-            SandIcon = SandSprite(snowPicture);
+            SandIcon = Recoloured(snowPicture, Desert);
+            DirtIcon = Recoloured(snowPicture, Dirt);
         }
-        if (Rocky) MakeDesertPictures();
+        if (Nature) MakeNaturePictures();
         BuildTerrain();
 
         PlayerController controller = BuildPlayer(new Vector2(cx + 0.5f, cy - 0.5f));
@@ -654,7 +730,7 @@ public class PlanetOne : MonoBehaviour
         if (startBlocks > 0)
         {
             var blocks = creative
-                ? new[] { Rocky ? pickaxeWork.SandItem : pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem }
+                ? new[] { Nature ? pickaxeWork.DirtItem : pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem, pickaxeWork.AlgaeItem }
                 : new[] { pickaxeWork.SnowItem, pickaxeWork.IceItem, pickaxeWork.StoneItem };
             foreach (Item block in blocks)
             {
@@ -674,8 +750,7 @@ public class PlanetOne : MonoBehaviour
         gatherables.Say = text => hud.Say(text, 2f);
         // The maps mark the ship at the middle of its hull.
         var worldMap = gameObject.AddComponent<WorldMap>();
-        worldMap.Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f), wholeMap);
-        wholeMap = null;
+        worldMap.Setup(this, controller, new Vector2(cx + 0.5f, cy + 2f), creative);
         // The frost caves in the mountains. Falling in one, the player wakes up at the ship as usual.
         var caves = gameObject.AddComponent<Caves>();
         caves.Setup(this, controller, mining, cam, dayNight, gatherables, spiders, pickups, worldMap);
@@ -696,7 +771,7 @@ public class PlanetOne : MonoBehaviour
             {
                 gatherables.PlantItem, gatherables.ShardItem, gatherables.ClumpItem, gatherables.ThornItem, gatherables.VineItem,
                 gatherables.StickItem, spiders.SilkItem, spiders.LegItem, spiders.FangItem, GetComponent<IceBoss>().OrbItem, nook.Cleats,
-                nook.CrystalShard, nook.Battery,
+                nook.CrystalShard, nook.Battery, gatherables.WoodItem,
             })
             {
                 if (item != null && inventory.CountOf(item) == 0) inventory.Add(item, 999);
@@ -709,18 +784,18 @@ public class PlanetOne : MonoBehaviour
         nook.OnShip = crashedShip.Covers;
         // Getting in the fixed ship, and flying it.
         var flight = gameObject.AddComponent<ShipFlight>();
-        // From the rocky planet, the way back is to Planet 1; and the ship stands on desert sand.
-        if (Rocky)
+        // From the nature planet, the way back is to Planet 1; and the ship stands on grass.
+        if (Nature)
         {
             flight.NextPlanetName = "the frost planet";
-            flight.HomeName = "the rocky planet";
+            flight.HomeName = "the nature planet";
             flight.PaintNext = ShipFlight.PaintIcy;
-            flight.PaintHome = ShipFlight.PaintRocky;
+            flight.PaintHome = ShipFlight.PaintNature;
             flight.NextColor = new Color32(0xE4, 0xEE, 0xF4, 255);
-            flight.HomeColor = new Color32(197, 157, 109, 255);
-            flight.GroundColor = Desert(SnowColors[0][0]);
-            flight.GroundShade = Desert(SnowFace);
-            flight.GroundSpeck = Desert(RockEdge);
+            flight.HomeColor = NatureMain;
+            flight.GroundColor = Greenery(SnowColors[0][0]);
+            flight.GroundShade = Greenery(SnowRim);
+            flight.GroundSpeck = Greenery(SnowColors[1][2]);
         }
         flight.ExhaustShards = GetComponent<IceBoss>().ShardSprites;
         flight.Setup(this, controller, mining, nook, crashedShip, hud, cam, dayNight);
@@ -751,7 +826,7 @@ public class PlanetOne : MonoBehaviour
         if (arriveAboard)
         {
             arriveAboard = false;
-            hud.Say("You landed on " + (Rocky ? "the rocky planet" : "the frost planet") + "!", 4f);
+            hud.Say("You landed on " + (Nature ? "the nature planet" : "the frost planet") + "!", 4f);
         }
         Ready = true;
     }
@@ -760,7 +835,7 @@ public class PlanetOne : MonoBehaviour
     // workbench), and starts the scene again to make that planet.
     void TravelOnward(SaveGame saves)
     {
-        travelling = saves.Travel(!Rocky);
+        travelling = saves.Travel(!Nature);
         travellingSlot = saveSlot;
         arriveAboard = true;
         GameSettings.Keep();
@@ -817,8 +892,8 @@ public class PlanetOne : MonoBehaviour
     void GenerateLand(int cx, int cy)
     {
         LoadingStage = "Shaping the land";
-        // The rocky planet is made from the same seed, mixed so it is not shaped like Planet 1.
-        var rand = new System.Random(Rocky ? seed * 7919 + 13 : seed);
+        // The nature planet is made from the same seed, mixed so it is not shaped like Planet 1.
+        var rand = new System.Random(Nature ? seed * 7919 + 13 : seed);
         int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
         variantSeed = rand.Next();
         int mountainSeed = rand.Next();
@@ -836,15 +911,18 @@ public class PlanetOne : MonoBehaviour
             northCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, height / 2, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, 0, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southOcean[x] = southCap[x] + OceanWidth + Mathf.RoundToInt((LoopingNoise(x, 0, OceanBlobSize, capSeed + 7, 2) * 2f - 1f) * OceanWobble);
-            // The rocky planet has no ice caps and no ocean.
-            if (Rocky) northCap[x] = southCap[x] = southOcean[x] = 0;
+            // The nature planet has no ice caps and no ocean.
+            if (Nature) northCap[x] = southCap[x] = southOcean[x] = 0;
         }
 
-        kind = new byte[width, height];
-        ground = new byte[width, height];
-        baseTop = new byte[width, height];
-        top = new sbyte[width, height];
-        algae = new byte[width, height];
+        // The old land is let go of first, so two whole planets are never held at once.
+        cells = null;
+        kind = ground = baseTop = algae = mountain = iceDepth = snowDepth = null;
+        top = null;
+        Land made = NewLand(width, height);
+        made.Mined = mined;
+        made.Placed = placed;
+        LoadLand(made);
         mined.Clear();
         placed.Clear();
         // The rows are worked out side by side on all the computer's cores, since each spot only depends on itself.
@@ -870,7 +948,7 @@ public class PlanetOne : MonoBehaviour
                 // The algae biome, on the equator.
                 float algaeAcross = Mathf.Abs(x - algaeX), algaeUp = y - height / 2;
                 algaeAcross = Mathf.Min(algaeAcross, width - algaeAcross);
-                if (!Rocky && algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
+                if (!Nature && algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
                 {
                     float reach = AlgaeRadius * (0.7f + 0.6f * LoopingNoise(x, y, AlgaeEdgeBlobSize, algaeSeed, 2));
                     if (algaeAcross * algaeAcross + algaeUp * algaeUp < reach * reach) algae[x, y] = 1;
@@ -879,8 +957,14 @@ public class PlanetOne : MonoBehaviour
                 // Flatten the land around the crash site so the start is open snow.
                 e = 0.5f + (e - 0.5f) * Mathf.Clamp01((fromCrash - 6f) / 6f);
 
-                // (On the rocky planet there is no ice: the ground is all desert, with rocks.)
-                kind[x, y] = e > RockAbove ? Rock : e < IceBelow && !Rocky ? Ice : Snow;
+                // On the nature planet, where Planet 1 has frozen lakes there are lakes of water, always at ground
+                // level. (Its snow is grass, with dirt under it.)
+                if (Nature && e < IceBelow)
+                {
+                    kind[x, y] = Water;
+                    continue;
+                }
+                kind[x, y] = e > RockAbove ? Rock : e < IceBelow ? Ice : Snow;
                 // Patches of ground one block higher. The crash site itself stays at ground level.
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
@@ -893,9 +977,8 @@ public class PlanetOne : MonoBehaviour
             for (int x = cx - 2; x < cx + 4; x++) kind[x, y] = Ship;
         }
 
-        LoadingStage = Rocky ? "Scattering the rocks" : "Raising the mountains";
-        if (Rocky) mountain = new byte[width, height];
-        else RaiseMountains(mountainSeed);
+        LoadingStage = Nature ? "Growing the grass" : "Raising the mountains";
+        if (!Nature) RaiseMountains(mountainSeed);
         if (makeRoad) MakeRoadToCaps(cx, cy);
 
         for (int y = 0; y < height; y++)
@@ -921,7 +1004,7 @@ public class PlanetOne : MonoBehaviour
                 top[x, y] = (sbyte)baseTop[x, y];
             }
         }
-        LoadingStage = Rocky ? "Laying the sand" : "Freezing the lakes";
+        LoadingStage = Nature ? "Filling the lakes" : "Freezing the lakes";
         ComputeGroundDepths(depthSeed);
         LoadingStage = "Checking the way is clear";
     }
@@ -931,7 +1014,6 @@ public class PlanetOne : MonoBehaviour
     // They stand in a ring round each pole's ice sheet.
     void RaiseMountains(int mountainSeed)
     {
-        mountain = new byte[width, height];
         // The rows the ring can reach, nearest the top of the map. There are none round the South Pole, where the
         // ocean is.
         int reach = CapRadius + CapWobble + RingDepth + 1;
@@ -1123,9 +1205,13 @@ public class PlanetOne : MonoBehaviour
         }
 
         int walkable = 0;
-        foreach (byte k in kind)
+        for (int y = 0; y < height; y++)
         {
-            if (k != Rock && k != Ship) walkable++;
+            for (int x = 0; x < width; x++)
+            {
+                byte k = kind[x, y];
+                if (k != Rock && k != Ship) walkable++;
+            }
         }
         return reached / (float)walkable;
     }
@@ -1716,8 +1802,8 @@ public class PlanetOne : MonoBehaviour
         // so their detail is as fine as the snow picture's.
         bool fine = pictured || material == Ice;
         int detail = fine ? PictureDetail : 1;
-        // On the rocky planet every colour is turned to the desert's.
-        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) => DesertIf(TilePixel(fineX, fineY)));
+        // On the nature planet every colour is turned to its own.
+        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) => NatureIf(TilePixel(fineX, fineY)));
         Color32 TilePixel(int fineX, int fineY)
         {
             int x = fineX / detail, y = fineY / detail;
@@ -1829,8 +1915,10 @@ public class PlanetOne : MonoBehaviour
     }
 
     // The picture for a look of snow, or null for plain white (only if the third picture is missing).
-    public Sprite SnowLookSprite(int look)
+    // On the nature planet, below the top block of the ground (depth 1) it is dirt.
+    public Sprite SnowLookSprite(int look, int depth = 1)
     {
+        if (Nature && depth != 1 && dirtSprites != null && look < dirtSprites.Length && dirtSprites[look] != null) return dirtSprites[look];
         return SnowPicture(look)?.Sprite;
     }
 
@@ -1979,46 +2067,44 @@ public class PlanetOne : MonoBehaviour
 
     // Works out how deep the ice and snow go everywhere. Ice is shallow at the shore and deeper toward the middle,
     // so from the side a patch of ice looks like a lake or river that froze in its bed.
+    // (On the nature planet its lakes are worked out the same way: shallow at the shore and deeper toward the middle,
+    // so the player can wade out.)
     void ComputeGroundDepths(int depthSeed)
     {
-        iceDepth = new byte[width, height];
-        snowDepth = new byte[width, height];
-
-        // Distance from each ice tile to the nearest shore, spreading inward from everything that is not ice.
-        var distance = new int[width, height];
-        var queue = new Queue<Vector2Int>();
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                if (kind[x, y] == Ice) distance[x, y] = int.MaxValue;
-                else queue.Enqueue(new Vector2Int(x, y));
-            }
-        }
-        var steps = new[] { Vector2Int.left, Vector2Int.right, Vector2Int.up, Vector2Int.down };
-        while (queue.Count > 0)
-        {
-            Vector2Int p = queue.Dequeue();
-            foreach (Vector2Int step in steps)
-            {
-                Vector2Int n = Wrap(p + step);
-                if (distance[n.x, n.y] <= distance[p.x, p.y] + 1) continue;
-                distance[n.x, n.y] = distance[p.x, p.y] + 1;
-                queue.Enqueue(n);
-            }
-        }
-
-        // Rows are worked out side by side on all the computer's cores, since each spot only depends on itself.
+        // How far each spot of ice is from the nearest shore, at most MaxIceDepth: 0 for anything that is not ice,
+        // and for ice, one more than the nearest of the four spots next to it. Ice starts as deep as it can be, and
+        // each pass over the land brings it up to one more than its shallowest neighbour; after MaxIceDepth passes
+        // every spot is right. (Until 2026-11-05 this spread in from the shore through a queue of every square on
+        // the planet, which took over half a gigabyte on the frost planet. This needs nothing extra.)
         System.Threading.Tasks.Parallel.For(0, height, y =>
         {
             for (int x = 0; x < width; x++)
             {
-                if (kind[x, y] == Ice) iceDepth[x, y] = (byte)Mathf.Min(distance[x, y], MaxIceDepth);
+                iceDepth[x, y] = (byte)(Basin(kind[x, y]) ? MaxIceDepth : 0);
                 // Snow is 4 or 5 blocks deep, changing gently from place to place.
                 snowDepth[x, y] = (byte)(LoopingNoise(x, y, DepthBlobSize, depthSeed, 1) > 0.5f ? 5 : 4);
             }
         });
+        for (int pass = 1; pass < MaxIceDepth; pass++)
+        {
+            // Only spots still deeper than this pass can change, so every row can be worked on at once: a spot is only
+            // written by its own row, and the depths it reads from its neighbours only ever go down to right values.
+            System.Threading.Tasks.Parallel.For(0, height, y =>
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int depth = iceDepth[x, y];
+                    if (depth <= pass) continue;
+                    Vector2Int west = Wrap(x - 1, y), east = Wrap(x + 1, y), north = Wrap(x, y + 1), south = Wrap(x, y - 1);
+                    int shallowest = Mathf.Min(Mathf.Min(iceDepth[west.x, west.y], iceDepth[east.x, east.y]), Mathf.Min(iceDepth[north.x, north.y], iceDepth[south.x, south.y]));
+                    if (shallowest + 1 < depth) iceDepth[x, y] = (byte)(shallowest + 1);
+                }
+            });
+        }
     }
+
+    // True for land that is a basin the depth is measured in: ice, and on the nature planet its lakes.
+    static bool Basin(byte land) => land == Ice || (Nature && land == Water);
 
     // ---- Frost caves ----
     // Caves are not part of the land above. Each is a world of its own, made the first time it is visited, and
@@ -2029,8 +2115,9 @@ public class PlanetOne : MonoBehaviour
     class Land
     {
         public int Width, Height;
-        public byte[,] Kind, Ground, BaseTop, IceDepth, SnowDepth, Mountain, Algae;
-        public sbyte[,] Top;
+        public LandCells Cells;
+        public CellField Kind, Ground, BaseTop, IceDepth, SnowDepth, Mountain, Algae;
+        public SignedCellField Top;
         public Dictionary<Vector2Int, HashSet<int>> Mined;
         public Dictionary<Vector2Int, Dictionary<int, SideBlock>> Placed;
         // In a cave, the way out: a tunnel dug into the north wall of the square the player arrives on.
@@ -2529,7 +2616,7 @@ public class PlanetOne : MonoBehaviour
     {
         return new Land
         {
-            Width = width, Height = height, Kind = kind, Ground = ground, BaseTop = baseTop, Top = top,
+            Width = width, Height = height, Cells = cells, Kind = kind, Ground = ground, BaseTop = baseTop, Top = top,
             IceDepth = iceDepth, SnowDepth = snowDepth, Mountain = mountain, Algae = algae, Mined = mined, Placed = placed,
         };
     }
@@ -2538,6 +2625,7 @@ public class PlanetOne : MonoBehaviour
     {
         width = land.Width;
         height = land.Height;
+        cells = land.Cells;
         kind = land.Kind;
         ground = land.Ground;
         baseTop = land.BaseTop;
@@ -2555,13 +2643,11 @@ public class PlanetOne : MonoBehaviour
     Land MakeCave(int index)
     {
         int size = CaveSize;
-        var land = new Land
-        {
-            Width = size, Height = size,
-            Kind = new byte[size, size], Ground = new byte[size, size], BaseTop = new byte[size, size], Top = new sbyte[size, size],
-            IceDepth = new byte[size, size], SnowDepth = new byte[size, size], Mountain = new byte[size, size],
-            Mined = new Dictionary<Vector2Int, HashSet<int>>(), Placed = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>(),
-        };
+        Land land = NewLand(size, size);
+        // A cave has no algae.
+        land.Algae = null;
+        land.Mined = new Dictionary<Vector2Int, HashSet<int>>();
+        land.Placed = new Dictionary<Vector2Int, Dictionary<int, SideBlock>>();
         // To begin with it is all wall.
         var open = new bool[size, size];
         var rand = new System.Random(seed * 31 + index * 977 + 5);
@@ -2721,7 +2807,26 @@ public class PlanetOne : MonoBehaviour
     public Transform TopDownRoot => topDownRoot.transform;
 
     // The colour a spot is shown in on the maps: white snow, blue ice, grey rock and ship, each paler where raised.
-    public Color32 MapColorAt(int x, int y) => DesertIf(PlanetMapColorAt(x, y));
+    // On the nature planet: green grass, darker in the forests, blue lakes and mossy rock.
+    public Color32 MapColorAt(int x, int y)
+    {
+        if (!Nature) return PlanetMapColorAt(x, y);
+        Color32 c = Greenery(PlanetMapColorAt(x, y));
+        Vector2Int spot = Wrap(x, y);
+        if (kind[spot.x, spot.y] == Snow && ForestAt(x, y) > 0f) c = Color32.Lerp(c, ForestMapColor, 0.6f);
+        return c;
+    }
+    static readonly Color32 ForestMapColor = new Color32(34, 92, 40, 255);
+
+    // How thick the forest is at a square of the nature planet, from 0 (open grass) to 1. Forests are big patches
+    // about ForestBlobSize squares across, and cover roughly a third of the grass.
+    public const float ForestBlobSize = 70f;
+    const float ForestAbove = 0.55f;
+    public float ForestAt(int x, int y)
+    {
+        Vector2Int spot = Wrap(x, y);
+        return Mathf.Clamp01((LoopingNoise(spot.x, spot.y, ForestBlobSize, variantSeed + 9001, 2) - ForestAbove) / 0.15f);
+    }
 
     Color32 PlanetMapColorAt(int x, int y)
     {
@@ -2827,6 +2932,12 @@ public class PlanetOne : MonoBehaviour
         if (level >= surface) return SideBlock.Ship;
 
         int depth = surface - level;
+        // The nature planet's lakes are as deep as their basin, over a bed of dirt (its "snow") on stone.
+        if (k == Water && Nature)
+        {
+            int lake = iceDepth[x, row];
+            return depth <= lake ? SideBlock.Water : depth <= lake + LakeBedDepth ? SideBlock.Snow : SideBlock.Stone;
+        }
         if (k == Water) return depth <= OceanDepth ? SideBlock.Water : SideBlock.Stone;
         // In the algae biome the top block of the ground is algae, with the usual snow, ice and stone under it.
         if (depth == 1 && algae != null && algae[x, row] != 0) return SideBlock.Algae;
@@ -2933,7 +3044,8 @@ public class PlanetOne : MonoBehaviour
     }
 
     // Pixel position inside one tile, with (0, 0) at the top left. Rims are the lighter edges of a rock top.
-    // The rocky planet's colours: Planet 1's colours, from dark to light, turned to desert rock, from a deep brown up to
+    // The rocky planet's colours (the rocky planet is gone, but these still colour the sand item from it): Planet 1's
+    // colours, from dark to light, turned to desert rock, from a deep brown up to
     // its main colour, the tan Taivan picked (197, 157, 109, on 2026-10-19), where the snow was: the snow's colours (light, from 0.88 to 1) land either side of it. (Snow becomes the
     // tan ground, rock and stone become darker brown rock.) Each step is how light Planet 1's colour is, and the
     // desert colour for it. (Until 2026-10-19 it went to a rusty red and orange sand.)
@@ -2954,33 +3066,85 @@ public class PlanetOne : MonoBehaviour
         return desert;
     }
 
-    // A colour as it is on the planet being played.
-    public static Color32 DesertIf(Color32 c) => Rocky ? Desert(c) : c;
-
-    // On the rocky planet, his snow pictures (seen from the side, and in the inventory) are turned to desert sand.
-    // From above they are turned as each tile is painted.
-    void MakeDesertPictures()
+    // The nature planet's colours, made from Planet 1's the same way, by how light each is: the snow (light, from
+    // 0.8 up) is grass, a little lighter on raised ground; the shaded sides of the snow (about 0.66 to 0.76) are dirt,
+    // so a step of raised ground shows grass on top and dirt down its side; rock and stone are mossy brown-grey. Water
+    // (clearly blue) stays water but a fresher, brighter blue than Planet 1's freezing ocean. (Claude's colours.)
+    static readonly float[] NatureLights = { 0f, 0.3f, 0.45f, 0.76f, 0.8f, 0.88f, 1f };
+    static readonly Color32[] NatureSteps =
     {
-        foreach (BlockPicture picture in new[] { snowPicture, snowPicture2, snowPicture3 })
+        new Color32(22, 18, 12, 255), new Color32(58, 52, 40, 255), new Color32(92, 88, 66, 255), new Color32(110, 78, 48, 255),
+        new Color32(70, 122, 50, 255), new Color32(94, 158, 62, 255), new Color32(126, 192, 82, 255),
+    };
+    // The nature planet's main colour, the grass, as it is seen from space.
+    public static readonly Color32 NatureMain = new Color32(94, 158, 62, 255);
+
+    public static Color32 Greenery(Color32 c)
+    {
+        if (c.b > c.r + 60 && c.b > c.g)
         {
-            if (picture != null) picture.Sprite = SandSprite(picture);
+            // Water: bluer and brighter.
+            return new Color32((byte)Mathf.Min(255, c.r * 0.6f + 18f), (byte)Mathf.Min(255, c.g + 36), (byte)Mathf.Min(255, c.b + 34), c.a);
+        }
+        Color32 green = Steps(c, NatureLights, NatureSteps);
+        green.a = c.a;
+        return green;
+    }
+
+    // Dirt, the nature planet's ground dug up: his snow picture's light and dark, in browns.
+    static readonly float[] DirtLights = { 0f, 0.5f, 0.8f, 1f };
+    static readonly Color32[] DirtSteps = { new Color32(40, 26, 16, 255), new Color32(78, 54, 34, 255), new Color32(112, 80, 50, 255), new Color32(140, 104, 68, 255) };
+
+    public static Color32 Dirt(Color32 c)
+    {
+        Color32 dirt = Steps(c, DirtLights, DirtSteps);
+        dirt.a = c.a;
+        return dirt;
+    }
+
+    // A colour by how light it is, between the colours given for steps of lightness.
+    static Color32 Steps(Color32 c, float[] lights, Color32[] steps)
+    {
+        float light = Mathf.Clamp01((0.3f * c.r + 0.59f * c.g + 0.11f * c.b) / 255f);
+        int low = 0;
+        while (low < lights.Length - 2 && light > lights[low + 1]) low++;
+        return Color32.Lerp(steps[low], steps[low + 1], Mathf.InverseLerp(lights[low], lights[low + 1], light));
+    }
+
+    // A colour as it is on the planet being played.
+    public static Color32 NatureIf(Color32 c) => Nature ? Greenery(c) : c;
+
+    // On the nature planet, his snow pictures are grass on the top block of the ground and dirt under it, seen from
+    // the side (and dirt in the inventory). From above they are turned to grass as each tile is painted.
+    Sprite[] dirtSprites;
+    void MakeNaturePictures()
+    {
+        BlockPicture[] snows = { snowPicture, snowPicture2, snowPicture3 };
+        dirtSprites = new Sprite[snows.Length];
+        for (int i = 0; i < snows.Length; i++)
+        {
+            if (snows[i] == null) continue;
+            dirtSprites[i] = Recoloured(snows[i], Dirt);
+            snows[i].Sprite = Recoloured(snows[i], Greenery);
         }
     }
 
-    // One of his snow pictures turned to desert sand.
-    static Sprite SandSprite(BlockPicture picture)
+    // One of his snow pictures in other colours.
+    static Sprite Recoloured(BlockPicture picture, System.Func<Color32, Color32> colour)
     {
-        var sand = new Color32[picture.Pixels.Length];
-        for (int i = 0; i < sand.Length; i++) sand[i] = Desert(picture.Pixels[i]);
+        var turned = new Color32[picture.Pixels.Length];
+        for (int i = 0; i < turned.Length; i++) turned[i] = colour(picture.Pixels[i]);
         var texture = new Texture2D(picture.Width, picture.Height, TextureFormat.RGBA32, false) { filterMode = picture.Sprite.texture.filterMode, wrapMode = TextureWrapMode.Clamp };
-        texture.SetPixels32(sand);
+        texture.SetPixels32(turned);
         texture.Apply();
         return Sprite.Create(texture, new Rect(0, 0, picture.Width, picture.Height), new Vector2(0.5f, 0.5f), picture.Width);
     }
 
-    // The pictures for the snow and sand items, whichever planet this is: his snow, and his snow turned to sand.
+    // The pictures for the snow, sand and dirt items, whichever planet this is: his snow, and his snow turned to sand
+    // and to dirt. (Sand is from the rocky planet, which is gone; sand already carried can still be placed.)
     public Sprite SnowIcon { get; private set; }
     public Sprite SandIcon { get; private set; }
+    public Sprite DirtIcon { get; private set; }
 
     public static Color32 PaintRockTop(int x, int y, int rims)
     {

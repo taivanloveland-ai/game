@@ -148,14 +148,14 @@ public class Weather : MonoBehaviour
     }
 
     // Whether today is a snow day, with snow over the whole planet.
-    // (The rocky planet has no weather.)
-    public bool SnowDay => !PlanetOne.Rocky && dayNight.Day % SnowDayEvery == 0;
+    // (The nature planet has no weather.)
+    public bool SnowDay => !PlanetOne.Nature && dayNight.Day % SnowDayEvery == 0;
 
     // Decides the day's weather. From is the time of day now: a cloud comes some time after that.
     void RollTheDay(float from)
     {
         // On a snow day it is snowing everywhere anyway.
-        if (PlanetOne.Rocky) return;
+        if (PlanetOne.Nature) return;
         if (!SnowDay && Random.value < SnowChance) clouds.Add(new Cloud { Hail = false, ComesAt = Random.Range(from, Mathf.Max(from, ComesWithin)) });
         if (Random.value < HailChance) clouds.Add(new Cloud { Hail = true, ComesAt = Random.Range(from, Mathf.Max(from, ComesWithin)) });
     }
@@ -233,7 +233,7 @@ public class Weather : MonoBehaviour
         if (hailTurnedOff) hail = 0f;
         if (ForceSnow) snow = 1f;
         if (ForceHail) hail = 1f;
-        if (planet.InCave || PlanetOne.Rocky) snow = hail = 0f;
+        if (planet.InCave || PlanetOne.Nature) snow = hail = 0f;
         Snowing = snow;
         Hailing = hail;
 
