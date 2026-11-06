@@ -19,6 +19,7 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **sc** = the side-scroller view (mining mode on planet 1).
 - **td** = the top-down view.
 - **poup** = "please open up project": open the game project in the Unity editor (added 2026-10-11).
+- **OP** = "open project": the same as poup, open the game project in the Unity editor (added 2026-11-06).
 
 ## The game
 
@@ -687,3 +688,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - **Saves:** a game saved on the rocky planet carries on on the nature planet, in front of the ship; what had been dug or built on the rocky planet is dropped. Sand already carried is kept.
 - **Smaller planet data:** everything about one square (what it is made of, raised ground, algae, ice or lake depth, snow depth, mountain height, and its height as made and now) is now packed into one 4-byte number instead of 8 separate bytes. Working out how deep the ice and lakes are no longer needs a temporary list of every square (that alone was over half a gigabyte on the frost planet). Trees are not stored at all: whether a square has one is worked out from its position, and only the ones cut down are remembered. The map remembers what has been seen as one bit per square, draws itself in strips, and lets go of its spare in-memory copy once the game is going. Checked: a new game on the nature planet takes about 550 MB in all (land made in about 7 seconds); the old way would have needed well over 2 GB at its peak. The frost planet is unchanged and lighter too.
 - For checking: starting with -nature on the command line (with -skipTitle) begins a new game on the nature planet.
+
+## Music fades in, and is silent in Claude's checks (asked 2026-11-06)
+- His words: "fade in music in play and while youre testing, mute the music."
+- When Play is pressed, the title theme now fades in from silence over 3 seconds instead of starting at full volume (Claude's choice of 3 seconds). The planet's day and night themes already faded in over 4 seconds when the game begins.
+- Claude's automatic checks (started with -skipTitle, or in batch mode) play no music. His music volume setting is not changed.

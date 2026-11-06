@@ -8,10 +8,14 @@ public static class GameSettings
     // Smaller is closer. 7 is what the game was made at.
     public const float ClosestZoom = 4f, FurthestZoom = 10f, UsualZoom = 7f;
 
-    // How loud the music is, from 0 (silent) to 1.
+    // Whether this is one of Claude's automatic checks (started with -skipTitle, or with no screen), not Taivan playing.
+    public static readonly bool Testing = Application.isBatchMode || System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-skipTitle") >= 0;
+
+    // How loud the music is, from 0 (silent) to 1. In the automatic checks the music is silent (asked 2026-11-06:
+    // "while youre testing, mute the music"), without changing his own setting.
     public static float MusicVolume
     {
-        get => PlayerPrefs.GetFloat("MusicVolume", 0.7f);
+        get => Testing ? 0f : PlayerPrefs.GetFloat("MusicVolume", 0.7f);
         set => PlayerPrefs.SetFloat("MusicVolume", Mathf.Clamp01(value));
     }
 
