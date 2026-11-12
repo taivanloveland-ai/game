@@ -693,3 +693,14 @@ Running record of what Taivan wants for the game, what has been built, and what 
 - His words: "fade in music in play and while youre testing, mute the music."
 - When Play is pressed, the title theme now fades in from silence over 3 seconds instead of starting at full volume (Claude's choice of 3 seconds). The planet's day and night themes already faded in over 4 seconds when the game begins.
 - Claude's automatic checks (started with -skipTitle, or in batch mode) play no music. His music volume setting is not changed.
+
+## Bio planet biomes (asked 2026-11-12)
+- His words: "Bio planet: Jungle, Small ice caps, Algae, rivers" and "im giving you those rough biomes now, and well polish them over time", then "also ocean". Claude took "Bio planet" to be the nature planet (it replaced the rocky planet), and it is now called **the bio planet** on screen. Everything below about sizes, places and looks is Claude's choice, to be polished.
+- As built:
+  - **Ocean:** wide seas covering about 27% of the planet, in a few big shapes. Deeper than lakes: shallow at the shore, down to 7 blocks out at sea (lakes and rivers go to 4). Darker blue on the maps the deeper it is. Land is always kept for a few hundred squares round the ship and round the algae. No damage, and you can swim (jump) in it.
+  - **Rivers:** long winding rivers about 3 to 6 squares wide across the grass, running into lakes and the sea, 1 to 3 blocks deep. None within 20 squares of the ship.
+  - **Jungle:** a band round the equator, about a sixth of the way to each pole, with a wavy edge. The grass there is darker, it is dark green on the map, and it is thick with trees (about 1 square in 4), mostly a new **jungle tree** (a tall trunk under a wide flat canopy with hanging vines; a placeholder until he draws one) that gives **4 wood** with the ice axe, with some round leafy trees.
+  - **Small ice caps:** plain ice round each pole, about 45 squares out (the frost planet's are about 120), slippery, as on the frost planet. The ice boss can rise there as on the frost planet's caps (not changed).
+  - **Algae:** the frost planet's algae region, the same size, on the equator east or west of the ship, in the jungle, with algae clumps (no trees on it). Its glow and music lines work as on the frost planet.
+  - The title screen and the ship's view of the planet show the jungle band, the algae, the oceans and white ice caps.
+- A game already saved on this planet is made again with these biomes, so anything dug or built there may now be in a different place (for example under the sea).

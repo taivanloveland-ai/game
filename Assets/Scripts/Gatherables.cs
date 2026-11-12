@@ -311,9 +311,10 @@ public class Gatherables : MonoBehaviour
         clump.Shadow = !UsePicture(clump, "Art/AlgaeClump", ClumpPicturePixelsPerUnit);
         ClumpItem = clump.Item;
         var rand = new System.Random(planet.seed + 1);
-        // On the nature planet only trees grow (and they are not kept in the list: see TreeAt).
+        // On the nature planet only trees grow, and clumps on its algae (and they are not kept in the list: see TreeAt).
         if (PlanetOne.Nature)
         {
+            clumpKind = clump;
             // (The thornam bush's items are still made, as recipes and saved games use them.)
             MakeBush();
             MakeTrees();
@@ -965,9 +966,14 @@ public class Gatherables : MonoBehaviour
     // two kinds (round leafy trees and pines), how thick the forests are, and that they are cut down with an ice axe
     // for 3 wood are Claude's choices.
     const float OpenTreeShare = 0.004f, ForestTreeShare = 0.16f;
+    // The bio planet's jungle (asked 2026-11-12) is thicker than any forest: about this share of its squares have a
+    // tree, most of them big jungle trees. (Claude's choice: thick, but still open enough to find a way through.)
+    const float JungleTreeShare = 0.27f;
+    // On its algae, algae clumps grow on about this share of the squares, as on the frost planet.
+    const float NatureClumpShare = (float)ClumpDensity;
     // No trees this many squares round the crash site, so the ship has room.
     const int TreeClearing = 5;
-    Kind leafyTree, pineTree;
+    Kind leafyTree, pineTree, jungleTree, clumpKind;
     public Item WoodItem { get; private set; }
 
     Kind TreeAt(Vector2Int spot)
@@ -975,12 +981,18 @@ public class Gatherables : MonoBehaviour
         if (leafyTree == null || surfaceThings != null || collected.Contains(spot)) return null;
         int x = spot.x, y = spot.y;
         if (Mathf.Abs(x - planet.CrashSite.x) <= TreeClearing && Mathf.Abs(y - planet.CrashSite.y) <= TreeClearing + 3) return null;
-        // Only on grass. (Digging out the block under a tree knocks it loose, as it does a fern.)
+        // Only on grass, or on the algae that grows over it. (Digging out the block under a tree knocks it loose, as it
+        // does a fern.)
         if (!planet.IsSnow(x, y)) return null;
         float roll = TreeHash(x, y, 0);
-        if (roll >= OpenTreeShare + ForestTreeShare) return null;
-        if (roll >= OpenTreeShare + ForestTreeShare * planet.ForestAt(x, y)) return null;
-        return TreeHash(x, y, 1) < 0.6f ? leafyTree : pineTree;
+        if (roll >= Mathf.Max(OpenTreeShare + ForestTreeShare, JungleTreeShare)) return null;
+        if (planet.IsAlgae(x, y)) return roll < NatureClumpShare ? clumpKind : null;
+        float jungle = planet.JungleAt(x, y);
+        float share = jungle >= 1f ? JungleTreeShare : Mathf.Lerp(OpenTreeShare + ForestTreeShare * planet.ForestAt(x, y), JungleTreeShare, jungle);
+        if (roll >= share) return null;
+        float pick = TreeHash(x, y, 1);
+        if (jungle >= 0.5f) return pick < 0.75f ? jungleTree : leafyTree;
+        return pick < 0.6f ? leafyTree : pineTree;
     }
 
     // A number from 0 to 1 for a square, always the same for the same square of the same world.
@@ -1013,12 +1025,55 @@ public class Gatherables : MonoBehaviour
         int wide = Mathf.RoundToInt(TreeWide * TreePixelsPerSquare), tall = Mathf.RoundToInt(TreeTall * TreePixelsPerSquare);
         leafyTree = MakeKind("Tree", wide, tall, TreePixelsPerSquare, true, (x, y) => LeafyTreePixel(x / (float)TreePixelsPerSquare, (tall - 1 - y) / (float)TreePixelsPerSquare));
         pineTree = MakeKind("Tree", wide, tall, TreePixelsPerSquare, true, (x, y) => PineTreePixel(x / (float)TreePixelsPerSquare, (tall - 1 - y) / (float)TreePixelsPerSquare));
-        foreach (Kind tree in new[] { leafyTree, pineTree })
+        int jungleWide = Mathf.RoundToInt(JungleTreeWide * TreePixelsPerSquare);
+        jungleTree = MakeKind("Jungle tree", jungleWide, tall, TreePixelsPerSquare, true, (x, y) => JungleTreePixel(x / (float)TreePixelsPerSquare, (tall - 1 - y) / (float)TreePixelsPerSquare));
+        foreach (Kind tree in new[] { leafyTree, pineTree, jungleTree })
         {
             tree.Drops = new[] { WoodItem };
-            tree.DropCounts = new[] { 3 };
+            tree.DropCounts = new[] { tree == jungleTree ? 4 : 3 };
             tree.NeedsAxe = true;
         }
+    }
+
+    // A jungle tree (Claude's placeholder): a tall trunk under a wide, flat, layered canopy of deep green leaves, with
+    // vines hanging from it. It is wider than the other trees and gives 4 wood.
+    const float JungleTreeWide = 2f;
+    static readonly Color32 JungleLeafLight = new Color32(84, 160, 62, 255), JungleLeafMid = new Color32(40, 116, 50, 255), JungleLeafDark = new Color32(22, 76, 38, 255);
+    static readonly Color32 VineColor = new Color32(48, 104, 44, 255);
+    static Color32 JungleTreePixel(float across, float up)
+    {
+        float middle = JungleTreeWide / 2f;
+        float[] middleX = { middle, middle - 0.5f, middle + 0.5f, middle }, middleY = { 1.85f, 1.62f, 1.62f, 2.12f };
+        float[] radiusX = { 0.95f, 0.48f, 0.48f, 0.55f }, radiusY = { 0.36f, 0.26f, 0.26f, 0.24f };
+        bool edge = false;
+        Color32 leaf = Clear;
+        float best = float.MaxValue;
+        for (int i = 0; i < middleX.Length; i++)
+        {
+            float dx = (across - middleX[i]) / radiusX[i], dy = (up - middleY[i]) / radiusY[i];
+            float away = Mathf.Sqrt(dx * dx + dy * dy);
+            if (away > 1f)
+            {
+                edge |= away <= 1f + 0.05f / radiusY[i];
+                continue;
+            }
+            float light = (up - middleY[i]) / radiusY[i] * 0.6f - (across - middle) * 0.3f + Mathf.Sin(across * 37f) * Mathf.Sin(up * 29f) * 0.15f;
+            Color32 c = light > 0.3f ? JungleLeafLight : light > -0.35f ? JungleLeafMid : JungleLeafDark;
+            if (away < best) { best = away; leaf = c; }
+        }
+        if (leaf.a > 0) return leaf;
+        if (edge && up > 1.25f) return LeafEdge;
+        // Vines hanging down from under the canopy, each a different length.
+        float[] vineX = { 0.3f, 0.72f, 1.3f, 1.7f }, vineEnd = { 1.05f, 0.85f, 1.15f, 0.95f };
+        for (int i = 0; i < vineX.Length; i++)
+        {
+            float sway = vineX[i] + Mathf.Sin(up * 9f + i) * 0.03f;
+            if (Mathf.Abs(across - sway) < 0.025f && up > vineEnd[i] && up < 1.6f) return VineColor;
+        }
+        // The trunk: taller and a little thicker than the other trees'.
+        float from = across - middle;
+        if (up > 1.7f || Mathf.Abs(from) > 0.15f) return Clear;
+        return Mathf.Abs(from) > 0.12f ? LeafEdge : from < -0.03f ? BarkLight : BarkDark;
     }
 
     // The trunk, from the ground up: a short brown post in the middle, lit on its left. Across and up are in squares,
