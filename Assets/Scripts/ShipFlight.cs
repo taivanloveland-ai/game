@@ -88,7 +88,7 @@ public class ShipFlight : MonoBehaviour
     public System.Action Arrived;
     // The planet being flown to, and the one left behind, as they are named on screen and coloured. (Planet 1 is called
     // the frost planet on screen since 2026-10-20.)
-    public string NextPlanetName = "the nature planet", HomeName = "the frost planet";
+    public string NextPlanetName = "the bio planet", HomeName = "the frost planet";
     public System.Func<int, int, int, Color32> PaintNext = PaintNature, PaintHome = PaintIcy;
     public Color NextColor = PlanetOne.NatureMain, HomeColor = new Color32(0xE4, 0xEE, 0xF4, 255);
     // The planet just left can be flown back to (Taivan's request of 2026-10-20): it starts this far behind the ship,

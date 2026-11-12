@@ -44,6 +44,7 @@ public class TitleScreen : MonoBehaviour
     public static bool ShowNature;
     static readonly Color Grass = PlanetOne.NatureMain, LightGrass = new Color32(122, 186, 80, 255), Forest = new Color32(40, 100, 44, 255);
     static readonly Color Lake = new Color32(40, 114, 156, 255), MossRock = new Color32(92, 88, 66, 255);
+    static readonly Color Jungle = new Color32(26, 78, 36, 255), Ocean = new Color32(24, 70, 150, 255);
     public static readonly Color NatureAir = new Color32(170, 222, 214, 255);
 
     PlanetOne planet;
@@ -356,6 +357,16 @@ public class TitleScreen : MonoBehaviour
                     // Grass all over, with lakes, mossy rock, dark forests and lighter meadows.
                     float e = Noise(around, up, 11, BlobsRound) * 0.65f + Noise(around * 2.6f, up * 2.6f, 23, 91) * 0.35f;
                     land = e > 0.63f ? MossRock : e < 0.4f ? Lake : Noise(around * 2f, up * 2f, 41, 70) > 0.56f ? Forest : Noise(around * 3f, up * 3f, 37, 105) > 0.64f ? LightGrass : Grass;
+                    // Since 2026-11-12, the bio planet's biomes: the dark jungle round the equator, the algae on it,
+                    // wide oceans, and small white ice caps at the poles. (Drawn bigger than they really are.)
+                    float jungleEdge = 16f + (Noise(around * 2f, up * 2f, 131, 70) - 0.5f) * 10f;
+                    if (Mathf.Abs(latitude) < jungleEdge && land != Lake) land = Noise(around * 4f, up * 4f, 137, 140) > 0.6f ? Forest : Jungle;
+                    float across = Mathf.Abs(column / (float)MapWide - AlgaeRound);
+                    across = Mathf.Min(across, 1f - across) * 360f;
+                    float algaeEdge = Mathf.Sqrt(across * across + latitude * latitude) / (AlgaeReach * (0.75f + 0.5f * Noise(around * 3f, up * 3f, 101, 105)));
+                    if (algaeEdge < 1f) land = PlanetOne.AlgaeMapColor(Mathf.InverseLerp(0.25f, 0.75f, Noise(around * 4f, up * 4f, 113, 140)), row % 3 == 0, algaeEdge);
+                    else if (Noise(around * 0.2f, up * 0.2f, 127, 7) * 0.7f + Noise(around, up, 139, BlobsRound) * 0.3f < 0.4f) land = Ocean;
+                    if (Mathf.Abs(latitude) > 82f + (Noise(around * 2f, 0f, 149, 70) - 0.5f) * 4f) land = Ice;
                 }
                 else if (latitude > NorthIceFrom) land = Ice;
                 else if (latitude > MountainsFrom) land = Noise(around * 2.4f, up * 2.4f, 31, 84) > 0.6f ? Peak : Noise(around * 1.6f, up * 1.6f, 47, 56) > 0.36f ? Rock : Snow;

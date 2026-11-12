@@ -788,7 +788,7 @@ public class PlanetOne : MonoBehaviour
         if (Nature)
         {
             flight.NextPlanetName = "the frost planet";
-            flight.HomeName = "the nature planet";
+            flight.HomeName = "the bio planet";
             flight.PaintNext = ShipFlight.PaintIcy;
             flight.PaintHome = ShipFlight.PaintNature;
             flight.NextColor = new Color32(0xE4, 0xEE, 0xF4, 255);
@@ -826,7 +826,7 @@ public class PlanetOne : MonoBehaviour
         if (arriveAboard)
         {
             arriveAboard = false;
-            hud.Say("You landed on " + (Nature ? "the nature planet" : "the frost planet") + "!", 4f);
+            hud.Say("You landed on " + (Nature ? "the bio planet" : "the frost planet") + "!", 4f);
         }
         Ready = true;
     }
@@ -911,8 +911,13 @@ public class PlanetOne : MonoBehaviour
             northCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, height / 2, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southCap[x] = CapRadius + Mathf.RoundToInt((LoopingNoise(x, 0, CapBlobSize, capSeed, 2) * 2f - 1f) * CapWobble);
             southOcean[x] = southCap[x] + OceanWidth + Mathf.RoundToInt((LoopingNoise(x, 0, OceanBlobSize, capSeed + 7, 2) * 2f - 1f) * OceanWobble);
-            // The nature planet has no ice caps and no ocean.
-            if (Nature) northCap[x] = southCap[x] = southOcean[x] = 0;
+            // The nature planet has small ice caps, and no freezing ocean round the south one.
+            if (Nature)
+            {
+                northCap[x] = NatureCapRadius + Mathf.RoundToInt((LoopingNoise(x, height / 2, NatureCapBlobSize, capSeed, 2) * 2f - 1f) * NatureCapWobble);
+                southCap[x] = NatureCapRadius + Mathf.RoundToInt((LoopingNoise(x, 0, NatureCapBlobSize, capSeed, 2) * 2f - 1f) * NatureCapWobble);
+                southOcean[x] = 0;
+            }
         }
 
         // The old land is let go of first, so two whole planets are never held at once.
@@ -935,7 +940,8 @@ public class PlanetOne : MonoBehaviour
                 bool south = y < height / 2;
                 if (FromPole(x, y) < CapAt(x, y))
                 {
-                    kind[x, y] = south && LoopingNoise(x, y, CapBareIceBlobSize, capSeed + 9, 2) <= CapBareIceAbove ? SnowOverIce : Ice;
+                    // (The nature planet's small caps are plain ice.)
+                    kind[x, y] = !Nature && south && LoopingNoise(x, y, CapBareIceBlobSize, capSeed + 9, 2) <= CapBareIceAbove ? SnowOverIce : Ice;
                     continue;
                 }
                 // And round the South Pole's ice cap, the freezing ocean.
@@ -948,7 +954,7 @@ public class PlanetOne : MonoBehaviour
                 // The algae biome, on the equator.
                 float algaeAcross = Mathf.Abs(x - algaeX), algaeUp = y - height / 2;
                 algaeAcross = Mathf.Min(algaeAcross, width - algaeAcross);
-                if (!Nature && algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
+                if (algaeAcross < AlgaeRadius * 1.4f && Mathf.Abs(algaeUp) < AlgaeRadius * 1.4f)
                 {
                     float reach = AlgaeRadius * (0.7f + 0.6f * LoopingNoise(x, y, AlgaeEdgeBlobSize, algaeSeed, 2));
                     if (algaeAcross * algaeAcross + algaeUp * algaeUp < reach * reach) algae[x, y] = 1;
@@ -958,10 +964,12 @@ public class PlanetOne : MonoBehaviour
                 e = 0.5f + (e - 0.5f) * Mathf.Clamp01((fromCrash - 6f) / 6f);
 
                 // On the nature planet, where Planet 1 has frozen lakes there are lakes of water, always at ground
-                // level. (Its snow is grass, with dirt under it.)
-                if (Nature && e < IceBelow)
+                // level, and there are oceans and rivers too. (Its snow is grass, with dirt under it.) No algae grows
+                // on the water.
+                if (Nature && (e < IceBelow || OceanAt(x, y) || (fromCrash > RiverClearing && RiverAt(x, y))))
                 {
                     kind[x, y] = Water;
+                    algae[x, y] = 0;
                     continue;
                 }
                 kind[x, y] = e > RockAbove ? Rock : e < IceBelow ? Ice : Snow;
@@ -1004,7 +1012,7 @@ public class PlanetOne : MonoBehaviour
                 top[x, y] = (sbyte)baseTop[x, y];
             }
         }
-        LoadingStage = Nature ? "Filling the lakes" : "Freezing the lakes";
+        LoadingStage = Nature ? "Filling the oceans, lakes and rivers" : "Freezing the lakes";
         ComputeGroundDepths(depthSeed);
         LoadingStage = "Checking the way is clear";
     }
@@ -1660,6 +1668,8 @@ public class PlanetOne : MonoBehaviour
         if (material == Ship && shipPictured) return TerrainTile(Snow, 0, 0, 0, 0, snowPicture != null ? SnowLookAt(x, y, -1) : 0);
         // Which of his blocks, and in which shade: the shade goes above the block's number.
         if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x, y) | (AlgaeShadeAt(x, y) << 4);
+        // In the bio planet's jungle the grass is darker.
+        if (material == Snow && Nature && JungleAt(x, y) >= 0.5f) variant |= JungleLook;
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1777,6 +1787,8 @@ public class PlanetOne : MonoBehaviour
         // The south face can be up to MaxFaceBlocks tall, which is too much to fit in one number with the rest.
         var key = ((long)(material | (groundLevel << 3) | ((level + 32) << 4) | (drop << 11) | (rims << 16) | (glassy ? 1 << 23 : 0)) | ((long)variant << 32), faceBlocks);
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
+        bool jungle = (variant & JungleLook) != 0;
+        variant &= ~JungleLook;
 
         // Snow has three looks, picked square by square: Taivan's three snow pictures.
         // So has ice: Taivan's ice blocks.
@@ -1802,8 +1814,10 @@ public class PlanetOne : MonoBehaviour
         // so their detail is as fine as the snow picture's.
         bool fine = pictured || material == Ice;
         int detail = fine ? PictureDetail : 1;
-        // On the nature planet every colour is turned to its own.
-        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) => NatureIf(TilePixel(fineX, fineY)));
+        // On the nature planet every colour is turned to its own, except on its ice caps and its algae, and the
+        // jungle's grass is darker.
+        bool ownColours = !Nature || material == Ice || material == Algae;
+        Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) => ownColours ? TilePixel(fineX, fineY) : jungle ? JungleGreenery(TilePixel(fineX, fineY)) : Greenery(TilePixel(fineX, fineY)));
         Color32 TilePixel(int fineX, int fineY)
         {
             int x = fineX / detail, y = fineY / detail;
@@ -2080,12 +2094,13 @@ public class PlanetOne : MonoBehaviour
         {
             for (int x = 0; x < width; x++)
             {
-                iceDepth[x, y] = (byte)(Basin(kind[x, y]) ? MaxIceDepth : 0);
+                // The bio planet's oceans can get deeper than its lakes and rivers.
+                iceDepth[x, y] = (byte)(!Basin(kind[x, y]) ? 0 : Nature && kind[x, y] == Water && OceanAt(x, y) ? OceanFloorDepth : MaxIceDepth);
                 // Snow is 4 or 5 blocks deep, changing gently from place to place.
                 snowDepth[x, y] = (byte)(LoopingNoise(x, y, DepthBlobSize, depthSeed, 1) > 0.5f ? 5 : 4);
             }
         });
-        for (int pass = 1; pass < MaxIceDepth; pass++)
+        for (int pass = 1; pass < (Nature ? OceanFloorDepth : MaxIceDepth); pass++)
         {
             // Only spots still deeper than this pass can change, so every row can be worked on at once: a spot is only
             // written by its own row, and the depths it reads from its neighbours only ever go down to right values.
@@ -2811,9 +2826,17 @@ public class PlanetOne : MonoBehaviour
     public Color32 MapColorAt(int x, int y)
     {
         if (!Nature) return PlanetMapColorAt(x, y);
-        Color32 c = Greenery(PlanetMapColorAt(x, y));
         Vector2Int spot = Wrap(x, y);
-        if (kind[spot.x, spot.y] == Snow && ForestAt(x, y) > 0f) c = Color32.Lerp(c, ForestMapColor, 0.6f);
+        byte material = SurfaceMaterial(spot.x, spot.y);
+        // The ice caps and the algae keep their own colours.
+        if (material == Ice || material == Algae) return PlanetMapColorAt(x, y);
+        Color32 c = Greenery(PlanetMapColorAt(x, y));
+        // Deeper water is a deeper blue, so the open ocean shows darker than the shallows.
+        if (material == Water) return Color32.Lerp(c, DeepOceanMapColor, Mathf.Clamp01((iceDepth[spot.x, spot.y] - 1) / (float)(OceanFloorDepth - 1)));
+        if (kind[spot.x, spot.y] != Snow) return c;
+        float jungle = JungleAt(x, y);
+        if (jungle > 0f) return Color32.Lerp(c, JungleMapColor, 0.3f + 0.5f * jungle);
+        if (ForestAt(x, y) > 0f) c = Color32.Lerp(c, ForestMapColor, 0.6f);
         return c;
     }
     static readonly Color32 ForestMapColor = new Color32(34, 92, 40, 255);
@@ -2827,6 +2850,83 @@ public class PlanetOne : MonoBehaviour
         Vector2Int spot = Wrap(x, y);
         return Mathf.Clamp01((LoopingNoise(spot.x, spot.y, ForestBlobSize, variantSeed + 9001, 2) - ForestAbove) / 0.15f);
     }
+
+    // ---- The bio planet's biomes (asked 2026-11-12: "Jungle, Small ice caps, Algae, rivers", then "also ocean") ----
+    // He gave these as rough biomes to polish over time; their sizes, where they are and how they look are Claude's.
+    // The ice caps are plain ice about this many squares from each pole, wandering in and out by the wobble.
+    const int NatureCapRadius = 45, NatureCapWobble = 12;
+    const float NatureCapBlobSize = 120f;
+    // Oceans: wide seas where a very large, slow noise is low, with the land kept round the ship and the algae.
+    const float SeaBlobSize = 1150f, OceanBelow = 0.45f;
+    // How deep the ocean gets, in blocks, out away from its shores (lakes and rivers are at most MaxIceDepth).
+    const int OceanFloorDepth = 7;
+    // Rivers: long winding lines where another large noise crosses its middle, roughly this many squares from the
+    // middle of the river to its bank (wider in some stretches, narrower in others). None near the ship.
+    const float RiverBlobSize = 520f, RiverHalfWidth = 2.2f;
+    const float RiverClearing = 20f;
+    // The jungle: a band round the equator reaching about this share of the way to each pole, its edge wandering in
+    // and out by the wobble.
+    const float JungleReach = 0.17f, JungleWobble = 0.07f, JungleBlobSize = 400f;
+    // Added to a grass tile's look to draw it as jungle grass.
+    const int JungleLook = 1 << 8;
+
+    // How far a spot is from the ship, the short way round the planet.
+    float FromShipAround(int x, int y, Vector2Int to)
+    {
+        float across = Mathf.Abs(x - to.x);
+        across = Mathf.Min(across, width - across);
+        float up = y - to.y;
+        return Mathf.Sqrt(across * across + up * up);
+    }
+
+    public bool OceanAt(int x, int y)
+    {
+        if (!Nature) return false;
+        Vector2Int spot = Wrap(x, y);
+        float sea = LoopingNoise(spot.x, spot.y, SeaBlobSize, variantSeed + 7001, 3);
+        // Land is kept for a few hundred squares round the ship and round the algae.
+        sea += 0.5f * Mathf.Clamp01(1f - (FromShipAround(spot.x, spot.y, CrashSite) - 300f) / 300f);
+        sea += 0.5f * Mathf.Clamp01(1f - (FromShipAround(spot.x, spot.y, new Vector2Int(algaeX, height / 2)) - AlgaeRadius * 1.5f) / 300f);
+        return sea < OceanBelow;
+    }
+
+    bool RiverAt(int x, int y)
+    {
+        Vector2Int spot = Wrap(x, y);
+        int riverSeed = variantSeed + 7002;
+        float middle = LoopingNoise(spot.x, spot.y, RiverBlobSize, riverSeed, 2) - 0.5f;
+        if (Mathf.Abs(middle) > 0.03f) return false;
+        // How far this is from where the noise crosses its middle, in squares: how far off the middle it is, over how
+        // fast it changes here.
+        Vector2Int west = Wrap(x - 1, y), east = Wrap(x + 1, y), south = Wrap(x, y - 1), north = Wrap(x, y + 1);
+        float slopeX = (LoopingNoise(east.x, east.y, RiverBlobSize, riverSeed, 2) - LoopingNoise(west.x, west.y, RiverBlobSize, riverSeed, 2)) / 2f;
+        float slopeY = (LoopingNoise(north.x, north.y, RiverBlobSize, riverSeed, 2) - LoopingNoise(south.x, south.y, RiverBlobSize, riverSeed, 2)) / 2f;
+        float slope = Mathf.Sqrt(slopeX * slopeX + slopeY * slopeY);
+        if (slope < 1e-6f) return false;
+        float half = RiverHalfWidth * (0.6f + 0.9f * LoopingNoise(spot.x, spot.y, 300f, riverSeed + 1, 1));
+        return Mathf.Abs(middle) / slope < half;
+    }
+
+    // How much of a jungle a square is in, from 0 (none) to 1.
+    public float JungleAt(int x, int y)
+    {
+        if (!Nature) return 0f;
+        Vector2Int spot = Wrap(x, y);
+        float fromEquator = Mathf.Abs(spot.y - height / 2f) / (height / 2f);
+        float reach = JungleReach + (LoopingNoise(spot.x, spot.y, JungleBlobSize, variantSeed + 7003, 2) * 2f - 1f) * JungleWobble;
+        return Mathf.Clamp01((reach - fromEquator) / 0.02f);
+    }
+
+    // The jungle's ground is a deeper, darker green than the open grass.
+    static readonly Color32 JungleTint = new Color32(30, 86, 40, 255);
+    public static Color32 JungleGreenery(Color32 c)
+    {
+        Color32 g = Greenery(c);
+        // Only the greens (the grass) are darkened; the dirt and water stay as they are.
+        if (g.g > g.r + 20 && g.g > g.b) g = Color32.Lerp(g, new Color32(JungleTint.r, JungleTint.g, JungleTint.b, g.a), 0.5f);
+        return g;
+    }
+    static readonly Color32 JungleMapColor = new Color32(22, 70, 34, 255), DeepOceanMapColor = new Color32(20, 60, 140, 255);
 
     Color32 PlanetMapColorAt(int x, int y)
     {
