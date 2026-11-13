@@ -365,7 +365,7 @@ public class TitleScreen : MonoBehaviour
                     across = Mathf.Min(across, 1f - across) * 360f;
                     float algaeEdge = Mathf.Sqrt(across * across + latitude * latitude) / (AlgaeReach * (0.75f + 0.5f * Noise(around * 3f, up * 3f, 101, 105)));
                     if (algaeEdge < 1f) land = PlanetOne.AlgaeMapColor(Mathf.InverseLerp(0.25f, 0.75f, Noise(around * 4f, up * 4f, 113, 140)), row % 3 == 0, algaeEdge);
-                    else if (Noise(around * 0.2f, up * 0.2f, 127, 7) * 0.7f + Noise(around, up, 139, BlobsRound) * 0.3f < 0.4f) land = Ocean;
+                    else if ((Noise(around * 0.2f, up * 0.2f, 127, 7) * 0.7f + Noise(around, up, 139, BlobsRound) * 0.3f + Noise(around * 3f, up * 3f, 151, 105) * 0.18f) / 1.18f < 0.4f) land = Ocean;
                     if (Mathf.Abs(latitude) > 82f + (Noise(around * 2f, 0f, 149, 70) - 0.5f) * 4f) land = Ice;
                 }
                 else if (latitude > NorthIceFrom) land = Ice;
