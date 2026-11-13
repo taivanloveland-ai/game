@@ -893,6 +893,7 @@ public class PlanetOne : MonoBehaviour
     void GenerateLand(int cx, int cy)
     {
         LoadingStage = "Shaping the land";
+        jungleGrid = null;
         // The nature planet is made from the same seed, mixed so it is not shaped like Planet 1.
         var rand = new System.Random(Nature ? seed * 7919 + 13 : seed);
         int landSeed = rand.Next(), raisedSeed = rand.Next(), depthSeed = rand.Next();
@@ -931,6 +932,14 @@ public class PlanetOne : MonoBehaviour
         LoadLand(made);
         mined.Clear();
         placed.Clear();
+        // The bio planet's wandering twists for its coasts, rivers and jungles, kept while the land is made.
+        twistGrids.Clear();
+        if (Nature)
+        {
+            MakeTwistGrid(SeaTwistSize, variantSeed + 7011);
+            MakeTwistGrid(RiverTwistSize, variantSeed + 7002 + 5);
+            MakeTwistGrid(600f, variantSeed + 7013);
+        }
         // The rows are worked out side by side on all the computer's cores, since each spot only depends on itself.
         System.Threading.Tasks.Parallel.For(0, height, y =>
         {
@@ -967,13 +976,27 @@ public class PlanetOne : MonoBehaviour
                 // On the nature planet, where Planet 1 has frozen lakes there are lakes of water, always at ground
                 // level, and there are oceans and rivers too. (Its snow is grass, with dirt under it.) No algae grows
                 // on the water.
-                if (Nature && (e < IceBelow || OceanAt(x, y) || (fromCrash > RiverClearing && RiverAt(x, y))))
+                if (Nature)
                 {
-                    kind[x, y] = Water;
-                    algae[x, y] = 0;
-                    continue;
+                    // Like Earth's, the lakes gather in lake districts, with open country between where there are few.
+                    // (The ocean comes first.) The ocean is marked by its depth, so the depths need not work it out again.
+                    bool ocean = OceanAt(x, y);
+                    bool lake = false;
+                    if (!ocean && e < LakesBelowMost)
+                    {
+                        float district = Mathf.Clamp01((LoopingNoise(x, y, LakeDistrictSize, landSeed + 31, 2) - 0.5f) * 2.5f + 0.5f);
+                        lake = e < Mathf.Lerp(LakesBelowFewest, LakesBelowMost, district);
+                    }
+                    if (lake || ocean || (fromCrash > RiverClearing && RiverAt(x, y)))
+                    {
+                        kind[x, y] = Water;
+                        algae[x, y] = 0;
+                        if (ocean) iceDepth[x, y] = OceanFloorDepth;
+                        continue;
+                    }
                 }
-                kind[x, y] = e > RockAbove ? Rock : e < IceBelow ? Ice : Snow;
+                // (On the bio planet low ground that is not a lake is grass, not ice.)
+                kind[x, y] = e > RockAbove ? Rock : e < IceBelow && !Nature ? Ice : Snow;
                 // Patches of ground one block higher. The crash site itself stays at ground level.
                 ground[x, y] = (byte)(fromCrash > 8f && LoopingNoise(x, y, RaisedBlobSize, raisedSeed, 3) > RaisedAbove ? 1 : 0);
             }
@@ -1013,8 +1036,14 @@ public class PlanetOne : MonoBehaviour
                 top[x, y] = (sbyte)baseTop[x, y];
             }
         }
+        if (Nature)
+        {
+            LoadingStage = "Growing the jungles";
+            MakeJungleGrid();
+        }
         LoadingStage = Nature ? "Filling the oceans, lakes and rivers" : "Freezing the lakes";
         ComputeGroundDepths(depthSeed);
+        twistGrids.Clear();
         LoadingStage = "Checking the way is clear";
     }
 
@@ -1153,6 +1182,8 @@ public class PlanetOne : MonoBehaviour
     // How far the ice sheet of the nearer pole reaches at a spot's column, in squares from the pole.
     int CapAt(int x, int y)
     {
+        // (On the bio planet the edge is ragged spot by spot, not just column by column.)
+        if (Nature) return NatureCapAt(x, y);
         return y < height / 2 ? southCap[x] : northCap[x];
     }
 
@@ -2180,7 +2211,8 @@ public class PlanetOne : MonoBehaviour
             for (int x = 0; x < width; x++)
             {
                 // The bio planet's oceans can get deeper than its lakes and rivers.
-                iceDepth[x, y] = (byte)(!Basin(kind[x, y]) ? 0 : Nature && kind[x, y] == Water && OceanAt(x, y) ? OceanFloorDepth : MaxIceDepth);
+                // (The ocean was marked as deep as it gets when the land was made.)
+                iceDepth[x, y] = (byte)(!Basin(kind[x, y]) ? 0 : Nature && kind[x, y] == Water && iceDepth[x, y] == OceanFloorDepth ? OceanFloorDepth : MaxIceDepth);
                 // Snow is 4 or 5 blocks deep, changing gently from place to place.
                 snowDepth[x, y] = (byte)(LoopingNoise(x, y, DepthBlobSize, depthSeed, 1) > 0.5f ? 5 : 4);
             }
@@ -2938,22 +2970,139 @@ public class PlanetOne : MonoBehaviour
 
     // ---- The bio planet's biomes (asked 2026-11-12: "Jungle, Small ice caps, Algae, rivers", then "also ocean") ----
     // He gave these as rough biomes to polish over time; their sizes, where they are and how they look are Claude's.
-    // The ice caps are plain ice about this many squares from each pole, wandering in and out by the wobble.
-    const int NatureCapRadius = 45, NatureCapWobble = 12;
-    const float NatureCapBlobSize = 120f;
-    // Oceans: wide seas where a very large, slow noise is low, with the land kept round the ship and the algae.
-    const float SeaBlobSize = 1150f, OceanBelow = 0.45f;
+    // Rough edges like the real Earth's (asked 2026-11-12: "there arent enough rough edges in the world. Ex. the oceans
+    // think of how the actual earth is when youre creating this planet."): coasts, the ice caps' edges and the jungle
+    // are fractal, like a real coastline: big shapes, with smaller bays and headlands on those, and smaller again, down
+    // to a few squares, so there are inlets, peninsulas and scattered islands. The places are also twisted about (the
+    // noise is read from a wandering spot), so coasts and rivers wind instead of bulging in round blobs.
+    // The ice caps are plain ice about this many squares from each pole, their edge ragged by up to the wobble, with
+    // bits of ice broken off beyond it.
+    const int NatureCapRadius = 45, NatureCapWobble = 40;
+    const float NatureCapBlobSize = 320f;
+    // Oceans: wide seas where a very large fractal noise is low, with the land kept round the ship and the algae.
+    // It has this many layers, the finest about SeaBlobSize / 2^(layers - 1) squares across.
+    const float SeaBlobSize = 1400f, OceanBelow = 0.47f;
+    const int SeaLayers = 10;
+    // How strong each finer layer of the coast is next to the one before: higher is a more broken, ragged coast.
+    const float SeaRoughness = 0.7f;
+    // Lakes: where the land noise is below a level that is low in open country (few lakes) and high in lake
+    // districts (many), which are about LakeDistrictSize squares across.
+    const float LakesBelowFewest = 0.30f, LakesBelowMost = 0.44f, LakeDistrictSize = 700f;
+    // How far the twisting moves a spot, at most, and how big its swirls are, in squares.
+    const float SeaTwist = 320f, SeaTwistSize = 900f;
     // How deep the ocean gets, in blocks, out away from its shores (lakes and rivers are at most MaxIceDepth).
     const int OceanFloorDepth = 7;
     // Rivers: long winding lines where another large noise crosses its middle, roughly this many squares from the
-    // middle of the river to its bank (wider in some stretches, narrower in others). None near the ship.
+    // middle of the river to its bank (wider in some stretches, narrower in others). None near the ship. Twisted
+    // about like the coasts, so they meander.
     const float RiverBlobSize = 520f, RiverHalfWidth = 2.2f;
-    const float RiverClearing = 20f;
-    // The jungle: a band round the equator reaching about this share of the way to each pole, its edge wandering in
-    // and out by the wobble.
-    const float JungleReach = 0.17f, JungleWobble = 0.07f, JungleBlobSize = 400f;
+    const float RiverClearing = 20f, RiverTwist = 70f, RiverTwistSize = 160f;
+    // The jungle: like Earth's rainforests, in big ragged patches mostly near the equator (the Amazon, the Congo,
+    // south-east Asia), thinning out toward the edge of the tropics, this share of the way to each pole, with
+    // savanna-like open grass between the patches.
+    const float JungleTropics = 0.32f, JungleBlobSize = 1300f;
+    // Worked out once when the land is made, one value for every JungleCell by JungleCell squares (0 to 255), since
+    // working it out on the spot every time would be slow.
+    const int JungleCell = 4;
+    byte[] jungleGrid;
+    int jungleGridWide, jungleGridTall;
     // Added to a grass tile's look to draw it as jungle grass.
     const int JungleLook = 1 << 8;
+
+    // Fractal noise: big blobs with finer and finer wiggles on top, each layer half the size of the one before and
+    // roughness times as strong. The spot can be anywhere; the planet repeats. Returns roughly 0 to 1.
+    float RoughNoise(float x, float y, float blobSize, int noiseSeed, int layers, float roughness = 0.5f)
+    {
+        x = Mathf.Repeat(x, width);
+        y = Mathf.Repeat(y, height);
+        int across = Mathf.Max(1, Mathf.RoundToInt(width / blobSize)), down = Mathf.Max(1, Mathf.RoundToInt(height / blobSize));
+        float sum = 0f, amplitude = 1f, total = 0f;
+        for (int i = 0; i < layers; i++)
+        {
+            sum += GridNoise(x * across / width, y * down / height, across, down, noiseSeed + i * 101) * amplitude;
+            total += amplitude;
+            amplitude *= roughness;
+            across *= 2;
+            down *= 2;
+        }
+        return sum / total;
+    }
+
+    // Whether that noise (with the same layers) is below a value. It stops as soon as the finer layers left can no
+    // longer change the answer, which far from any edge is after only a few, so the whole planet stays quick to make.
+    bool RoughBelow(float x, float y, float blobSize, int noiseSeed, int layers, float below, float roughness = 0.5f)
+    {
+        x = Mathf.Repeat(x, width);
+        y = Mathf.Repeat(y, height);
+        float total = 0f, amplitude = 1f;
+        for (int i = 0; i < layers; i++) { total += amplitude; amplitude *= roughness; }
+        float target = below * total, left = total, sum = 0f;
+        amplitude = 1f;
+        int across = Mathf.Max(1, Mathf.RoundToInt(width / blobSize)), down = Mathf.Max(1, Mathf.RoundToInt(height / blobSize));
+        for (int i = 0; i < layers; i++)
+        {
+            sum += GridNoise(x * across / width, y * down / height, across, down, noiseSeed + i * 101) * amplitude;
+            left -= amplitude;
+            if (sum >= target) return false;
+            if (sum + left < target) return true;
+            amplitude *= roughness;
+            across *= 2;
+            down *= 2;
+        }
+        return sum < target;
+    }
+
+    // A spot (on the planet, not below 0) moved about by a smooth wandering offset of up to `amount` squares, in swirls
+    // about `size` squares across. The wander changes slowly, so it is worked out at points TwistCell squares apart and
+    // blended between them. While the land is made those points are kept in a grid, so they are worked out only once.
+    const int TwistCell = 8;
+    readonly Dictionary<int, float[]> twistGrids = new Dictionary<int, float[]>();
+
+    Vector2 Twisted(int x, int y, float size, float amount, int noiseSeed)
+    {
+        int gx = x / TwistCell, gy = y / TwistCell;
+        float fx = (x - gx * TwistCell) / (float)TwistCell, fy = (y - gy * TwistCell) / (float)TwistCell;
+        Vector2 off = Vector2.Lerp(Vector2.Lerp(TwistPoint(gx, gy, size, noiseSeed), TwistPoint(gx + 1, gy, size, noiseSeed), fx),
+            Vector2.Lerp(TwistPoint(gx, gy + 1, size, noiseSeed), TwistPoint(gx + 1, gy + 1, size, noiseSeed), fx), fy);
+        return new Vector2(x + off.x * amount, y + off.y * amount);
+    }
+
+    // The wander at one point of the grid, from -1 to 1 each way.
+    Vector2 TwistPoint(int gx, int gy, float size, int noiseSeed)
+    {
+        if (twistGrids.TryGetValue(noiseSeed, out float[] grid))
+        {
+            int i = (gy * (width / TwistCell + 1) + gx) * 2;
+            return new Vector2(grid[i], grid[i + 1]);
+        }
+        int px = gx * TwistCell, py = gy * TwistCell;
+        return new Vector2(LoopingNoise(px, py, size, noiseSeed, 1) * 2f - 1f, LoopingNoise(px, py, size, noiseSeed + 1, 1) * 2f - 1f);
+    }
+
+    // Keeps the wander's grid points while the land is made.
+    void MakeTwistGrid(float size, int noiseSeed)
+    {
+        int wide = width / TwistCell + 1, tall = height / TwistCell + 1;
+        var grid = new float[wide * tall * 2];
+        System.Threading.Tasks.Parallel.For(0, tall, gy =>
+        {
+            for (int gx = 0; gx < wide; gx++)
+            {
+                Vector2 v = TwistPoint(gx, gy, size, noiseSeed);
+                grid[(gy * wide + gx) * 2] = v.x;
+                grid[(gy * wide + gx) * 2 + 1] = v.y;
+            }
+        });
+        twistGrids[noiseSeed] = grid;
+    }
+
+    // How far the bio planet's ice cap reaches at a spot, in squares from the pole: ragged, with bits beyond.
+    int NatureCapAt(int x, int y)
+    {
+        if (FromPole(x, y) > NatureCapRadius + NatureCapWobble * 1.6f) return 0;
+        float edge = RoughNoise(x, y, NatureCapBlobSize, variantSeed + 7021, 8, 0.72f);
+        return NatureCapRadius + Mathf.RoundToInt((edge * 2f - 1f) * NatureCapWobble * 1.6f);
+    }
 
     // How far a spot is from the ship, the short way round the planet.
     float FromShipAround(int x, int y, Vector2Int to)
@@ -2968,24 +3117,29 @@ public class PlanetOne : MonoBehaviour
     {
         if (!Nature) return false;
         Vector2Int spot = Wrap(x, y);
-        float sea = LoopingNoise(spot.x, spot.y, SeaBlobSize, variantSeed + 7001, 3);
-        // Land is kept for a few hundred squares round the ship and round the algae.
-        sea += 0.5f * Mathf.Clamp01(1f - (FromShipAround(spot.x, spot.y, CrashSite) - 300f) / 300f);
-        sea += 0.5f * Mathf.Clamp01(1f - (FromShipAround(spot.x, spot.y, new Vector2Int(algaeX, height / 2)) - AlgaeRadius * 1.5f) / 300f);
-        return sea < OceanBelow;
+        Vector2 at = Twisted(spot.x, spot.y, SeaTwistSize, SeaTwist, variantSeed + 7011);
+        // Land is kept for a few hundred squares round the ship and round the algae, measured from the twisted spot
+        // so the edge of what is kept is ragged too, not a circle.
+        Vector2Int bent = new Vector2Int(Mathf.RoundToInt(Mathf.Repeat(at.x, width)), spot.y + Mathf.RoundToInt((at.y - spot.y) * 0.5f));
+        float keep = 0.5f * Mathf.Clamp01(1f - (FromShipAround(bent.x, bent.y, CrashSite) - 250f) / 300f);
+        keep += 0.5f * Mathf.Clamp01(1f - (FromShipAround(bent.x, bent.y, new Vector2Int(algaeX, height / 2)) - AlgaeRadius * 1.2f) / 300f);
+        // And always right round the ship itself.
+        keep += Mathf.Clamp01(1f - (FromShipAround(spot.x, spot.y, CrashSite) - 60f) / 40f);
+        return RoughBelow(at.x, at.y, SeaBlobSize, variantSeed + 7001, SeaLayers, OceanBelow - keep, SeaRoughness);
     }
 
     bool RiverAt(int x, int y)
     {
         Vector2Int spot = Wrap(x, y);
         int riverSeed = variantSeed + 7002;
-        float middle = LoopingNoise(spot.x, spot.y, RiverBlobSize, riverSeed, 2) - 0.5f;
+        // Read from a wandering spot, so the river meanders; its neighbours are read with the same twist.
+        Vector2 at = Twisted(spot.x, spot.y, RiverTwistSize, RiverTwist, riverSeed + 5);
+        float middle = RoughNoise(at.x, at.y, RiverBlobSize, riverSeed, 2) - 0.5f;
         if (Mathf.Abs(middle) > 0.03f) return false;
         // How far this is from where the noise crosses its middle, in squares: how far off the middle it is, over how
         // fast it changes here.
-        Vector2Int west = Wrap(x - 1, y), east = Wrap(x + 1, y), south = Wrap(x, y - 1), north = Wrap(x, y + 1);
-        float slopeX = (LoopingNoise(east.x, east.y, RiverBlobSize, riverSeed, 2) - LoopingNoise(west.x, west.y, RiverBlobSize, riverSeed, 2)) / 2f;
-        float slopeY = (LoopingNoise(north.x, north.y, RiverBlobSize, riverSeed, 2) - LoopingNoise(south.x, south.y, RiverBlobSize, riverSeed, 2)) / 2f;
+        float slopeX = (RoughNoise(at.x + 1f, at.y, RiverBlobSize, riverSeed, 2) - RoughNoise(at.x - 1f, at.y, RiverBlobSize, riverSeed, 2)) / 2f;
+        float slopeY = (RoughNoise(at.x, at.y + 1f, RiverBlobSize, riverSeed, 2) - RoughNoise(at.x, at.y - 1f, RiverBlobSize, riverSeed, 2)) / 2f;
         float slope = Mathf.Sqrt(slopeX * slopeX + slopeY * slopeY);
         if (slope < 1e-6f) return false;
         float half = RiverHalfWidth * (0.6f + 0.9f * LoopingNoise(spot.x, spot.y, 300f, riverSeed + 1, 1));
@@ -2995,11 +3149,40 @@ public class PlanetOne : MonoBehaviour
     // How much of a jungle a square is in, from 0 (none) to 1.
     public float JungleAt(int x, int y)
     {
-        if (!Nature) return 0f;
+        if (!Nature || jungleGrid == null || InCave) return 0f;
         Vector2Int spot = Wrap(x, y);
-        float fromEquator = Mathf.Abs(spot.y - height / 2f) / (height / 2f);
-        float reach = JungleReach + (LoopingNoise(spot.x, spot.y, JungleBlobSize, variantSeed + 7003, 2) * 2f - 1f) * JungleWobble;
-        return Mathf.Clamp01((reach - fromEquator) / 0.02f);
+        // Blended between the four nearest stored values, with a little fine raggedness on top.
+        float gx = spot.x / (float)JungleCell - 0.5f, gy = spot.y / (float)JungleCell - 0.5f;
+        int x0 = Mathf.FloorToInt(gx), y0 = Mathf.FloorToInt(gy);
+        float fx = gx - x0, fy = gy - y0;
+        float Cell(int cx, int cy) => jungleGrid[Mathf.Clamp(cy, 0, jungleGridTall - 1) * jungleGridWide + ((cx % jungleGridWide) + jungleGridWide) % jungleGridWide] / 255f;
+        float v = Mathf.Lerp(Mathf.Lerp(Cell(x0, y0), Cell(x0 + 1, y0), fx), Mathf.Lerp(Cell(x0, y0 + 1), Cell(x0 + 1, y0 + 1), fx), fy);
+        v += (LoopingNoise(spot.x, spot.y, 5f, variantSeed + 7005, 1) - 0.5f) * 0.5f;
+        return Mathf.Clamp01((v - 0.5f) * 4f + 0.5f);
+    }
+
+    // Works out the jungle for the whole planet, coarsely: how much each JungleCell-square patch is in the jungle,
+    // where 0.5 is its edge.
+    void MakeJungleGrid()
+    {
+        jungleGridWide = width / JungleCell;
+        jungleGridTall = height / JungleCell;
+        jungleGrid = new byte[jungleGridWide * jungleGridTall];
+        System.Threading.Tasks.Parallel.For(0, jungleGridTall, gy =>
+        {
+            for (int gx = 0; gx < jungleGridWide; gx++)
+            {
+                int x = gx * JungleCell + JungleCell / 2, y = gy * JungleCell + JungleCell / 2;
+                float fromEquator = Mathf.Abs(y - height / 2f) / (height / 2f);
+                float tropical = 1f - fromEquator / JungleTropics;
+                if (tropical <= 0f) continue;
+                Vector2 at = Twisted(x, y, 600f, 220f, variantSeed + 7013);
+                float patch = RoughNoise(at.x, at.y, JungleBlobSize, variantSeed + 7003, 7, 0.55f);
+                // Deep in the tropics most of the land is jungle; toward their edge only the strongest patches are.
+                float v = 0.45f * tropical + patch - 0.72f;
+                jungleGrid[gy * jungleGridWide + gx] = (byte)Mathf.RoundToInt(Mathf.Clamp01(0.5f + v * 6f) * 255f);
+            }
+        });
     }
 
     // The jungle's ground is a deeper, darker green than the open grass.
