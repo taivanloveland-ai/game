@@ -704,3 +704,8 @@ Running record of what Taivan wants for the game, what has been built, and what 
   - **Algae:** the frost planet's algae region, the same size, on the equator east or west of the ship, in the jungle, with algae clumps (no trees on it). Its glow and music lines work as on the frost planet.
   - The title screen and the ship's view of the planet show the jungle band, the algae, the oceans and white ice caps.
 - A game already saved on this planet is made again with these biomes, so anything dug or built there may now be in a different place (for example under the sea).
+
+## Water blocks (asked 2026-11-12)
+- He sent a 224 x 32 picture of seven water blocks (a deep blue with pale ripple marks), with his words: "the water. the first 2 sprites are an animation of a water block, the second two are an animation, etc. the last one should show up half the time." In the game unchanged as `Assets/Resources/Art/WaterBlocks.png`.
+- As built: blocks 1 and 2 take turns, so do 3 and 4, and 5 and 6, each pair switching about 1.5 times a second (Claude's speed). Block 7 is still and is on half of the water squares, picked at random square by square; the three animated pairs share the other half. Half the animated squares start on their second picture, so the water does not all flip at once.
+- It is used for all water, top-down and side view, on both planets (the bio planet's ocean, lakes and rivers, and the frost planet's freezing ocean, which still hurts). From above it is solid as he drew it (the water used to be see-through to the bed), and like a wall it turns see-through where it is in front of a player who has sunk into deep water. In the side view it stays a little see-through and gets darker toward the bed, so a swimmer and the bed show.

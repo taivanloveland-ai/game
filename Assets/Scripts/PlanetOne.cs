@@ -514,6 +514,7 @@ public class PlanetOne : MonoBehaviour
         icePictures = LoadBlockPictures("Art/IceBlocks");
         if (icePictures != null) icePicture = icePictures[0];
         LoadAlgae();
+        waterPictures = LoadBlockPictures("Art/WaterBlocks");
         for (int i = 0; icePictures != null && i < icePictures.Length && blankIce < 0; i++)
         {
             if (System.Array.TrueForAll(icePictures[i].Pixels, c => c.Equals(icePictures[i].Pixels[0]))) blankIce = i;
@@ -1564,8 +1565,9 @@ public class PlanetOne : MonoBehaviour
             {
                 int top = DrawnTopAt(x, y);
                 if (top <= level) continue;
-                // Water is see-through already.
-                if (SideBlockAt(x, y, top - 1) == SideBlock.Water) continue;
+                // Water drawn in code is see-through already. (His water blocks are not, so they turn see-through
+                // over the player like anything else.)
+                if (waterPictures == null && SideBlockAt(x, y, top - 1) == SideBlock.Water) continue;
                 float from = y + (top - FaceDrop(top, DrawnTopAt(x, y - 1))) * HeightScale, to = y + 1f + top * HeightScale;
                 if (to <= bottom || from >= topEdge) continue;
                 var cell = new Vector2Int(x, y);
@@ -1670,6 +1672,8 @@ public class PlanetOne : MonoBehaviour
         if (material == Algae && algaePictures != null) variant = AlgaeLookAt(x, y) | (AlgaeShadeAt(x, y) << 4);
         // In the bio planet's jungle the grass is darker.
         if (material == Snow && Nature && JungleAt(x, y) >= 0.5f) variant |= JungleLook;
+        // Which of his water blocks, and whether its animation starts on its second picture.
+        if (material == Water && waterPictures != null) variant = WaterLookAt(x, y) | (HashAt(x, y, variantSeed + 5011) < 0.5f ? WaterSecondFirst : 0);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1789,10 +1793,12 @@ public class PlanetOne : MonoBehaviour
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
         bool jungle = (variant & JungleLook) != 0;
         variant &= ~JungleLook;
+        bool secondFirst = material == Water && (variant & WaterSecondFirst) != 0;
+        if (material == Water) variant &= ~WaterSecondFirst;
 
         // Snow has three looks, picked square by square: Taivan's three snow pictures.
-        // So has ice: Taivan's ice blocks.
-        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : material == Algae && algaePictures != null ? ShadedAlgae(variant & 15, variant >> 4) : PictureFor(material);
+        // So has ice: Taivan's ice blocks. And water: his water blocks.
+        BlockPicture picture = material == Snow && snowPicture != null ? SnowPicture(variant) : material == Ice && icePictures != null ? icePictures[variant] : material == Algae && algaePictures != null ? ShadedAlgae(variant & 15, variant >> 4) : material == Water && waterPictures != null ? waterPictures[Mathf.Min(variant, waterPictures.Length - 1)] : PictureFor(material);
         bool pictured = picture != null;
         Color32 topColor, rimColor;
         switch (material)
@@ -1816,7 +1822,7 @@ public class PlanetOne : MonoBehaviour
         int detail = fine ? PictureDetail : 1;
         // On the nature planet every colour is turned to its own, except on its ice caps and its algae, and the
         // jungle's grass is darker.
-        bool ownColours = !Nature || material == Ice || material == Algae;
+        bool ownColours = !Nature || material == Ice || material == Algae || (material == Water && pictured);
         Sprite sprite = PaintSprite(TilePixels * detail, spriteHeight * detail, pivot, TilePixels * detail, fine, (fineX, fineY) => ownColours ? TilePixel(fineX, fineY) : jungle ? JungleGreenery(TilePixel(fineX, fineY)) : Greenery(TilePixel(fineX, fineY)));
         Color32 TilePixel(int fineX, int fineY)
         {
@@ -1846,7 +1852,14 @@ public class PlanetOne : MonoBehaviour
             if (glassy) ice.a = IceGlassAlpha;
             return ice;
         }
-        tile = MakeTile(Color.white, sprite, false);
+        // His animated water blocks flip between this picture and the next one; some squares start on the next one,
+        // so the water does not all change at the same moment.
+        if (material == Water && pictured && WaterAnimated(variant))
+        {
+            Sprite next = TerrainTile(Water, groundLevel, level, drop, rims, variant + 1, faceBlocks).sprite;
+            tile = AnimatedBlockTile.Make(Color.white, secondFirst ? new[] { next, sprite } : new[] { sprite, next }, false);
+        }
+        else tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
         return tile;
     }
@@ -1902,6 +1915,43 @@ public class PlanetOne : MonoBehaviour
         // One of the others, skipping over the plain one.
         int other = Mathf.Min(icePictures.Length - 2, (int)((roll - BlankIceShare) / (1f - BlankIceShare) * (icePictures.Length - 1)));
         return other >= blankIce ? other + 1 : other;
+    }
+
+    // Taivan's water blocks (asked 2026-11-12), null if there are none: "the first 2 sprites are an animation of a
+    // water block, the second two are an animation, etc. the last one should show up half the time." So blocks 1 and 2
+    // take turns, 3 and 4, and 5 and 6; the last one (with an odd number of blocks) is still and is on half the water,
+    // and the animated ones share the other half.
+    BlockPicture[] waterPictures;
+    // Added to a water tile's look when its animation starts on its second picture.
+    const int WaterSecondFirst = 1 << 5;
+    const float StillWaterShare = 0.5f;
+
+    // Which of his water blocks a square of water shows: the first picture of an animated pair, or the still one.
+    // Picked at random for each square, always the same for the same square. 0 if there are none.
+    public int WaterLookAt(int x, int y)
+    {
+        if (waterPictures == null) return 0;
+        int count = waterPictures.Length, pairs = count / 2;
+        bool hasStill = count % 2 == 1;
+        if (pairs == 0) return 0;
+        float roll = HashAt(x, y, variantSeed + 5003);
+        if (hasStill && roll < StillWaterShare) return count - 1;
+        float share = hasStill ? (roll - StillWaterShare) / (1f - StillWaterShare) : roll;
+        return Mathf.Min(pairs - 1, (int)(share * pairs)) * 2;
+    }
+
+    // True for a look of water that flips to the next picture and back.
+    public bool WaterAnimated(int look)
+    {
+        return waterPictures != null && look % 2 == 0 && look + 1 < waterPictures.Length;
+    }
+
+    // The pictures a look of water shows in turn (one for the still one), or null if there are no water pictures.
+    public Sprite[] WaterFrames(int look)
+    {
+        if (waterPictures == null) return null;
+        look = Mathf.Clamp(look, 0, waterPictures.Length - 1);
+        return WaterAnimated(look) ? new[] { waterPictures[look].Sprite, waterPictures[look + 1].Sprite } : new[] { waterPictures[look].Sprite };
     }
 
     // Which of Taivan's algae blocks a square of algae shows: along a row they go in order from west to east, so the
