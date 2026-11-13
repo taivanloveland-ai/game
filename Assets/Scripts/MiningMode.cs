@@ -47,8 +47,8 @@ public class MiningMode : MonoBehaviour
     static readonly Color Stone = new Color32(70, 80, 96, 255);
     static readonly Color WaterDeep = new Color32(14, 34, 62, 255);
     const float WaterAlpha = 0.6f;
-    // His water blocks are tinted toward this the deeper they are.
-    static readonly Color WaterDepthTint = new Color32(60, 90, 140, 255);
+    // His water blocks, by look and depth.
+    readonly System.Collections.Generic.Dictionary<(int, int), Tile> waterTiles = new System.Collections.Generic.Dictionary<(int, int), Tile>();
 
     // Drawing order, back to front: the rows behind (furthest first, with 0 for one sliding in at the back), each with
     // the things standing on it just above it, then the front row, its darkness, a row sliding in at the front and
@@ -610,20 +610,23 @@ public class MiningMode : MonoBehaviour
             picture = planet.AlgaeLookSprite(look);
             iceLook = look + 1;
         }
-        // And water: his water blocks, the animated ones taking turns with the next picture. Unlike his other blocks
-        // they stay a little see-through and get darker toward the bed, so a swimmer and the bed can be seen.
-        Sprite[] waterFrames = block == PlanetOne.SideBlock.Water ? planet.WaterFrames(planet.WaterLookAt(x, worldRow)) : null;
-        if (waterFrames != null)
+        // And water: his water blocks, the animated ones taking turns with the next picture, all at the same moment, in
+        // the deep blue he asked for, darker the deeper they are (see PlanetOne.WaterSideFrames).
+        if (block == PlanetOne.SideBlock.Water)
         {
-            picture = waterFrames[0];
-            iceLook = planet.WaterLookAt(x, worldRow) + 1;
+            int waterLook = planet.WaterLookAt(x, worldRow, level);
+            Sprite[] waterFrames = planet.WaterSideFrames(waterLook, depth);
+            if (waterFrames != null)
+            {
+                if (!waterTiles.TryGetValue((waterLook, depth), out Tile waterTile))
+                {
+                    waterTile = waterFrames.Length > 1 ? AnimatedBlockTile.Make(Color.white, waterFrames, true) : PlanetOne.MakeTile(Color.white, waterFrames[0], true);
+                    waterTiles[(waterLook, depth)] = waterTile;
+                }
+                return waterTile;
+            }
         }
-        if (waterFrames != null)
-        {
-            color = Color.Lerp(Color.white, WaterDepthTint, (depth - 1) / 4f);
-            color.a = WaterAlpha;
-        }
-        else if (picture != null) color = Color.white;
+        if (picture != null) color = Color.white;
         // On the nature planet, every colour is turned to its own: grass on top, dirt under it.
         else if (PlanetOne.Nature) color = (Color)(block == PlanetOne.SideBlock.Snow && depth != 1 ? PlanetOne.Dirt((Color32)color) : PlanetOne.Greenery((Color32)color));
 
@@ -643,7 +646,7 @@ public class MiningMode : MonoBehaviour
         int key = (c.r << 16) | (c.g << 8) | c.b | (picture != null ? (int)block << 24 : 0) | (iceLook << 27);
         if (!tiles.TryGetValue(key, out Tile tile))
         {
-            tile = waterFrames != null && waterFrames.Length > 1 ? AnimatedBlockTile.Make(color, waterFrames, true) : PlanetOne.MakeTile(color, picture != null ? picture : planet.Square, true);
+            tile = PlanetOne.MakeTile(color, picture != null ? picture : planet.Square, true);
             tiles[key] = tile;
         }
         return tile;

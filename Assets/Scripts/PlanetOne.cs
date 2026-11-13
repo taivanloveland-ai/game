@@ -1673,7 +1673,8 @@ public class PlanetOne : MonoBehaviour
         // In the bio planet's jungle the grass is darker.
         if (material == Snow && Nature && JungleAt(x, y) >= 0.5f) variant |= JungleLook;
         // Which of his water blocks, and whether its animation starts on its second picture.
-        if (material == Water && waterPictures != null) variant = WaterLookAt(x, y) | (HashAt(x, y, variantSeed + 5011) < 0.5f ? WaterSecondFirst : 0);
+        // Which of his water blocks. (They all switch pictures at the same moment, asked 2026-11-12: "make the water animations line up".)
+        if (material == Water && waterPictures != null) variant = WaterLookAt(x, y);
 
         return TerrainTile(material, Mathf.Clamp(level, 0, 1), level, drop, rims, variant, FaceBlocks(x, y, level, drop), glassy && material == Ice);
     }
@@ -1793,8 +1794,6 @@ public class PlanetOne : MonoBehaviour
         if (terrainTiles.TryGetValue(key, out Tile tile)) return tile;
         bool jungle = (variant & JungleLook) != 0;
         variant &= ~JungleLook;
-        bool secondFirst = material == Water && (variant & WaterSecondFirst) != 0;
-        if (material == Water) variant &= ~WaterSecondFirst;
 
         // Snow has three looks, picked square by square: Taivan's three snow pictures.
         // So has ice: Taivan's ice blocks. And water: his water blocks.
@@ -1852,12 +1851,11 @@ public class PlanetOne : MonoBehaviour
             if (glassy) ice.a = IceGlassAlpha;
             return ice;
         }
-        // His animated water blocks flip between this picture and the next one; some squares start on the next one,
-        // so the water does not all change at the same moment.
+        // His animated water blocks flip between this picture and the next one, all of them at the same moment.
         if (material == Water && pictured && WaterAnimated(variant))
         {
             Sprite next = TerrainTile(Water, groundLevel, level, drop, rims, variant + 1, faceBlocks).sprite;
-            tile = AnimatedBlockTile.Make(Color.white, secondFirst ? new[] { next, sprite } : new[] { sprite, next }, false);
+            tile = AnimatedBlockTile.Make(Color.white, new[] { sprite, next }, false);
         }
         else tile = MakeTile(Color.white, sprite, false);
         terrainTiles[key] = tile;
@@ -1922,19 +1920,18 @@ public class PlanetOne : MonoBehaviour
     // take turns, 3 and 4, and 5 and 6; the last one (with an odd number of blocks) is still and is on half the water,
     // and the animated ones share the other half.
     BlockPicture[] waterPictures;
-    // Added to a water tile's look when its animation starts on its second picture.
-    const int WaterSecondFirst = 1 << 5;
     const float StillWaterShare = 0.5f;
 
     // Which of his water blocks a square of water shows: the first picture of an animated pair, or the still one.
-    // Picked at random for each square, always the same for the same square. 0 if there are none.
-    public int WaterLookAt(int x, int y)
+    // Picked at random for each square (and in the side view for each block down), always the same for the same one.
+    // 0 if there are none.
+    public int WaterLookAt(int x, int y, int level = 0)
     {
         if (waterPictures == null) return 0;
         int count = waterPictures.Length, pairs = count / 2;
         bool hasStill = count % 2 == 1;
         if (pairs == 0) return 0;
-        float roll = HashAt(x, y, variantSeed + 5003);
+        float roll = HashAt(x, y, variantSeed + 5003 + 7919 * level);
         if (hasStill && roll < StillWaterShare) return count - 1;
         float share = hasStill ? (roll - StillWaterShare) / (1f - StillWaterShare) : roll;
         return Mathf.Min(pairs - 1, (int)(share * pairs)) * 2;
@@ -1952,6 +1949,44 @@ public class PlanetOne : MonoBehaviour
         if (waterPictures == null) return null;
         look = Mathf.Clamp(look, 0, waterPictures.Length - 1);
         return WaterAnimated(look) ? new[] { waterPictures[look].Sprite, waterPictures[look + 1].Sprite } : new[] { waterPictures[look].Sprite };
+    }
+
+    // The side view's water (asked 2026-11-12: "make the main color of the top water the main color of the bottom
+    // water but keek the secondary color. the deeper parts are still darker."): his water blocks with their main blue
+    // turned to the deep navy the bottom of the water used to show, at the top, getting darker block by block down to
+    // half as bright at the bottom of the deepest ocean. His pale ripple colour is kept as he drew it. Solid, so every
+    // block shows exactly its colour.
+    static readonly Color32 SideWaterTop = new Color32(12, 38, 94, 255);
+    const float SideWaterDeepest = 0.5f;
+    readonly Dictionary<(int, int), Sprite[]> sideWaterFrames = new Dictionary<(int, int), Sprite[]>();
+    Color32? waterMain;
+
+    // The pictures a look of water shows in turn in the side view, this many blocks below the top of the water (1 is
+    // the top block). Null if there are no water pictures.
+    public Sprite[] WaterSideFrames(int look, int depth)
+    {
+        if (waterPictures == null) return null;
+        look = Mathf.Clamp(look, 0, waterPictures.Length - 1);
+        depth = Mathf.Clamp(depth, 1, OceanFloorDepth);
+        if (sideWaterFrames.TryGetValue((look, depth), out Sprite[] frames)) return frames;
+        if (waterMain == null)
+        {
+            // His main colour is the one most of his water is painted in.
+            var counts = new Dictionary<Color32, int>();
+            foreach (BlockPicture picture in waterPictures)
+                foreach (Color32 c in picture.Pixels) counts[c] = counts.TryGetValue(c, out int n) ? n + 1 : 1;
+            Color32 most = default;
+            int best = -1;
+            foreach (var pair in counts) if (pair.Value > best) { best = pair.Value; most = pair.Key; }
+            waterMain = most;
+        }
+        float dark = Mathf.Lerp(1f, SideWaterDeepest, (depth - 1) / (float)(OceanFloorDepth - 1));
+        var shade = new Color32((byte)(SideWaterTop.r * dark), (byte)(SideWaterTop.g * dark), (byte)(SideWaterTop.b * dark), 255);
+        Color32 main = waterMain.Value;
+        System.Func<Color32, Color32> turn = c => c.r == main.r && c.g == main.g && c.b == main.b ? shade : c;
+        frames = WaterAnimated(look) ? new[] { Recoloured(waterPictures[look], turn), Recoloured(waterPictures[look + 1], turn) } : new[] { Recoloured(waterPictures[look], turn) };
+        sideWaterFrames[(look, depth)] = frames;
+        return frames;
     }
 
     // Which of Taivan's algae blocks a square of algae shows: along a row they go in order from west to east, so the
